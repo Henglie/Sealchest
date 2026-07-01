@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 启动主题用的纯色背景。深色靛蓝，避免纯黑。Compose 内的动态配色由 Theme.kt 接管。 -->
+    <color name="sc_splash_bg">#FF101418</color>
+    <color name="sc_splash_status">#FF101418</color>
+</resources>

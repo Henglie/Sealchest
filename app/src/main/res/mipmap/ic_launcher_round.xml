@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- API 23-25 圆形兜底：老系统不支持 adaptive-icon，用圆底 + 安卓机器人前景
+     叠出圆形图标。两层都是 vector，零二进制。前景按安全区内缩。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@drawable/ic_launcher_background_round" />
+    <item
+        android:drawable="@drawable/ic_launcher_foreground"
+        android:left="18dp"
+        android:top="18dp"
+        android:right="18dp"
+        android:bottom="18dp" />
+</layer-list>

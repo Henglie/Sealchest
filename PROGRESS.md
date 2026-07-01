@@ -1,0 +1,108 @@
+# 密匣 Sealchest · PROGRESS
+
+> 给 AI / 开发者看。接手前先读根目录 `开发规范.md`，再读本文「技术栈红线」+「踩坑记录」两节。
+> 本地代号 AnnVeraCrypt（旧文件夹名），对外一律称**密匣 / Sealchest**。
+
+---
+
+## ▍一句话
+
+安卓无 root 加载 VeraCrypt 加密容器，纯用户态解密 + SAF 暴露文件系统。第一版只读 + FAT（FAT12/16/32）。
+
+---
+
+## ▍技术栈红线（本机实测组合，照搬 KarmaWitness，勿擅改）
+
+- **AGP 8.11.1 + Gradle 8.13 + Kotlin 2.1.20**，由 Android Studio JBR 21 跑（非系统 JDK）。
+- **compileSdk = 36 / targetSdk = 36 / minSdk = 23**。minSdk 23 = Android 6.0，覆盖 2015 至今（比"2019 起"要求更宽）。本机只装 android-36，故 compileSdk 锁 36。
+- **NDK 30.0.14904198 + CMake 3.22.1**，ABI：arm64-v8a / armeabi-v7a / x86_64，C++/C17。
+- 包名 `com.henglie.sealchest`，.so 名 `libsealchest.so`。
+- Compose + Material3，**用谷歌原生 M3，不套 FairyGlass 玻璃风**（用户明确要求，安卓项目例外）。
+- 安卓视觉与代码遵循 `skills/android-native-dev`、`skills/android-project-generator`、`skills/kotlin`。
+
+### 本机环境关键路径（换机需改）
+
+- SDK：`D:/Program Files/Android/Sdk`
+- JBR：`D:/Program Files/Android/Android Studio/jbr`（钉进 gradle.properties 的 `org.gradle.java.home`）
+- adb：`D:/CTFRe_ToolsBox_ESS/T00Ls/Android_Tools/搞机工具箱11.0.1/adb.exe`（或 SDK platform-tools 自带）
+- 本机无 gradle CLI，wrapper jar 从 KarmaWitness 复用。
+
+---
+
+## ▍架构分层
+
+```
+Compose UI (M3)  选容器 → 输密码/PIM/PRF → 浏览文件
+      │
+SAF DocumentsProvider  把解开的 FAT 暴露给系统/他 app
+      │
+FAT 文件系统层 (Kotlin)  只读解析 FAT12/16/32
+      │
+JNI 桥 (NativeBridge.kt + native_lib.cpp)  开卷/按扇区解密
+      │
+VeraCrypt crypto 核心 (纯 C, 移植自 third_party/VeraCrypt)
+```
+
+JNI 只暴露三个能力：开卷（验密码、派生密钥、出 CRYPTO_INFO 句柄）、按扇区解密、关卷（销毁密钥）。
+
+---
+
+## ▍第一版范围（已与用户敲定）
+
+- 只读，不写入（写入版二期）。
+- 内层文件系统：FAT12 / FAT16 / FAT32。exFAT、NTFS 不做（exFAT 是独立格式，留二期）。
+- 加密算法：全套编入（AES/Serpent/Twofish/Camellia/Kuznyechik 级联 + 各哈希/Argon2id），最大化容器兼容性。
+- 暴露方式：SAF DocumentsProvider。
+
+---
+
+## ▍移植清单（VeraCrypt C 核心 → src/main/cpp）
+
+来源 `third_party/VeraCrypt/src/`，已勘察确认纯 C 回退路径完整，开 `CRYPTOPP_DISABLE_ASM` 即可 ARM 编译。
+
+**Crypto/**：config.h, cpu.c/h, misc.h, Aes*(.c/h), Serpent, Twofish, Camellia, kuznyechik, Sha2, Whirlpool, Streebog, blake2s, Argon2/。可选 ARM 加速 Aes_hw_armv8.c / sha256_armv8.c。
+**Common/**：Tcdefs.h, Crypto.c/h, Volumes.c/h, Pkcs5.c/h, Endian.c/h, GfMul.c/h, Xts.c/h, Crc.c/h, Password.h, EncryptionThreadPool.h（stub）。
+**排除**：所有 .asm / *_x86.S / *_x64.S / SSE / SIMD / RNG / jitterentropy / t1ha / wolfCrypt / sm4。
+
+**需 stub 的平台符号**：`CRYPTOPP_DISABLE_ASM`=1、`VirtualLock/Unlock`→空、`GetEncryptionThreadCount`→返 1（强制单线程）、`EncryptionThreadPoolDoWork`→直调 DecryptDataUnitsCurrentThread、`<io.h>` 在 Volumes.c 排除。`ReadVolumeHeaderWithAbort` 吃内存 buffer，不碰文件 I/O。
+
+**卷头格式**：salt 偏移 0 长 64；加密区 64..512（448 字节）；magic "VERA" 0x56455241 在偏移 64；主密钥区偏移 256 长 256。PBKDF2 迭代默认 SHA256 non-boot 500000，PIM≠0 时 15000+pim*1000。
+
+---
+
+## ▍进度
+
+- [x] 建本地 git，克隆 VeraCrypt 源到 third_party/VeraCrypt
+- [x] 勘察 VeraCrypt C 核心，确认 ARM 可编译 + 移植清单
+- [x] 敲定范围（只读/FAT/全算法/SAF）与命名（密匣 Sealchest）
+- [x] 补 README.md / PROGRESS.md
+- [x] 生成 Gradle 工程骨架（照搬 KarmaWitness 配置），复用 wrapper jar
+- [x] 最小 native 链路（sha256 自检 + NativeBridge）+ 安卓机器人图标
+- [x] 首次 `assembleDebug` 跑通：三 ABI 的 libsealchest.so 全编入 APK，工具链命门已验证（`compiled` 态）
+- [x] 移植 VeraCrypt C 核心 + 平台 stub，扩 CMakeLists（第二阶段重头）
+- [x] 扩 JNI 桥（开卷/解扇区/关卷）+ NativeBridge 对应方法
+- [x] 用已知 VeraCrypt 测试容器验证开卷 + 解扇区正确性（官方 test.*.hc 三 PRF 全过，见踩坑）
+- [ ] FAT 文件系统只读解析层
+- [ ] SAF DocumentsProvider
+- [ ] Compose M3 UI（选容器/输密码/浏览）
+- [ ] 真机 / 模拟器安装启动验证
+
+---
+
+## ▍踩坑记录
+
+- 本机系统 JDK 是 25，Gradle 8.13 上限 JDK 23 → 必须用 gradle.properties 的 `org.gradle.java.home` 钉死到 Studio JBR 21，否则命令行 gradlew 误用 25 报错。（沿用 KarmaWitness 结论）
+- 项目路径含中文「我的项目源码」，AGP 默认拒绝非 ASCII 路径 → gradle.properties 开 `android.overridePathCheck=true`。但 NDK/CMake 对中文路径更敏感，若 native 重编因路径炸，退路是把工程复制到纯英文路径（如桌面）再编。
+- 命名红线：TrueCrypt License 3.0 禁止用 TrueCrypt/VeraCrypt 命名衍生品 → 对外名「密匣 Sealchest」完全独立，仅在 NOTICE/README 注明加密核心来源。
+- 第二阶段起步坑：`cpp/veracrypt/` 现在是**整棵 Common/+Crypto/ 全量复制**（Common 25 个 .c、Crypto 33 个 .c），含 BootEncryption/EMVCard/Dlgcode/libzip 等大量与解密无关的文件。头文件必须全留（VeraCrypt 内部用 `"Common/Endian.h"`、`"Crypto/cpu.h"` 这种相对 src/ 的 include，结构不能动），但 **CMake 只挑要编的 .c**，没列进 CMakeLists 的 .c 躺着不参与编译、无害。不要试图删文件去"瘦身"，删了会断 include。
+- 平台适配落点（已通读 Tcdefs.h/config.h 确认）：NDK 下 `_MSC_VER`/`_WIN32` 均不定义 → Tcdefs.h 自动走第 122 行起的 POSIX 分支，整型/`burn`/`TCalloc`(malloc) 都正确。命门是 `TC_EVENT`/`LONG`/`WORD` 只在 Windows 分支定义，而 Crypto.c include 了 EncryptionThreadPool.h 会用到 → 需写一个 `sc_compat.h`（force include）补这些类型 + `VirtualLock/Unlock` 空宏 + `CRYPTOPP_DISABLE_ASM=1`，并自写单线程 stub 替代 EncryptionThreadPool.c（`GetEncryptionThreadCount`→1、`EncryptionThreadPoolDoWork`→直调 `*DataUnitsCurrentThread`）。
+- **XTS 数据单元号是文件绝对偏移，不是数据区相对**。真容器实测坐实：`decryptUnits` 的 `startUnit` = `EncryptedAreaStart/512`（512KB 容器为 256），传 0 解出的是垃圾。原 PROGRESS「数据区起始为 0」的推断是错的。FAT 层按扇区读时，单元号 = 文件字节偏移/512，EncryptedAreaStart 之前的头区不解密。判据：解对的 FAT 引导扇区必 `MSDOS5.0` OEM 名 + 末尾 `55 AA`。
+- **SHANI 必须单独关**。`CRYPTOPP_SHANI_AVAILABLE`（config.h:200）只看 `!CRYPTOPP_DISABLE_SHANI` + X64 + clang 版本够高，**与 `DISABLE_ASM` 无关**。sc_compat.h 关了 ASM/SSE2/SSSE3/AESNI/ARM 全家，唯独漏 SHANI → x86_64 上 cpu.c:372 引用未编入的 `TrySHA256`（在排除的 Sha2Intel.c）链接失败。补 `CRYPTOPP_DISABLE_SHANI 1`。这坑只在 x86_64 ABI 暴露（arm64 默认无 `__SHA__`），SHARED 库靠延迟绑定侥幸过、executable 严格暴露 → 发 x86_64 ABI 也受益。
+- word64 桩别乱加：`xts_encrypt/decrypt`（用 `word64`）只在 `#ifdef WOLFCRYPT_BACKEND` 分支被调（Xts.c:63/393 的 `#else`），我们没定义它 → 走 `#ifndef` 纯软 `EncryptBufferXTSParallel/NonParallel`，那俩符号根本不被引用。sc_stubs.c 里给它们写桩纯属多余，还因 `word64` 无 typedef 直接编译失败。已删。
+- 本机验证宿主 = x86_64 模拟器，非真机 arm。密码学正确性与 CPU 架构无关，交叉编到 `x86_64-linux-android` 推模拟器跑，秒级迭代。测试器 sc_test.c 只 include 纯净门面 sc_volume.h，走与 JNI 同一条 C API；CMake 用 `-DSC_BUILD_TEST=ON` 单独出可执行，gradle 不传此开关 → 不污染 APK 构建。adb push 到 `/data/local/tmp` 必须前置 `MSYS_NO_PATHCONV=1`，否则 MSYS 把路径篡改成 `C:/Program Files/Git/data/...`。
+
+---
+
+## ▍许可
+
+加密核心移植自 VeraCrypt（Apache-2.0 + TrueCrypt License 3.0），保留原始版权声明于 third_party/。密匣为独立产品。

@@ -1,0 +1,29 @@
+# 构建产物
+build/
+.gradle/
+*.apk
+*.ap_
+# NDK/CMake 构建缓存
+app/.cxx/
+# native 验证器临时构建目录（SC_BUILD_TEST）
+app/src/main/cpp/build_test/
+
+# 调试日志
+*.log
+
+# 本机配置（含绝对路径，换机需重建）
+local.properties
+
+# IDE
+.idea/
+*.iml
+.vs/
+
+# 开发规范通用项
+dist/
+临时/
+快照*/
+
+# 第三方源码：VeraCrypt 全量克隆体积大，不入主仓库。
+# 真正参与编译的 C 核心已复制进 app/src/main/cpp/veracrypt/，那部分要跟踪。
+third_party/

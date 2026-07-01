@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- API 23-25 兜底：老系统不支持 adaptive-icon，用 layer-list 把
+     背景 + 安卓机器人前景叠起来。两层都是 vector，零二进制。
+     前景按 adaptive 的安全区内缩，避免老启动器把机器人切到边缘。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@drawable/ic_launcher_background" />
+    <item
+        android:drawable="@drawable/ic_launcher_foreground"
+        android:left="18dp"
+        android:top="18dp"
+        android:right="18dp"
+        android:bottom="18dp" />
+</layer-list>

@@ -1,0 +1,7 @@
+<resources>
+    <!-- 启动主题：Compose 接管前的窗口背景，避免白屏闪烁。
+         用 Material3 的 DayNight，跟随系统深浅色。 -->
+    <style name="Theme.Sealchest" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">?android:attr/colorBackground</item>
+    </style>
+</resources>

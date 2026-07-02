@@ -126,4 +126,21 @@ object MountManager {
         if (m.closed) return null
         block(m.fs)
     }
+
+    /**
+     * 在锁内执行 FAT 操作，且要求当前挂载仍是 [expectMountId]。用于跨多次调用的
+     * 流式读取（如 [SealchestDocumentsProvider] 的 openDocument 后台线程）：每读一块
+     * 都校验挂载没被换 / 上锁，避免读到新卷的内容或 use-after-free。
+     *
+     * 返回 null 有两种情况：未挂载，或当前挂载 id 已非 [expectMountId]（被换 / 已上锁）。
+     * 调用方据此安全中止流。
+     */
+    fun <R> withMount(expectMountId: Long, block: (FatFileSystem) -> R): R? = synchronized(lock) {
+        val m = current ?: return null
+        if (m.closed || m.mountId != expectMountId) return null
+        block(m.fs)
+    }
+
+    /** 当前挂载 id，未挂载为 0。供流式读取开始时抓取基准。 */
+    fun currentMountId(): Long = synchronized(lock) { current?.takeIf { !it.closed }?.mountId ?: 0L }
 }

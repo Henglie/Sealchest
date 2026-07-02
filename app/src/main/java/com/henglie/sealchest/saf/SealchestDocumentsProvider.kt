@@ -2,7 +2,6 @@ package com.henglie.sealchest.saf
 
 import android.database.Cursor
 import android.database.MatrixCursor
-import android.graphics.Point
 import android.os.CancellationSignal
 import android.os.ParcelFileDescriptor
 import android.provider.DocumentsContract.Document
@@ -10,7 +9,6 @@ import android.provider.DocumentsContract.Root
 import android.provider.DocumentsProvider
 import com.henglie.sealchest.fs.FatFileSystem
 import com.henglie.sealchest.fs.MountManager
-import java.io.ByteArrayOutputStream
 
 /**
  * 把当前解锁的 FAT 卷暴露给系统 SAF（文件选择器 / 其它 app）。
@@ -66,21 +64,12 @@ class SealchestDocumentsProvider : DocumentsProvider() {
         "${ref.path}|${ref.firstCluster}|${ref.size}|${if (ref.isDir) 1 else 0}"
 
     private fun decode(docId: String): DocRef {
-        if (docId == ROOT_DOC_ID) {
-            val fs = fsOrThrow()
-            return DocRef("", rootClusterOf(fs), 0, true)
-        }
+        // 根 docId 不碰 fs：listRoot 内部自判类型定位根目录，这里的 firstCluster 用不上。
+        if (docId == ROOT_DOC_ID) return DocRef("", 0, 0, true)
         val parts = docId.split("|")
         require(parts.size == 4) { "非法 docId: $docId" }
         return DocRef(parts[0], parts[1].toLong(), parts[2].toLong(), parts[3] == "1")
     }
-
-    private fun rootClusterOf(fs: FatFileSystem): Long =
-        // FAT32 根目录有真实簇号；FAT12/16 根目录无簇号，用 0 作哨兵，listChildren 特判。
-        when (fs.fatType) {
-            FatFileSystem.FatType.FAT32 -> -1L  // -1 = 走 listRoot（FAT32 内部已知 rootCluster）
-            else -> 0L
-        }
 
     // ---------------- roots ----------------
 
@@ -119,14 +108,14 @@ class SealchestDocumentsProvider : DocumentsProvider() {
         sortOrder: String?,
     ): Cursor {
         val cursor = MatrixCursor(projection ?: DEFAULT_DOC_COLS)
-        val fs = fsOrThrow()
         val parent = decode(parentDocumentId)
 
-        val entries = if (parentDocumentId == ROOT_DOC_ID || parent.path.isEmpty()) {
-            fs.listRoot()
-        } else {
-            fs.listDir(parent.firstCluster)
-        }
+        // 列目录整段在 MountManager 锁内完成：VeraCrypt 核心单线程 + VolumeReader
+        // 缓存非线程安全，Provider 又会被系统并发拉起，必须串行化。
+        val entries = MountManager.withFs { fs ->
+            if (parentDocumentId == ROOT_DOC_ID || parent.path.isEmpty()) fs.listRoot()
+            else fs.listDir(parent.firstCluster)
+        } ?: throw java.io.FileNotFoundException("容器未挂载或已锁定")
 
         val parentPath = if (parentDocumentId == ROOT_DOC_ID) "" else parent.path
         for (e in entries) {
@@ -143,15 +132,22 @@ class SealchestDocumentsProvider : DocumentsProvider() {
         signal: CancellationSignal?,
     ): ParcelFileDescriptor {
         if (mode != "r") throw UnsupportedOperationException("只读，不支持写入模式: $mode")
-        val fs = fsOrThrow()
         val ref = decode(documentId)
         if (ref.isDir) throw java.io.FileNotFoundException("目录不能作为文件打开")
+
+        // 抓取当前挂载 id 作基准：后台线程每读一块都校验挂载没被换 / 上锁。
+        // 打开时就没挂载则直接失败。
+        val mountId = MountManager.currentMountId()
+        if (mountId == 0L) throw java.io.FileNotFoundException("容器未挂载或已锁定")
 
         val pipe = ParcelFileDescriptor.createReliablePipe()
         val readSide = pipe[0]
         val writeSide = pipe[1]
 
         // 后台线程流式解密 + 写入管道，避免大文件阻塞 / OOM。
+        // 每块读取经 MountManager.withMount 进锁 + 校验挂载 id：用户中途上锁 /
+        // 换卷时，withMount 返回 null，循环安全中止（不会 use-after-free，也不会
+        // 把新卷内容混进旧文件流）。
         Thread({
             ParcelFileDescriptor.AutoCloseOutputStream(writeSide).use { os ->
                 try {
@@ -159,7 +155,9 @@ class SealchestDocumentsProvider : DocumentsProvider() {
                     while (pos < ref.size) {
                         if (signal?.isCanceled == true) break
                         val want = minOf(PIPE_CHUNK.toLong(), ref.size - pos).toInt()
-                        val chunk = fs.readFile(ref.firstCluster, ref.size, pos, want)
+                        val chunk = MountManager.withMount(mountId) { fs ->
+                            fs.readFile(ref.firstCluster, ref.size, pos, want)
+                        } ?: break   // 挂载已变 / 上锁：安全中止流
                         if (chunk.isEmpty()) break
                         os.write(chunk)
                         pos += chunk.size
@@ -187,9 +185,6 @@ class SealchestDocumentsProvider : DocumentsProvider() {
     }
 
     // ---------------- helpers ----------------
-
-    private fun fsOrThrow(): FatFileSystem =
-        MountManager.currentMount()?.fs ?: throw java.io.FileNotFoundException("容器未挂载或已锁定")
 
     private fun addRow(
         cursor: MatrixCursor,

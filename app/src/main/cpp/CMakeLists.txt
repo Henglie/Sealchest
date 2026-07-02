@@ -106,6 +106,14 @@ target_compile_options(veracrypt_core PRIVATE
         -include ${CMAKE_CURRENT_SOURCE_DIR}/sc_compat.h
 )
 
+# GNU89 inline 语义：VeraCrypt cpu.c 的 CPU_QueryAES/CPU_QuerySHA2 是纯 `inline`
+# （无 static/extern）。C99 语义下纯 inline 不产生外部符号，Debug(-O0) 不内联时
+# DetectArmFeatures 引用它俩链接失败（arm64 特有，Release -O2 内联侥幸过）。
+# gnu89-inline 下纯 inline 会产出外部定义 —— 这也是 VeraCrypt 原本假设的语义。
+target_compile_options(veracrypt_core PRIVATE
+        -fgnu89-inline
+)
+
 # VeraCrypt 源在 POSIX 分支下有大量旧式写法，压掉噪声警告，保留真错误。
 target_compile_options(veracrypt_core PRIVATE
         -Wno-unused-parameter

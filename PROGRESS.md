@@ -82,10 +82,11 @@ JNI 只暴露三个能力：开卷（验密码、派生密钥、出 CRYPTO_INFO 
 - [x] 移植 VeraCrypt C 核心 + 平台 stub，扩 CMakeLists（第二阶段重头）
 - [x] 扩 JNI 桥（开卷/解扇区/关卷）+ NativeBridge 对应方法
 - [x] 用已知 VeraCrypt 测试容器验证开卷 + 解扇区正确性（官方 test.*.hc 三 PRF 全过，见踩坑）
-- [ ] FAT 文件系统只读解析层
-- [ ] SAF DocumentsProvider
-- [ ] Compose M3 UI（选容器/输密码/浏览）
-- [ ] 真机 / 模拟器安装启动验证
+- [x] FAT 文件系统只读解析层（FAT12/16/32：BPB + 簇链 + 短名/VFAT 长名，见 fs/）
+- [x] SAF DocumentsProvider（把解锁卷暴露给系统文件选择器，只读，明文只走进程内管道）
+- [x] Compose M3 UI（选容器/输密码/PIM/PRF/解锁/浏览/上锁）
+- [x] `assembleDebug` 三 ABI 全过，APK 产出（23MB）
+- [ ] 真机 / 模拟器安装启动 + 端到端解锁浏览验证（构建已过，端到端未跑）
 
 ---
 
@@ -100,6 +101,10 @@ JNI 只暴露三个能力：开卷（验密码、派生密钥、出 CRYPTO_INFO 
 - **SHANI 必须单独关**。`CRYPTOPP_SHANI_AVAILABLE`（config.h:200）只看 `!CRYPTOPP_DISABLE_SHANI` + X64 + clang 版本够高，**与 `DISABLE_ASM` 无关**。sc_compat.h 关了 ASM/SSE2/SSSE3/AESNI/ARM 全家，唯独漏 SHANI → x86_64 上 cpu.c:372 引用未编入的 `TrySHA256`（在排除的 Sha2Intel.c）链接失败。补 `CRYPTOPP_DISABLE_SHANI 1`。这坑只在 x86_64 ABI 暴露（arm64 默认无 `__SHA__`），SHARED 库靠延迟绑定侥幸过、executable 严格暴露 → 发 x86_64 ABI 也受益。
 - word64 桩别乱加：`xts_encrypt/decrypt`（用 `word64`）只在 `#ifdef WOLFCRYPT_BACKEND` 分支被调（Xts.c:63/393 的 `#else`），我们没定义它 → 走 `#ifndef` 纯软 `EncryptBufferXTSParallel/NonParallel`，那俩符号根本不被引用。sc_stubs.c 里给它们写桩纯属多余，还因 `word64` 无 typedef 直接编译失败。已删。
 - 本机验证宿主 = x86_64 模拟器，非真机 arm。密码学正确性与 CPU 架构无关，交叉编到 `x86_64-linux-android` 推模拟器跑，秒级迭代。测试器 sc_test.c 只 include 纯净门面 sc_volume.h，走与 JNI 同一条 C API；CMake 用 `-DSC_BUILD_TEST=ON` 单独出可执行，gradle 不传此开关 → 不污染 APK 构建。adb push 到 `/data/local/tmp` 必须前置 `MSYS_NO_PATHCONV=1`，否则 MSYS 把路径篡改成 `C:/Program Files/Git/data/...`。
+- **纯 `inline` 函数在 Debug(-O0) 链接失败**。cpu.c 的 `CPU_QueryAES`/`CPU_QuerySHA2`（arm64 分支）、`TrySHA256` 等是 C99 纯 `inline`（无 static/extern）→ C99 语义下不产生外部符号，-O0 不内联时 `DetectArmFeatures` 引用它们即 undefined。x86_64 测试用 -O2 内联了没暴露，arm64 Debug 才炸。修：veracrypt_core 加 `-fgnu89-inline`（GNU89 inline 语义让纯 inline 产出外部定义，VeraCrypt 本就假设这套），全 ABI 通用，不动源码。
+- **SAF authority 用 `${applicationId}.documents` 占位符，别写死**。debug 构建 applicationId 带 `.debug` 后缀（`applicationIdSuffix`），Manifest 若写死 `com.henglie.sealchest.documents`，而 UI 用 `packageName + ".documents"` 拼出的是 `...debug.documents` → 不匹配，浏览打不开。Manifest authority 用 `${applicationId}.documents`，AGP 按构建类型替换，UI 侧 `packageName` 自然一致。
+- 偏移语义收口在 VolumeReader：FAT 层只见「卷内逻辑偏移」(0 = 数据区首字节 = 解密后引导扇区)，VolumeReader 内部换算 `文件绝对偏移 = EncryptedAreaStart + 逻辑偏移`、`XTS 单元号 = 文件绝对偏移/512`，把实测纠正的绝对单元号语义封死一处，上层不重复踩。带 256KB LRU 解密单元缓存扛 FAT 表热点随机访问。
+- 明文不落盘：DocumentsProvider `openDocument` 用 `createReliablePipe` + 后台线程流式解密写入管道，直接喂给调用方 app，不写临时明文文件。密钥只在进程内存，进程死即销毁；`onDestroy` 不主动上锁（别的 app 可能仍在读挂载中的文件）。
 
 ---
 

@@ -20,6 +20,22 @@
             </intent-filter>
         </activity>
 
+        <!-- SAF：把解锁的 FAT 卷暴露给系统文件选择器 / 其它 app。
+             authority 与代码里的 AUTHORITY 常量一致。
+             exported=true + 系统权限 MANAGE_DOCUMENTS：仅系统 DocumentsUI 能绑定，
+             第三方 app 只能经系统选择器间接访问，拿不到 Provider 本体。
+             grantUriPermissions：允许把单个文档的读权限临时授给打开它的 app。 -->
+        <provider
+            android:name=".saf.SealchestDocumentsProvider"
+            android:authorities="com.henglie.sealchest.documents"
+            android:exported="true"
+            android:grantUriPermissions="true"
+            android:permission="android.permission.MANAGE_DOCUMENTS">
+            <intent-filter>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
+            </intent-filter>
+        </provider>
+
     </application>
 
 </manifest>

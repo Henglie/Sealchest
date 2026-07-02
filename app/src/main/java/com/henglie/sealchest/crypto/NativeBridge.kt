@@ -103,7 +103,13 @@ object NativeBridge {
 
         /**
          * 原地解密 [buf] 中的 [nbrUnits] 个 512B 数据单元，起始 XTS 单元号 [startUnit]。
-         * [buf] 长度须 ≥ [nbrUnits] * [UNIT_SIZE]。单元号以卷数据区起始为 0。
+         * [buf] 长度须 ≥ [nbrUnits] * [UNIT_SIZE]。
+         *
+         * 单元号语义（真容器实测坐实，见 PROGRESS 踩坑）：**文件绝对偏移 / 512**，
+         * 不是数据区相对。数据区第一扇区在文件偏移 [encryptedAreaStart] 处，其单元号
+         * = [encryptedAreaStart] / 512。故读容器内逻辑偏移 L（0 = 数据区首扇区）时，
+         * 密文取自文件偏移 [encryptedAreaStart] + L，单元号 = ([encryptedAreaStart] + L) / 512。
+         * 这套映射封在 VolumeReader 里，FAT 层只见逻辑偏移。
          */
         fun decryptUnits(startUnit: Long, buf: ByteArray, nbrUnits: Int) {
             check(handle != 0L) { "卷已关闭" }

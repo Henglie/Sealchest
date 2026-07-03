@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider 暴露路径：仅导出到 cacheDir/exported 的解密临时文件。
+     不暴露其它目录，明文只在此临时落地，用后由 UI 清理。 -->
+<paths>
+    <cache-path name="exported" path="exported/" />
+</paths>

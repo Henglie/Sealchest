@@ -103,6 +103,8 @@ object MountManager {
             // 成功了才替换 + 关旧挂载。
             current?.close()
             current = mount
+            // 通知系统 SAF 根变了（从无根变有根），老 DocumentsUI 才会重查看见入口。
+            com.henglie.sealchest.saf.SafNotify.rootsChanged(context.applicationContext)
             return mount
         } catch (t: Throwable) {
             // 失败：清掉本次半成品，绝不动 current。
@@ -114,10 +116,15 @@ object MountManager {
         }
     }
 
-    /** 上锁：关闭并清除当前挂载。销毁密钥。 */
-    fun lock() = synchronized(lock) {
+    /** 上锁：关闭并清除当前挂载。销毁密钥。[context] 用于通知 SAF 根消失。 */
+    fun lock(context: Context? = null) = synchronized(lock) {
+        val had = current != null
         current?.close()
         current = null
+        // 通知系统根消失（从有根变无根），文件管理器里的入口随之消失。
+        if (had) context?.applicationContext?.let {
+            com.henglie.sealchest.saf.SafNotify.rootsChanged(it)
+        }
     }
 
     /** 在锁内执行 FAT 操作。Provider / UI 都经此串行化访问。未挂载返回 null。 */

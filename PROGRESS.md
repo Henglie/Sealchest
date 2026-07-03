@@ -86,7 +86,10 @@ JNI 只暴露三个能力：开卷（验密码、派生密钥、出 CRYPTO_INFO 
 - [x] SAF DocumentsProvider（把解锁卷暴露给系统文件选择器，只读，明文只走进程内管道）
 - [x] Compose M3 UI（选容器/输密码/PIM/PRF/解锁/浏览/上锁）
 - [x] `assembleDebug` 三 ABI 全过，APK 产出（23MB）
-- [ ] 真机 / 模拟器安装启动 + 端到端解锁浏览验证（构建已过，端到端未跑）
+- [x] 真机端到端验收：一加安卓16 经系统文件管理器解锁 + 浏览 + 看文件全通过
+- [x] 内置文件浏览器（browse/）：目录栈导航 + 图片/文本内嵌预览 + 导出到手机 + 用其它应用打开。不依赖系统 DocumentsUI，破解老安卓（雷电 7/9）文件管理器不认第三方 SAF 的困局，也是对齐 EDS/VaultExplorer/CryptoContainer 的必备能力
+- [x] SAF 通知修复：解锁/上锁后对 roots URI 发 notifyChange，老 DocumentsUI 才会重查看见/隐藏入口
+- [ ] 雷电模拟器（安卓7/9）端到端：内置浏览器路径待验（系统文件管理器路径老机型多半仍看不见，属系统侧限制）
 
 ---
 
@@ -105,6 +108,9 @@ JNI 只暴露三个能力：开卷（验密码、派生密钥、出 CRYPTO_INFO 
 - **SAF authority 用 `${applicationId}.documents` 占位符，别写死**。debug 构建 applicationId 带 `.debug` 后缀（`applicationIdSuffix`），Manifest 若写死 `com.henglie.sealchest.documents`，而 UI 用 `packageName + ".documents"` 拼出的是 `...debug.documents` → 不匹配，浏览打不开。Manifest authority 用 `${applicationId}.documents`，AGP 按构建类型替换，UI 侧 `packageName` 自然一致。
 - 偏移语义收口在 VolumeReader：FAT 层只见「卷内逻辑偏移」(0 = 数据区首字节 = 解密后引导扇区)，VolumeReader 内部换算 `文件绝对偏移 = EncryptedAreaStart + 逻辑偏移`、`XTS 单元号 = 文件绝对偏移/512`，把实测纠正的绝对单元号语义封死一处，上层不重复踩。带 256KB LRU 解密单元缓存扛 FAT 表热点随机访问。
 - 明文不落盘：DocumentsProvider `openDocument` 用 `createReliablePipe` + 后台线程流式解密写入管道，直接喂给调用方 app，不写临时明文文件。密钥只在进程内存，进程死即销毁；`onDestroy` 不主动上锁（别的 app 可能仍在读挂载中的文件）。
+- **老安卓看不见 SAF 入口 → 必须内置浏览器**。实测：一加安卓16 自带文件管理器能正常从系统里进容器；雷电模拟器（安卓7/9）自带文件管理器太老，多半不认第三方 DocumentsProvider，用户「看不见容器入口」。这不是我们能改的（对方 app 老）。破局＝内置文件浏览器（`browse/BrowserScreen`），自己遍历 FAT + 预览（图片走 BitmapFactory、文本走前 256KB）+ 导出（SAF CreateDocument）+ 用其它应用打开（FileProvider）。SAF Provider 降级为「额外暴露」，内置浏览器才是任何机型都能用的主入口。竞品 EDS/VaultExplorer/CryptoContainer 都有内置浏览器，是必备能力。
+- **解锁/上锁后要 `notifyChange` roots URI**。否则老 DocumentsUI 缓存了「无此来源」，解锁后仍不显示入口。`SafNotify.rootsChanged` 对 `content://<authority>/root` 发通知，`MountManager.unlock` 成功后 / `lock` 后各调一次。`lock(context)` 因此要收 context（可空，UI 调时传）。
+- 「用其它应用打开」＝明文短暂落 `cacheDir/export`，经 FileProvider 给 content URI（authority `${applicationId}.fileprovider`，别与 documents 那个混）。这是安全权衡：要把文件交给系统看图/PDF 的 app 就无法全程只在内存。上锁 (`onLock`) 和 `onDestroy` 都调 `FileExport.clearExportCache` 清明文。极端敏感场景应只用内置预览、不用「用其它应用打开」。
 
 ---
 

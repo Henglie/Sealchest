@@ -48,6 +48,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.henglie.sealchest.browse.BrowserScreen
+import com.henglie.sealchest.browse.FileExport
 import com.henglie.sealchest.crypto.NativeBridge
 import com.henglie.sealchest.fs.FatFileSystem
 import com.henglie.sealchest.fs.MountManager
@@ -62,7 +64,15 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             SealchestTheme {
-                HomeScreen()
+                // 顶层在「主屏」与「内置浏览器」之间切换。内置浏览器不依赖系统
+                // DocumentsUI —— 老安卓（7/9）自带文件管理器多半不认第三方 SAF，
+                // 内置浏览器保证任何机型都能浏览容器。
+                var showBrowser by remember { mutableStateOf(false) }
+                if (showBrowser && MountManager.isMounted) {
+                    BrowserScreen(onExit = { showBrowser = false })
+                } else {
+                    HomeScreen(onBrowse = { showBrowser = true })
+                }
             }
         }
     }
@@ -86,7 +96,7 @@ private val PRF_OPTIONS = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun HomeScreen() {
+private fun HomeScreen(onBrowse: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -152,9 +162,13 @@ private fun HomeScreen() {
                 MountedPanel(
                     fs = m.fs,
                     displayName = m.displayName,
-                    onBrowse = { launchBrowse(context) },
+                    // 内置浏览器（主入口，不依赖系统文件管理器）。
+                    onBrowse = onBrowse,
+                    // 系统文件管理器（SAF，额外入口）。老安卓文件管理器可能不认。
+                    onBrowseSaf = { launchBrowse(context) },
                     onLock = {
-                        MountManager.lock()
+                        MountManager.lock(context)
+                        FileExport.clearExportCache(context)
                         mountToken++
                         pickedUri = null
                         password = ""
@@ -273,6 +287,7 @@ private fun MountedPanel(
     fs: FatFileSystem,
     displayName: String,
     onBrowse: () -> Unit,
+    onBrowseSaf: () -> Unit,
     onLock: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {

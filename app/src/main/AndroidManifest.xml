@@ -20,6 +20,19 @@
             </intent-filter>
         </activity>
 
+        <!-- FileProvider：把内置浏览器导出的解密临时文件（cacheDir/exported）
+             以 content:// 授权给「用其它应用打开」的目标 app。仅授临时读权限，
+             不暴露其它目录。明文文件用后由浏览器清理。 -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <!-- SAF：把解锁的 FAT 卷暴露给系统文件选择器 / 其它 app。
              authority 与代码里的 AUTHORITY 常量一致。
              exported=true + 系统权限 MANAGE_DOCUMENTS：仅系统 DocumentsUI 能绑定，

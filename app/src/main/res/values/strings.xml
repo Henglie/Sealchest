@@ -66,6 +66,18 @@
     <string name="browse_image_decode_failed">Failed to decode image</string>
     <string name="browse_export_open_failed">Export failed, cannot open</string>
     <string name="browse_no_app_for_type">No app can open this type</string>
+    <string name="browse_action_overwrite">Overwrite with phone file</string>
+    <string name="browse_action_delete">Delete</string>
+    <string name="browse_import_file">Import file into container</string>
+    <string name="browse_delete_confirm_title">Delete file</string>
+    <string name="browse_delete_confirm_msg">Delete \"%1$s\" from this container? This cannot be undone.</string>
+    <string name="browse_delete_confirm_yes">Delete</string>
+    <string name="browse_write_ok">Written: %1$s</string>
+    <string name="browse_write_failed">Write failed</string>
+    <string name="browse_overwrite_ok">Overwritten: %1$s</string>
+    <string name="browse_overwrite_failed">Overwrite failed</string>
+    <string name="browse_delete_ok">Deleted: %1$s</string>
+    <string name="browse_delete_failed">Delete failed</string>
 
     <!-- Common -->
     <string name="cancel">Cancel</string>

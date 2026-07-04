@@ -64,6 +64,18 @@
     <string name="browse_image_decode_failed">图片解码失败</string>
     <string name="browse_export_open_failed">导出失败，无法打开</string>
     <string name="browse_no_app_for_type">没有能打开该类型的应用</string>
+    <string name="browse_action_overwrite">用手机文件覆写</string>
+    <string name="browse_action_delete">删除</string>
+    <string name="browse_import_file">导入文件到容器</string>
+    <string name="browse_delete_confirm_title">删除文件</string>
+    <string name="browse_delete_confirm_msg">从容器中删除「%1$s」？此操作不可撤销。</string>
+    <string name="browse_delete_confirm_yes">删除</string>
+    <string name="browse_write_ok">已写入：%1$s</string>
+    <string name="browse_write_failed">写入失败</string>
+    <string name="browse_overwrite_ok">已覆写：%1$s</string>
+    <string name="browse_overwrite_failed">覆写失败</string>
+    <string name="browse_delete_ok">已删除：%1$s</string>
+    <string name="browse_delete_failed">删除失败</string>
 
     <!-- 通用 -->
     <string name="cancel">取消</string>

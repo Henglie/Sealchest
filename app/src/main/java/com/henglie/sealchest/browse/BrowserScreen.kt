@@ -25,11 +25,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -38,6 +43,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -101,16 +107,26 @@ fun BrowserScreen(onExit: () -> Unit) {
     var selected by remember { mutableStateOf<FatFileSystem.Entry?>(null) }
     var preview by remember { mutableStateOf<Preview?>(null) }
     var exportTarget by remember { mutableStateOf<FatFileSystem.Entry?>(null) }
+    // 写操作后自增，触发目录重载。
+    var refreshToken by remember { mutableStateOf(0) }
+    // 删除确认弹窗目标。
+    var deleteConfirm by remember { mutableStateOf<FatFileSystem.Entry?>(null) }
+    // 覆写：先选容器内文件，再选手机上的源文件。
+    var overwriteTarget by remember { mutableStateOf<FatFileSystem.Entry?>(null) }
 
-    // 载入当前目录内容。current 变即重载。
-    LaunchedEffect(current.firstCluster, current.isRoot) {
+    val writable = MountManager.isWritable
+
+    // 当前目录的 firstCluster（<2 = 根目录，与 writeFile/deleteFile 的 dirFirstCluster 语义一致）。
+    val dirCluster = if (current.isRoot) 0L else current.firstCluster
+
+    // 载入当前目录内容。current 变 或 refreshToken 变即重载。
+    LaunchedEffect(current.firstCluster, current.isRoot, refreshToken) {
         loading = true
         val list = withContext(Dispatchers.IO) {
             MountManager.withFs { fs ->
                 if (current.isRoot) fs.listRoot() else fs.listDir(current.firstCluster)
             } ?: emptyList()
         }
-        // 文件夹在前，各自按名排序。
         entries = list.sortedWith(
             compareByDescending<FatFileSystem.Entry> { it.isDirectory }
                 .thenBy { it.name.lowercase() }
@@ -154,6 +170,59 @@ fun BrowserScreen(onExit: () -> Unit) {
         }
     }
 
+    // 导入文件到容器：从手机选文件 → 读入 → writeFile 写进当前目录。
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val name = queryDisplayName(context, uri) ?: uri.lastPathSegment ?: "imported"
+                val result = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                            ?: return@runCatching false
+                        MountManager.withWritableFs { fs ->
+                            fs.writeFile(dirCluster, name, bytes)
+                        } ?: false
+                    }.getOrDefault(false)
+                }
+                if (result) {
+                    refreshToken++
+                    Toast.makeText(context, context.getString(R.string.browse_write_ok, name), Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, context.getString(R.string.browse_write_failed), Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    // 覆写：选手机文件 → 读入 → overwriteFile。
+    val overwriteLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        val target = overwriteTarget
+        overwriteTarget = null
+        if (uri != null && target != null) {
+            scope.launch {
+                val result = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                            ?: return@runCatching false
+                        MountManager.withWritableFs { fs ->
+                            fs.overwriteFile(dirCluster, target.name, bytes)
+                        } ?: false
+                    }.getOrDefault(false)
+                }
+                if (result) {
+                    refreshToken++
+                    Toast.makeText(context, context.getString(R.string.browse_overwrite_ok, target.name), Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, context.getString(R.string.browse_overwrite_failed), Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
     BackHandler(enabled = dirStack.size > 1) {
         dirStack.removeAt(dirStack.lastIndex)
     }
@@ -173,6 +242,13 @@ fun BrowserScreen(onExit: () -> Unit) {
                     }
                 },
             )
+        },
+        floatingActionButton = {
+            if (writable) {
+                FloatingActionButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) {
+                    Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.browse_import_file))
+                }
+            }
         },
     ) { inner ->
         Box(
@@ -204,6 +280,7 @@ fun BrowserScreen(onExit: () -> Unit) {
     selected?.let { e ->
         FileActionSheet(
             entry = e,
+            writable = writable,
             onDismiss = { selected = null },
             onPreview = {
                 selected = null
@@ -222,6 +299,45 @@ fun BrowserScreen(onExit: () -> Unit) {
                 selected = null
                 scope.launch { openWith(context, e) }
             },
+            onOverwrite = {
+                selected = null
+                overwriteTarget = e
+                overwriteLauncher.launch(arrayOf("*/*"))
+            },
+            onDelete = {
+                selected = null
+                deleteConfirm = e
+            },
+        )
+    }
+
+    // 删除确认弹窗
+    deleteConfirm?.let { e ->
+        AlertDialog(
+            onDismissRequest = { deleteConfirm = null },
+            confirmButton = {
+                TextButton(onClick = {
+                    deleteConfirm = null
+                    scope.launch {
+                        val ok = withContext(Dispatchers.IO) {
+                            MountManager.withWritableFs { fs ->
+                                fs.deleteFile(dirCluster, e.name)
+                            } ?: false
+                        }
+                        if (ok) {
+                            refreshToken++
+                            Toast.makeText(context, context.getString(R.string.browse_delete_ok, e.name), Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, context.getString(R.string.browse_delete_failed), Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }) { Text(stringResource(R.string.browse_delete_confirm_yes)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteConfirm = null }) { Text(stringResource(R.string.cancel)) }
+            },
+            title = { Text(stringResource(R.string.browse_delete_confirm_title)) },
+            text = { Text(context.getString(R.string.browse_delete_confirm_msg, e.name)) },
         )
     }
 
@@ -262,10 +378,13 @@ private fun EntryRow(e: FatFileSystem.Entry, onClick: () -> Unit) {
 @Composable
 private fun FileActionSheet(
     entry: FatFileSystem.Entry,
+    writable: Boolean,
     onDismiss: () -> Unit,
     onPreview: () -> Unit,
     onExport: () -> Unit,
     onOpenWith: () -> Unit,
+    onOverwrite: () -> Unit,
+    onDelete: () -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(bottom = 24.dp)) {
@@ -279,6 +398,11 @@ private fun FileActionSheet(
             ActionItem(Icons.Filled.Visibility, stringResource(R.string.browse_action_preview), onPreview)
             ActionItem(Icons.Filled.Download, stringResource(R.string.browse_action_export), onExport)
             ActionItem(Icons.AutoMirrored.Filled.OpenInNew, stringResource(R.string.browse_action_open_with), onOpenWith)
+            if (writable) {
+                HorizontalDivider()
+                ActionItem(Icons.Filled.Edit, stringResource(R.string.browse_action_overwrite), onOverwrite)
+                ActionItem(Icons.Filled.Delete, stringResource(R.string.browse_action_delete), onDelete)
+            }
         }
     }
 }
@@ -411,4 +535,12 @@ private fun formatSize(bytes: Long): String = when {
     bytes < 1024 * 1024 -> "%.1f KB".format(bytes / 1024.0)
     bytes < 1024 * 1024 * 1024 -> "%.1f MB".format(bytes / 1024.0 / 1024.0)
     else -> "%.2f GB".format(bytes / 1024.0 / 1024.0)
+}
+
+private fun queryDisplayName(context: android.content.Context, uri: android.net.Uri): String? {
+    return context.contentResolver.query(
+        uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null
+    )?.use { c ->
+        if (c.moveToFirst()) c.getString(0) else null
+    }
 }

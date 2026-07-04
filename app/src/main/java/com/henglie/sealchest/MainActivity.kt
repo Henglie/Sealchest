@@ -14,10 +14,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -129,8 +126,8 @@ private fun HomeScreen(onBrowse: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     // 「关于」弹窗显隐。
     var showAbout by remember { mutableStateOf(false) }
-    // 是否以可写方式挂载。默认关（只读，保持第一版行为）。勾选后能写回容器。
-    var mountWritable by remember { mutableStateOf(false) }
+    // 是否以可写方式挂载。选中容器若拿到写权限则默认开（读写），拿不到自动回落只读。
+    var mountWritable by remember { mutableStateOf(true) }
     // 选中的 URI 是否实际拿到了可持久化写权限（源 provider 未必授予）。
     var uriWritable by remember { mutableStateOf(false) }
 
@@ -151,7 +148,8 @@ private fun HomeScreen(onBrowse: () -> Unit) {
                     uri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 )
             }.isSuccess
-            if (!uriWritable) mountWritable = false
+            // 拿到写权限则默认读写打开，拿不到回落只读（换选容器时同步重置，不残留上次状态）。
+            mountWritable = uriWritable
             pickedUri = uri
             pickedName = queryDisplayName(context, uri) ?: uri.lastPathSegment
                 ?: context.getString(R.string.mount_default_container)

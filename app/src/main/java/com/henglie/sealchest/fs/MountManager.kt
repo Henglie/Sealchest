@@ -174,6 +174,9 @@ object MountManager {
         val m = current ?: return null
         if (m.closed || !m.writable) return null
         val r = block(m.fs)
+        // 写后让 FAT32 FSInfo 空闲计数失效（置 unknown，OS 重算），避免桌面 VC/chkdsk
+        // 报「空闲空间不符」。FAT12/16 或无 FSInfo 时空操作。放 flush 之前，一并落盘。
+        runCatching { m.fs.invalidateFsInfo() }
         runCatching { m.reader.flush() }
         r
     }

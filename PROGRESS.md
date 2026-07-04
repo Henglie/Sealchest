@@ -97,11 +97,14 @@ JNI 只暴露三个能力：开卷（验密码、派生密钥、出 CRYPTO_INFO 
 - [x] 双向加解密 native+JNI（`sc_volume_encrypt_units`/`nativeEncryptUnits`）+ `VolumeReader.write` 读改写
 - [x] 补 `NativeBridge.nativeEncryptUnits` external 声明（原缺声明致 `assembleDebug` 编译失败）
 - [x] T1 加解密自测：`VolumeReader.selfTest` 内存跑往返三判据 + UI「加解密自测」按钮（零写盘，真机点验）
-- [ ] T2 MountManager 可写挂载（PFD `rw` + `FLAG_GRANT_WRITE`）
-- [ ] T3a FAT 表写 API（`setNextCluster`/`allocCluster`/`freeChain`，双份 FAT 回写）
-- [ ] T3b 目录项增删 + VFAT 长名生成
-- [ ] T3c 写入门面（`writeFile`/`deleteFile`/`overwriteFile`，MountManager 加锁域）
-- [ ] T4 真机端到端 + 桌面 VeraCrypt 回验（互通唯一判据）
+- [x] T2 MountManager 可写挂载（PFD `rw` + `FLAG_GRANT_WRITE`，`writable` 默认 false 零回归）
+- [x] T3a FAT 表写 API（`setNextCluster`/`allocCluster`/`freeChain`，双份 FAT 回写）
+- [x] T3b 目录项增删 + VFAT 长名生成
+- [x] T3c 写入门面（`writeFile`/`deleteFile`/`overwriteFile`，MountManager 加锁域）
+- [x] 写入 UI 接线：内置浏览器加导入(FAB)/覆写/删除入口（仅可写挂载显示），经 `withWritableFs`
+- [x] 可写挂载默认开：选中容器若拿到 `FLAG_GRANT_WRITE` 则 `mountWritable` 默认 true（读写），拿不到自动回落只读（改前默认只读，用户须手动勾）
+- [x] FAT32 FSInfo 失效：写后置 `FSI_Free_Count`/`FSI_Nxt_Free` 为 0xFFFFFFFF（unknown，OS 重算，防 chkdsk 报「空闲空间不符」）
+- [x] T4 真机端到端 + 桌面 VeraCrypt 回验（互通唯一判据，两端已验：app 内写/改/删 + 桌面 VC 打开同容器改动可见 + chkdsk 干净）
 
 ---
 
@@ -125,6 +128,8 @@ JNI 只暴露三个能力：开卷（验密码、派生密钥、出 CRYPTO_INFO 
 - 「用其它应用打开」＝明文短暂落 `cacheDir/export`，经 FileProvider 给 content URI（authority `${applicationId}.fileprovider`，别与 documents 那个混）。这是安全权衡：要把文件交给系统看图/PDF 的 app 就无法全程只在内存。上锁 (`onLock`) 和 `onDestroy` 都调 `FileExport.clearExportCache` 清明文。极端敏感场景应只用内置预览、不用「用其它应用打开」。
 - **`nativeEncryptUnits` 只有实现没声明会编译失败**。native_lib.cpp 有 `Java_..._nativeEncryptUnits` 实现、`Volume.encryptUnits` 也调了它，独缺 `NativeBridge` 里的 `private external fun nativeEncryptUnits(...)` 声明 → `Unresolved reference`。补声明即过（见 NativeBridge.kt:53 附近，与 `nativeDecryptUnits` 对称）。接手写入版第一坑。
 - **加解密往返自测搬进 App 内，不再交叉编 sc_test 推模拟器**（恒烈定：本机不开模拟器，只交付 APK 真机验）。`VolumeReader.selfTest()` 取数据区首单元真实密文，内存跑三判据（往返1 `encrypt(decrypt(C0))==C0` / 加密改变数据 / 往返2 `decrypt(encrypt(X))==X`），全程只读一扇区、绝不写盘，对挂载卷无副作用。UI 在 `MountedPanel` 加「加解密自测」按钮 + 结果弹窗。这是写入互通的地基验证——三判据全过才证明 encrypt 与 decrypt 严格互逆、写回容器后桌面 VC 能打开。`cpp/sc_test.c` 的往返自测保留作 native 侧离线备用。
+- **FAT32 FSInfo 空闲计数别精确维护，置 unknown 让 OS 重算**。每次增删都精确改 FSInfo 的 `FSI_Free_Count`/`FSI_Nxt_Free` 易错、算错 chkdsk 反而报「空闲空间不符」。FAT32 规范允许把这俩置 `0xFFFFFFFF`（未知），OS 挂载时自行重算，置未知永远合规。`FatFileSystem.invalidateFsInfo()` 读整 FSInfo 扇区、校验三签名（`0x41615252`@0 / `0x61417272`@484 / `0xAA550000`@508）后只改 @488/@492 两个 u32 为全 F，整扇区 read-modify-write 写回，在 `MountManager.withWritableFs` 收尾统一调（单点覆盖所有写路径）。FSInfo 扇区在保留区，逻辑偏移 = `fsInfoSector*bytesPerSector`（数据区之后连续布局，reader 可寻址）。
+- **Read/grep 对含 NUL/非 ASCII 的 .kt 渲染失真会「凭空造代码」**。本会话 Read `FatFileSystem.kt` 写入门面区，行号从真实 885 跳成 903，且「看到」`reader.write(logicalOffset, patch,0,8)` 这种根本不存在的行（幻觉），差点据此改坏正确代码。红线：改写入门面前用 `grep -an` 核真身，Edit 匹配失败别硬改，先 grep 确认真实文本。
 
 ---
 

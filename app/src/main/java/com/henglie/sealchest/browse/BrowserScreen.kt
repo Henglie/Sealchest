@@ -53,10 +53,12 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.henglie.sealchest.R
 import com.henglie.sealchest.fs.FatFileSystem
 import com.henglie.sealchest.fs.MountManager
 import kotlinx.coroutines.Dispatchers
@@ -68,7 +70,7 @@ import kotlinx.coroutines.withContext
  *
  * 为什么要内置：老安卓（7/9）自带文件管理器多半不认第三方 SAF Provider，
  * 用户在那种机器上「看不见容器入口」。内置浏览器让任何 Android 版本都能直接
- * 在密匣内浏览、预览、导出容器文件，SAF 作为「额外」暴露而非唯一入口。
+ * 在匿匣内浏览、预览、导出容器文件，SAF 作为「额外」暴露而非唯一入口。
  *
  * 竞品（EDS / VaultExplorer / CryptoContainer）都有内置浏览器 —— 这是必备能力。
  *
@@ -91,7 +93,7 @@ fun BrowserScreen(onExit: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    val dirStack = remember { mutableStateListOf(DirFrame("根目录", -1L, true)) }
+    val dirStack = remember { mutableStateListOf(DirFrame("", -1L, true)) }
     val current = dirStack.last()
 
     var entries by remember { mutableStateOf<List<FatFileSystem.Entry>>(emptyList()) }
@@ -144,7 +146,8 @@ fun BrowserScreen(onExit: () -> Unit) {
                 }
                 Toast.makeText(
                     context,
-                    if (ok) "已导出 ${target.name}" else "导出失败",
+                    if (ok) context.getString(R.string.browse_exported, target.name)
+                    else context.getString(R.string.browse_export_failed),
                     Toast.LENGTH_SHORT,
                 ).show()
             }
@@ -158,12 +161,15 @@ fun BrowserScreen(onExit: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(current.name, maxLines = 1) },
+                title = {
+                    val title = if (current.isRoot) stringResource(R.string.browse_root) else current.name
+                    Text(title, maxLines = 1)
+                },
                 navigationIcon = {
                     IconButton(onClick = {
                         if (dirStack.size > 1) dirStack.removeAt(dirStack.lastIndex) else onExit()
                     }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.browse_back))
                     }
                 },
             )
@@ -177,7 +183,7 @@ fun BrowserScreen(onExit: () -> Unit) {
             if (loading) {
                 CircularProgressIndicator(Modifier.align(Alignment.Center))
             } else if (entries.isEmpty()) {
-                Text("这个目录是空的", Modifier.align(Alignment.Center))
+                Text(stringResource(R.string.browse_empty), Modifier.align(Alignment.Center))
             } else {
                 LazyColumn(Modifier.fillMaxSize()) {
                     items(entries) { e ->
@@ -204,7 +210,7 @@ fun BrowserScreen(onExit: () -> Unit) {
                 scope.launch {
                     val p = loadPreview(e)
                     if (p != null) preview = p
-                    else Toast.makeText(context, "无法预览这个文件类型", Toast.LENGTH_SHORT).show()
+                    else Toast.makeText(context, context.getString(R.string.browse_no_preview), Toast.LENGTH_SHORT).show()
                 }
             },
             onExport = {
@@ -270,9 +276,9 @@ private fun FileActionSheet(
                 maxLines = 2,
             )
             HorizontalDivider()
-            ActionItem(Icons.Filled.Visibility, "预览（图片 / 文本）", onPreview)
-            ActionItem(Icons.Filled.Download, "导出到手机", onExport)
-            ActionItem(Icons.AutoMirrored.Filled.OpenInNew, "用其它应用打开", onOpenWith)
+            ActionItem(Icons.Filled.Visibility, stringResource(R.string.browse_action_preview), onPreview)
+            ActionItem(Icons.Filled.Download, stringResource(R.string.browse_action_export), onExport)
+            ActionItem(Icons.AutoMirrored.Filled.OpenInNew, stringResource(R.string.browse_action_open_with), onOpenWith)
         }
     }
 }
@@ -319,7 +325,7 @@ private fun PreviewDialog(preview: Preview, onDismiss: () -> Unit) {
                                 contentScale = ContentScale.Fit,
                             )
                         } else {
-                            Text("图片解码失败")
+                            Text(stringResource(R.string.browse_image_decode_failed))
                         }
                     }
                     is Preview.TextPreview -> {
@@ -374,14 +380,14 @@ private suspend fun openWith(context: android.content.Context, e: FatFileSystem.
         FileExport.exportToCache(context, e.name, e.firstCluster, e.size)
     }
     if (file == null) {
-        Toast.makeText(context, "导出失败，无法打开", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, context.getString(R.string.browse_export_open_failed), Toast.LENGTH_SHORT).show()
         return
     }
     val mime = guessMime(e.name)
     runCatching {
         context.startActivity(FileExport.openWithIntent(context, file, mime))
     }.onFailure {
-        Toast.makeText(context, "没有能打开该类型的应用", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, context.getString(R.string.browse_no_app_for_type), Toast.LENGTH_SHORT).show()
     }
 }
 

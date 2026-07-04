@@ -88,6 +88,109 @@ class VolumeReader(
         return written
     }
 
+    /**
+     * 写卷内 [logicalOffset] 起 [length] 字节（取自 [src] 的 [srcOff]）。
+     *
+     * 按 512B 单元 read-modify-write：不整对齐的单元先解密出原明文，覆盖要写的
+     * 部分，再整单元加密写回 channel。缓存里的明文副本同步更新，保证后续读一致。
+     *
+     * 写入后必须 [flush] 才落盘（channel.force）。上层（FAT 写）在一批结构改动
+     * 完成后统一 flush，减少半写状态。仍是崩溃不原子 —— 二期考虑日志/双写头。
+     */
+    fun write(logicalOffset: Long, src: ByteArray, srcOff: Int, length: Int) {
+        var done = 0
+        var lo = logicalOffset
+        while (done < length) {
+            val fileOff = encStart + lo
+            val unitNo = fileOff / UNIT
+            val within = (fileOff - unitNo * UNIT).toInt()
+            val chunk = minOf(UNIT - within, length - done)
+
+            // 取该单元当前明文（缓存或解密）。整单元覆盖时也要有基底，避免读残留。
+            val plain = decryptUnit(unitNo)
+            System.arraycopy(src, srcOff + done, plain, within, chunk)
+
+            // 加密副本写回：不能加密缓存本身（缓存存明文），拷出来加密。
+            val cipher = plain.copyOf()
+            volume.encryptUnits(unitNo, cipher, 1)
+            val bb = ByteBuffer.wrap(cipher)
+            var pos = unitNo * UNIT
+            while (bb.hasRemaining()) {
+                val n = channel.write(bb, pos)
+                if (n < 0) break
+                pos += n
+            }
+            // 缓存持有的仍是最新明文（plain 已就地更新），无需动。
+            done += chunk
+            lo += chunk
+        }
+    }
+
+    /** 便捷：整段写。 */
+    fun write(logicalOffset: Long, src: ByteArray) = write(logicalOffset, src, 0, src.size)
+
+    /**
+     * 加解密往返自测（写入互通的地基，零风险，全程内存操作、绝不写盘）。
+     *
+     * 与 cpp/sc_test.c 的往返自测同一套判据，搬进 App 用真机 + 真容器验（比 x86_64
+     * 模拟器更接近最终 arm64 ABI）。取数据区首单元的真实密文，验三件事：
+     *   1. [encReproduces] 往返1：decrypt(C0)=P0 后 encrypt(P0) 必须复现原密文 C0
+     *      —— 证明 encrypt 方向与 decrypt 用同一密钥 / 同一 XTS 单元号语义。这是
+     *      写回容器后桌面 VeraCrypt 还能打开的充要条件。
+     *   2. [encChanges] 加密确实改变数据（排除 encrypt 空转）。
+     *   3. [roundtripLossless] 往返2：造明文 X，encrypt→decrypt 必须无损还原 X。
+     * 三者全真才 [SelfTestResult.passed]。任一假 → encrypt 方向有 bug，不许往下做写入。
+     *
+     * 只在局部数组上加解密，channel 只读一个扇区、绝不写，故对挂载中的卷完全无副作用。
+     */
+    fun selfTest(): SelfTestResult {
+        val unitNo = encStart / UNIT
+        val pos = unitNo * UNIT
+
+        // 读数据区首单元的真实密文 C0（直接读 channel，不经缓存、不解密）。
+        val c0 = ByteArray(UNIT)
+        run {
+            val bb = ByteBuffer.wrap(c0)
+            var p = pos
+            while (bb.hasRemaining()) {
+                val n = channel.read(bb, p)
+                if (n < 0) break
+                p += n
+            }
+        }
+
+        // 往返1：decrypt(C0)=P0，再 encrypt(P0) 应复现 C0。
+        val p0 = c0.copyOf()
+        volume.decryptUnits(unitNo, p0, 1)
+        val encChanges = !p0.contentEquals(c0)
+        val recc = p0.copyOf()
+        volume.encryptUnits(unitNo, recc, 1)
+        val encReproduces = recc.contentEquals(c0)
+
+        // 往返2：造可辨识明文 X，encrypt 后 decrypt 必须还原 X。
+        val x = ByteArray(UNIT) { (it and 0xFF).toByte() }
+        val y = x.copyOf()
+        volume.encryptUnits(unitNo, y, 1)
+        volume.decryptUnits(unitNo, y, 1)
+        val roundtripLossless = y.contentEquals(x)
+
+        return SelfTestResult(encReproduces, encChanges, roundtripLossless)
+    }
+
+    /** [selfTest] 三判据结果。[passed] 全真才算 encrypt 方向可用于写入。 */
+    data class SelfTestResult(
+        val encReproduces: Boolean,
+        val encChanges: Boolean,
+        val roundtripLossless: Boolean,
+    ) {
+        val passed: Boolean get() = encReproduces && encChanges && roundtripLossless
+    }
+
+    /** 落盘。FAT 写在一批结构改动后调用。 */
+    fun flush() {
+        runCatching { channel.force(false) }
+    }
+
     override fun close() {
         cache.clear()
         volume.close()

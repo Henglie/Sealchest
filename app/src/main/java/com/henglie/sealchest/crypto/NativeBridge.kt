@@ -51,6 +51,9 @@ object NativeBridge {
     /** 原地解密 buf 里的 nbrUnits 个 512B 数据单元，起始单元号 startUnit。 */
     private external fun nativeDecryptUnits(handle: Long, startUnit: Long, buf: ByteArray, nbrUnits: Int)
 
+    /** 原地加密 buf 里的 nbrUnits 个 512B 数据单元，起始单元号 startUnit（写入互通用）。 */
+    private external fun nativeEncryptUnits(handle: Long, startUnit: Long, buf: ByteArray, nbrUnits: Int)
+
     /** 关卷：销毁密钥并释放句柄。 */
     private external fun nativeCloseVolume(handle: Long)
 
@@ -114,6 +117,19 @@ object NativeBridge {
         fun decryptUnits(startUnit: Long, buf: ByteArray, nbrUnits: Int) {
             check(handle != 0L) { "卷已关闭" }
             nativeDecryptUnits(handle, startUnit, buf, nbrUnits)
+        }
+
+        /**
+         * 原地加密 [buf] 中的 [nbrUnits] 个 512B 数据单元，起始 XTS 单元号 [startUnit]。
+         * 单元号语义同 [decryptUnits]（文件绝对偏移 / 512）。与解密严格互逆：
+         * 明文 → 加密 → 密文 → 解密 → 原明文。写入路径用此把明文加密成可回写容器的密文。
+         *
+         * 写入互通的根基（二期）：VolumeReader.write 读-改-写时靠它把改后的明文单元
+         * 重新加密。native 双向能力已由 sc_test.c 的往返自测覆盖。
+         */
+        fun encryptUnits(startUnit: Long, buf: ByteArray, nbrUnits: Int) {
+            check(handle != 0L) { "卷已关闭" }
+            nativeEncryptUnits(handle, startUnit, buf, nbrUnits)
         }
 
         override fun close() {

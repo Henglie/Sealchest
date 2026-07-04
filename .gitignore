@@ -27,3 +27,7 @@ dist/
 # 第三方源码：VeraCrypt 全量克隆体积大，不入主仓库。
 # 真正参与编译的 C 核心已复制进 app/src/main/cpp/veracrypt/，那部分要跟踪。
 third_party/
+
+# 多 Agent 内部任务板与临时构建信息，不进主仓库
+多Agent协作.md
+_commit_msg.txt

@@ -2,6 +2,7 @@
 
 > 给 AI / 开发者看。接手前先读根目录 `开发规范.md`，再读本文「技术栈红线」+「踩坑记录」两节。
 > 本地代号 AnnVeraCrypt（旧文件夹名），对外一律称**密匣 / Sealchest**。
+> 原名密匣，因与他人项目重名，2026-07 改称匿匣。英文名 Sealchest、包名 com.henglie.sealchest、仓库地址均不变。
 
 ---
 
@@ -91,6 +92,17 @@ JNI 只暴露三个能力：开卷（验密码、派生密钥、出 CRYPTO_INFO 
 - [x] SAF 通知修复：解锁/上锁后对 roots URI 发 notifyChange，老 DocumentsUI 才会重查看见/隐藏入口
 - [ ] 雷电模拟器（安卓7/9）端到端：内置浏览器路径待验（系统文件管理器路径老机型多半仍看不见，属系统侧限制）
 
+### 二期 · FAT 只读 → 写（多 Agent 推进，任务板见 `多Agent协作.md`）
+
+- [x] 双向加解密 native+JNI（`sc_volume_encrypt_units`/`nativeEncryptUnits`）+ `VolumeReader.write` 读改写
+- [x] 补 `NativeBridge.nativeEncryptUnits` external 声明（原缺声明致 `assembleDebug` 编译失败）
+- [x] T1 加解密自测：`VolumeReader.selfTest` 内存跑往返三判据 + UI「加解密自测」按钮（零写盘，真机点验）
+- [ ] T2 MountManager 可写挂载（PFD `rw` + `FLAG_GRANT_WRITE`）
+- [ ] T3a FAT 表写 API（`setNextCluster`/`allocCluster`/`freeChain`，双份 FAT 回写）
+- [ ] T3b 目录项增删 + VFAT 长名生成
+- [ ] T3c 写入门面（`writeFile`/`deleteFile`/`overwriteFile`，MountManager 加锁域）
+- [ ] T4 真机端到端 + 桌面 VeraCrypt 回验（互通唯一判据）
+
 ---
 
 ## ▍踩坑记录
@@ -111,6 +123,8 @@ JNI 只暴露三个能力：开卷（验密码、派生密钥、出 CRYPTO_INFO 
 - **老安卓看不见 SAF 入口 → 必须内置浏览器**。实测：一加安卓16 自带文件管理器能正常从系统里进容器；雷电模拟器（安卓7/9）自带文件管理器太老，多半不认第三方 DocumentsProvider，用户「看不见容器入口」。这不是我们能改的（对方 app 老）。破局＝内置文件浏览器（`browse/BrowserScreen`），自己遍历 FAT + 预览（图片走 BitmapFactory、文本走前 256KB）+ 导出（SAF CreateDocument）+ 用其它应用打开（FileProvider）。SAF Provider 降级为「额外暴露」，内置浏览器才是任何机型都能用的主入口。竞品 EDS/VaultExplorer/CryptoContainer 都有内置浏览器，是必备能力。
 - **解锁/上锁后要 `notifyChange` roots URI**。否则老 DocumentsUI 缓存了「无此来源」，解锁后仍不显示入口。`SafNotify.rootsChanged` 对 `content://<authority>/root` 发通知，`MountManager.unlock` 成功后 / `lock` 后各调一次。`lock(context)` 因此要收 context（可空，UI 调时传）。
 - 「用其它应用打开」＝明文短暂落 `cacheDir/export`，经 FileProvider 给 content URI（authority `${applicationId}.fileprovider`，别与 documents 那个混）。这是安全权衡：要把文件交给系统看图/PDF 的 app 就无法全程只在内存。上锁 (`onLock`) 和 `onDestroy` 都调 `FileExport.clearExportCache` 清明文。极端敏感场景应只用内置预览、不用「用其它应用打开」。
+- **`nativeEncryptUnits` 只有实现没声明会编译失败**。native_lib.cpp 有 `Java_..._nativeEncryptUnits` 实现、`Volume.encryptUnits` 也调了它，独缺 `NativeBridge` 里的 `private external fun nativeEncryptUnits(...)` 声明 → `Unresolved reference`。补声明即过（见 NativeBridge.kt:53 附近，与 `nativeDecryptUnits` 对称）。接手写入版第一坑。
+- **加解密往返自测搬进 App 内，不再交叉编 sc_test 推模拟器**（恒烈定：本机不开模拟器，只交付 APK 真机验）。`VolumeReader.selfTest()` 取数据区首单元真实密文，内存跑三判据（往返1 `encrypt(decrypt(C0))==C0` / 加密改变数据 / 往返2 `decrypt(encrypt(X))==X`），全程只读一扇区、绝不写盘，对挂载卷无副作用。UI 在 `MountedPanel` 加「加解密自测」按钮 + 结果弹窗。这是写入互通的地基验证——三判据全过才证明 encrypt 与 decrypt 严格互逆、写回容器后桌面 VC 能打开。`cpp/sc_test.c` 的往返自测保留作 native 侧离线备用。
 
 ---
 

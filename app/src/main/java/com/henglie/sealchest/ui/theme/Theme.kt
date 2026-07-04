@@ -52,7 +52,7 @@ private val DarkColors = darkColorScheme(
 )
 
 /**
- * 密匣主题。谷歌原生 M3：
+ * 匿匣主题。谷歌原生 M3：
  *  - Android 12（API 31）+ 走动态取色（Material You，跟随壁纸）；
  *  - 以下走上面的靛蓝兜底配色。
  */

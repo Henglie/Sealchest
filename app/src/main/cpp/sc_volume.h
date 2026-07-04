@@ -37,6 +37,13 @@ sc_volume* sc_volume_open(const uint8_t* header512,
 void sc_volume_decrypt_units(sc_volume* v, uint64_t start_unit,
                              uint8_t* buf, uint32_t nbr_units);
 
+/* 原地加密 nbr_units 个 512 字节数据单元，起始 XTS 数据单元号 start_unit。
+ * 与 sc_volume_decrypt_units 严格对称（同一密钥、同一 XTS 单元号语义）：
+ * 明文 --encrypt--> 密文，写回容器后 VeraCrypt 桌面端能正常解开。
+ * buf 长度须 = nbr_units * 512。写入互通的根基。 */
+void sc_volume_encrypt_units(sc_volume* v, uint64_t start_unit,
+                             uint8_t* buf, uint32_t nbr_units);
+
 /* 关卷：销毁密钥并释放。传 NULL 安全无操作。 */
 void sc_volume_close(sc_volume* v);
 

@@ -75,6 +75,17 @@ void sc_volume_decrypt_units(sc_volume* v, uint64_t start_unit,
     DecryptDataUnits((unsigned __int8*) buf, &unitNo, nbr_units, v->ci);
 }
 
+void sc_volume_encrypt_units(sc_volume* v, uint64_t start_unit,
+                             uint8_t* buf, uint32_t nbr_units)
+{
+    if (!v || !v->ci || !buf || nbr_units == 0) return;
+
+    UINT64_STRUCT unitNo;
+    unitNo.Value = start_unit;
+
+    EncryptDataUnits((unsigned __int8*) buf, &unitNo, nbr_units, v->ci);
+}
+
 void sc_volume_close(sc_volume* v)
 {
     if (!v) return;

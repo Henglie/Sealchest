@@ -5,6 +5,8 @@ import android.net.Uri
 import com.henglie.sealchest.crypto.NativeBridge
 import java.io.Closeable
 import java.io.FileNotFoundException
+import java.io.RandomAccessFile
+import java.nio.channels.FileChannel
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -29,8 +31,15 @@ object MountManager {
         val mountId: Long,
         val displayName: String,
         private val pfd: android.os.ParcelFileDescriptor,
-        private val reader: VolumeReader,
+        internal val reader: VolumeReader,
         val fs: FatFileSystem,
+        /** 是否以可写方式挂载（PFD "rw" + 双向 channel）。只读挂载为 false。 */
+        val writable: Boolean = false,
+        /**
+         * 可写挂载时额外持有的 [RandomAccessFile]（经 /proc/self/fd 拿到读写 channel）。
+         * 它独占一个 fd，必须随挂载关闭，否则泄漏。只读挂载为 null。
+         */
+        private val raf: RandomAccessFile? = null,
     ) : Closeable {
         @Volatile
         var closed: Boolean = false
@@ -39,8 +48,9 @@ object MountManager {
         override fun close() {
             if (closed) return
             closed = true
-            // 先关 reader（销毁密钥 + 清缓存），再关 PFD。
+            // 先关 reader（销毁密钥 + 清缓存），再关可写 raf（若有），最后关 PFD。
             runCatching { reader.close() }
+            runCatching { raf?.close() }
             runCatching { pfd.close() }
         }
     }
@@ -71,17 +81,34 @@ object MountManager {
         password: ByteArray,
         pim: Int,
         prf: Int,
+        /**
+         * 是否以可写方式挂载。默认 false = 只读（历史行为，零回归）。true 时 PFD 用
+         * "rw" 打开，并经 [RandomAccessFile] 拿到可读写的双向 channel 交给 [VolumeReader]，
+         * FAT 写方向（T3）才能把加密数据写回真实容器。UI 侧须已 take 了带写权限的 URI。
+         */
+        writable: Boolean = false,
     ): Mount = synchronized(lock) {
         check(NativeBridge.isAvailable) { "加密核心库未加载" }
 
         val resolver = context.contentResolver
-        val pfd = resolver.openFileDescriptor(uri, "r")
+        // 只读走 "r"；可写走 "rw"。SAF 要求 URI 已被授予对应权限（写需 FLAG_GRANT_WRITE）。
+        val pfd = resolver.openFileDescriptor(uri, if (writable) "rw" else "r")
             ?: throw FileNotFoundException("无法打开容器：$uri")
 
         var reader: VolumeReader? = null
+        var raf: RandomAccessFile? = null
         try {
-            val fis = java.io.FileInputStream(pfd.fileDescriptor)
-            val channel = fis.channel
+            // 只读：FileInputStream.channel（只读 channel，历史路径不变）。
+            // 可写：FileInputStream/OutputStream 的 channel 都是单向的，VolumeReader 需要
+            //   在同一 channel 上 read+write，只能用 RandomAccessFile("rw")。它不吃 fd，
+            //   经 /proc/self/fd/<fd> 路径打开这个已由 SAF 授权的描述符，拿到双向 channel。
+            val channel: FileChannel = if (writable) {
+                val fd = pfd.fd
+                raf = RandomAccessFile("/proc/self/fd/$fd", "rw")
+                raf!!.channel
+            } else {
+                java.io.FileInputStream(pfd.fileDescriptor).channel
+            }
 
             // 读卷头 512B（VeraCrypt 卷头在文件起始）。
             val header = ByteArray(512)
@@ -99,7 +126,7 @@ object MountManager {
             reader = VolumeReader(channel, volume)
             val fs = FatFileSystem.mount(reader)
 
-            val mount = Mount(idGen.getAndIncrement(), displayName, pfd, reader, fs)
+            val mount = Mount(idGen.getAndIncrement(), displayName, pfd, reader, fs, writable, raf)
             // 成功了才替换 + 关旧挂载。
             current?.close()
             current = mount
@@ -109,6 +136,7 @@ object MountManager {
         } catch (t: Throwable) {
             // 失败：清掉本次半成品，绝不动 current。
             runCatching { reader?.close() }
+            runCatching { raf?.close() }
             runCatching { pfd.close() }
             // 抹掉本地口令副本。
             password.fill(0)
@@ -132,6 +160,35 @@ object MountManager {
         val m = current ?: return null
         if (m.closed) return null
         block(m.fs)
+    }
+
+    /**
+     * 写路径唯一入口：锁内执行写操作，要求当前挂载是**可写挂载**
+     * （[unlock] 时 writable=true）。block 结束后统一 [VolumeReader.flush] 落盘。
+     * 未挂载 / 只读挂载返回 null —— 只读挂载永不会被写入，是写权限的最后一道闸。
+     *
+     * 事务性：一次 block 内可连做多个结构改动（分配簇 + 写数据 + 目录项），
+     * 全部完成才 flush 一次，减少半写窗口。仍非崩溃原子（二期日志/双写头）。
+     */
+    fun <R> withWritableFs(block: (FatFileSystem) -> R): R? = synchronized(lock) {
+        val m = current ?: return null
+        if (m.closed || !m.writable) return null
+        val r = block(m.fs)
+        runCatching { m.reader.flush() }
+        r
+    }
+
+    /** 当前挂载是否可写。UI 据此决定是否显示写操作入口。 */
+    val isWritable: Boolean get() = current?.let { !it.closed && it.writable } ?: false
+
+    /**
+     * 对当前挂载卷跑加解密往返自测（见 [VolumeReader.selfTest]）。未挂载返回 null。
+     * 在锁内串行执行，零风险（内存操作、不写盘），供 UI 验 encrypt 方向可用于写入。
+     */
+    fun selfTest(): VolumeReader.SelfTestResult? = synchronized(lock) {
+        val m = current ?: return null
+        if (m.closed) return null
+        m.reader.selfTest()
     }
 
     /**

@@ -110,9 +110,45 @@ int main(int argc, char** argv) {
     for (int i = 3; i < 11; i++) putchar((sec[i] >= 32 && sec[i] < 127) ? sec[i] : '.');
     printf("\"\n");
 
+    /* ---- 加密方向往返自测（写入互通的根基，零风险，不碰文件）----
+     * 取数据区第一个扇区的原始密文 C0，验证两条恒等式：
+     *   1. decrypt(C0) = P0，再 encrypt(P0) 必须 == C0（加密严格复现原密文）
+     *   2. encrypt(任意明文 X) 再 decrypt 必须 == X（往返无损）
+     * 单元号必须用命中的语义 cand[hit]，否则 tweak 不符。 */
+    uint64_t rt_unit = cand[hit];
+    uint8_t c0[512], p0[512], recc[512];
+    memcpy(c0, data + eas, 512);          /* 原始密文 C0 */
+
+    memcpy(p0, c0, 512);
+    sc_volume_decrypt_units(v, rt_unit, p0, 1);   /* P0 = decrypt(C0) */
+
+    memcpy(recc, p0, 512);
+    sc_volume_encrypt_units(v, rt_unit, recc, 1); /* recc = encrypt(P0) */
+
+    int enc_reproduces = (memcmp(recc, c0, 512) == 0);
+    printf("往返1 encrypt(decrypt(C0)) == C0 ? %s\n", enc_reproduces ? "是 [OK]" : "否 [FAIL]");
+
+    /* 往返2：造一段可辨识明文，encrypt 后 decrypt 比对。 */
+    uint8_t x[512], y[512];
+    for (int i = 0; i < 512; i++) x[i] = (uint8_t)(i * 7 + 13);
+    memcpy(y, x, 512);
+    sc_volume_encrypt_units(v, rt_unit, y, 1);
+    int enc_changed = (memcmp(y, x, 512) != 0);   /* 加密确实改变了数据 */
+    sc_volume_decrypt_units(v, rt_unit, y, 1);
+    int roundtrip_lossless = (memcmp(y, x, 512) == 0);
+    printf("往返2 加密改变数据 ? %s；decrypt(encrypt(X)) == X ? %s\n",
+           enc_changed ? "是" : "否 [FAIL]",
+           roundtrip_lossless ? "是 [OK]" : "否 [FAIL]");
+
+    int rt_ok = enc_reproduces && enc_changed && roundtrip_lossless;
+
     sc_volume_close(v);
     free(data);
 
-    printf("[PASS] 解扇区正确，XTS 单元号语义 = %s\n", desc[hit]);
+    if (!rt_ok) {
+        printf("[FAIL] 加密方向往返自测未通过，写入互通不可用\n");
+        return 1;
+    }
+    printf("[PASS] 解扇区正确 + 加密往返无损，XTS 单元号语义 = %s\n", desc[hit]);
     return 0;
 }

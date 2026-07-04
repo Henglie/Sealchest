@@ -16,8 +16,8 @@ android {
         applicationId = "com.henglie.sealchest"
         minSdk = 23
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1"
+        versionCode = 4
+        versionName = "0.4"
 
         // JNI 层（VeraCrypt 解密核心）。arm64-v8a 主流，armeabi-v7a 覆盖老 ARM，
         // x86_64 给模拟器调试。

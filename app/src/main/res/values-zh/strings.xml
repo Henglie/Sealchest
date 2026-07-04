@@ -1,0 +1,89 @@
+<resources>
+    <!-- 中文（系统语言为中文时使用）。默认 values 为英文兜底。 -->
+    <string name="app_name">匿匣</string>
+
+    <!-- 主屏 -->
+    <string name="home_title">匿匣</string>
+    <string name="home_subtitle">无 root 打开 VeraCrypt 加密容器</string>
+    <string name="home_pick_container">选择容器文件</string>
+    <string name="home_no_container">还没有打开任何容器</string>
+    <string name="home_recent">最近打开</string>
+
+    <!-- 解锁 -->
+    <string name="unlock_title">解锁容器</string>
+    <string name="unlock_password">密码</string>
+    <string name="unlock_pim">PIM（可选，留空用默认）</string>
+    <string name="unlock_prf">哈希算法（PRF）</string>
+    <string name="unlock_prf_auto">自动检测</string>
+    <string name="unlock_submit">解锁</string>
+    <string name="unlock_unlocking">正在派生密钥…</string>
+    <string name="unlock_wrong">密码、PIM 或 PRF 不正确，无法解锁</string>
+
+    <!-- PRF 选项 -->
+    <string name="prf_auto">自动检测</string>
+    <string name="prf_sha512">SHA-512</string>
+    <string name="prf_whirlpool">Whirlpool</string>
+    <string name="prf_sha256">SHA-256</string>
+    <string name="prf_blake2s">BLAKE2s</string>
+    <string name="prf_streebog">Streebog</string>
+
+    <!-- 挂载 / 可写 -->
+    <string name="mount_writable_on">可写挂载（改动写回容器）</string>
+    <string name="mount_writable_off">可写挂载（此来源不支持写）</string>
+    <string name="mount_default_container">容器</string>
+
+    <!-- 已挂载面板 -->
+    <string name="mounted_no_label">（无卷标）</string>
+    <string name="mounted_filesystem">文件系统：%1$s</string>
+    <string name="mounted_label">卷标：%1$s</string>
+
+    <!-- 加解密自测 -->
+    <string name="selftest_running">  加解密自测中…</string>
+    <string name="selftest_button">加解密自测</string>
+    <string name="selftest_title">加解密自测</string>
+    <string name="selftest_ok_button">好</string>
+    <string name="selftest_unavailable">自测未能执行（未挂载或核心异常）。</string>
+    <string name="selftest_roundtrip1">%1$s 往返1  encrypt(decrypt(C0)) == C0</string>
+    <string name="selftest_encchanges">%1$s 加密确实改变数据</string>
+    <string name="selftest_roundtrip2">%1$s 往返2  decrypt(encrypt(X)) == X</string>
+    <string name="selftest_pass">全部通过：encrypt 方向与 decrypt 严格互逆，写回容器后桌面 VeraCrypt 可正常打开。</string>
+    <string name="selftest_fail">有判据未通过：encrypt 方向存在问题，不可用于写入。</string>
+
+    <!-- 浏览 -->
+    <string name="browse_title">容器内容</string>
+    <string name="browse_empty">这个目录是空的</string>
+    <string name="browse_lock">锁定并关闭</string>
+    <string name="browse_root">根目录</string>
+    <string name="browse_back">返回</string>
+    <string name="browse_exported">已导出 %1$s</string>
+    <string name="browse_export_failed">导出失败</string>
+    <string name="browse_no_preview">无法预览这个文件类型</string>
+    <string name="browse_action_preview">预览（图片 / 文本）</string>
+    <string name="browse_action_export">导出到手机</string>
+    <string name="browse_action_open_with">用其它应用打开</string>
+    <string name="browse_image_decode_failed">图片解码失败</string>
+    <string name="browse_export_open_failed">导出失败，无法打开</string>
+    <string name="browse_no_app_for_type">没有能打开该类型的应用</string>
+
+    <!-- 通用 -->
+    <string name="cancel">取消</string>
+    <string name="ok">确定</string>
+    <string name="error_generic">出错了</string>
+    <string name="native_unavailable">本机加密核心库未能加载，无法解密容器</string>
+
+    <!-- 第一版自检占位屏 -->
+    <string name="app_tagline">无 root 打开 VeraCrypt 加密容器</string>
+    <string name="native_ready">加密核心已就绪</string>
+    <string name="native_missing">加密核心库未能加载</string>
+    <string name="native_version">核心版本：%1$s</string>
+
+    <!-- 关于 -->
+    <string name="about_title">关于</string>
+    <string name="about_button">关于</string>
+    <string name="about_app_desc">在安卓上无需 root、以纯用户态打开 VeraCrypt 加密容器的工具。</string>
+    <string name="about_author_label">作者</string>
+    <string name="about_author">恒烈 / EternalBlaze</string>
+    <string name="about_project_label">项目地址</string>
+    <string name="about_version_label">版本</string>
+    <string name="about_credit">加解密核心移植自 VeraCrypt（Apache-2.0 + TrueCrypt License 3.0）。匿匣是独立产品，不隶属于、也不冒充 VeraCrypt 或 TrueCrypt 项目。</string>
+</resources>

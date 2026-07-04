@@ -116,6 +116,32 @@ Java_com_henglie_sealchest_crypto_NativeBridge_nativeDecryptUnits(
     env->ReleaseByteArrayElements(buf, p, 0);
 }
 
+// encryptUnits(handle: Long, startUnit: Long, buf: ByteArray, nbrUnits: Int)
+// 原地加密 buf 里的 nbrUnits 个 512B 数据单元（明文→密文）。buf 长度须 ≥ nbrUnits*512。
+// 写入互通用：上层改好明文扇区后，加密回容器文件。与 nativeDecryptUnits 严格互逆。
+JNIEXPORT void JNICALL
+Java_com_henglie_sealchest_crypto_NativeBridge_nativeEncryptUnits(
+    JNIEnv* env, jobject /*thiz*/,
+    jlong handle, jlong startUnit, jbyteArray buf, jint nbrUnits) {
+
+    if (handle == 0 || buf == nullptr || nbrUnits <= 0) return;
+
+    const jlong need = static_cast<jlong>(nbrUnits) * 512;
+    if (env->GetArrayLength(buf) < need) return;
+
+    jbyte* p = env->GetByteArrayElements(buf, nullptr);
+    if (p == nullptr) return;
+
+    sc_volume_encrypt_units(
+        reinterpret_cast<sc_volume*>(handle),
+        static_cast<uint64_t>(startUnit),
+        reinterpret_cast<uint8_t*>(p),
+        static_cast<uint32_t>(nbrUnits));
+
+    // 0 = 回写加密结果到 Java 数组并释放。
+    env->ReleaseByteArrayElements(buf, p, 0);
+}
+
 // closeVolume(handle: Long)：销毁密钥并释放句柄。
 JNIEXPORT void JNICALL
 Java_com_henglie_sealchest_crypto_NativeBridge_nativeCloseVolume(

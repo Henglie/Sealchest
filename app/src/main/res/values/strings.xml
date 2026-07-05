@@ -121,4 +121,27 @@
     <string name="header_rescue_need_write">Rescue needs write permission (re-pick the container granting write access)</string>
     <string name="header_restore_ok">Primary header restored from the backup. Try unlocking now.</string>
     <string name="header_restore_failed">Restore failed. The container was not modified.</string>
+
+    <!-- Create volume wizard (B2) -->
+    <string name="create_entry">Create new container</string>
+    <string name="create_title">Create container</string>
+    <string name="create_algorithm">Encryption algorithm</string>
+    <string name="create_algo_aes">AES</string>
+    <string name="create_algo_serpent">Serpent</string>
+    <string name="create_algo_twofish">Twofish</string>
+    <string name="create_algo_camellia">Camellia</string>
+    <string name="create_algo_kuznyechik">Kuznyechik</string>
+    <string name="create_prf">Hash algorithm (PRF)</string>
+    <string name="create_size_mb">Size (MB)</string>
+    <string name="create_size_hint">Container data area size in MB. Minimum 1 MB; larger holds more files.</string>
+    <string name="create_password">Password</string>
+    <string name="create_password_confirm">Confirm password</string>
+    <string name="create_password_mismatch">The two passwords do not match</string>
+    <string name="create_pim">PIM (optional, leave blank for default)</string>
+    <string name="create_pim_hint">Personal Iterations Multiplier. Leave blank to use the default iteration count.</string>
+    <string name="create_cancel">Cancel</string>
+    <string name="create_submit">Create</string>
+    <string name="create_ok">Container created</string>
+    <string name="create_failed">Failed to create container</string>
+    <string name="create_in_progress">Creating container…</string>
 </resources>

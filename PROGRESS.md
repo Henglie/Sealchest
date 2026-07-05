@@ -111,6 +111,7 @@ JNI 只暴露三个能力：开卷（验密码、派生密钥、出 CRYPTO_INFO 
 - [x] A1 keyfile 解锁：`KeyfileMixer`（纯 Kotlin 复刻 VC `KeyFilesApply`，CRC32 0xEDB88320 池化模加，字节级一致）+ `MountManager.unlock` 加 `keyfiles` 参数 openVolume 前混入 + 解锁 UI 多选 keyfile 入口（`OpenMultipleDocuments`，当次读入，无需持久权限；有 keyfile 时允许空密码解锁）。编译 46/46 全量过。**待恒烈真机回验**：带 keyfile 的已知容器能开 + 与桌面 VC 同组 keyfile 结果一致。
 - [x] A2 卷头备份/恢复（救砖）：`VolumeHeaderTool` 对容器绝对偏移原始 I/O（不经加解密），导出主头组 128KB / 从卷尾内嵌备份头组恢复。安全前置：恢复前先 `verifyOpens`（密码+keyfile 试开备份头，开不了拒写）→ 强制先导出当前主头到救援文件（可逆兜底）→ 才覆盖主头组。解锁区底部低调「卷头工具」入口，救砖需写权限 + 红字警告。编译 46/46 全量过。**待恒烈真机回验**：故意损坏主头后能救回 + 桌面 VC 仍能开。
 - [x] 关于页安全信息：`buildConfigField` 注入上游 VC 版本（1.26.29）/ pinned commit / 构建工具链 / ABI，关于页展示，供审计。单一真相源，与实际编译绑定。
+- [x] B2 创建新容器：`sc_random.c`（Kotlin `SecureRandom` 熵经 JNI `nativeSeedRandom` 灌 native 池 → `RandgetBytes` 从池取，取过即抹、池不足返 FALSE 绝不吐可预测随机，彻底废除 `sc_stubs.c` 归零占位）+ `sc_volume_create_headers`（复用官方 `CreateVolumeHeaderInMemory`：主头 masterKeydata=NULL 生成随机主密钥，备份头复用同一 master_keydata + 独立盐；修了备份头 cryptoInfo 泄漏+密钥残留 bug）+ Kotlin `VolumeCreator`（keyfile 混入→灌熵→生成主/备头写绝对偏移→开卷→`FatFormatter` 写空 FAT 到数据区）+ `FatFormatter`（FAT16/32 空盘引导扇区+FAT表+FSInfo，字节级参照 VC `Fat.c`）+ 创建向导 UI（算法/PRF/大小/PIM/密码，CreateDocument 建文件→setLength 预分配→VolumeCreator.create）。编译 46/46 全量过。**待恒烈真机回验（唯一判据）**：app 创建容器 → 桌面 VeraCrypt 能用同密码打开 + chkdsk 干净 + 读写正常。数据区暂只写 FAT 留零（未全区随机填充，泄漏使用量元信息，功能不受影响，见路线图 TODO）。
 
 ---
 

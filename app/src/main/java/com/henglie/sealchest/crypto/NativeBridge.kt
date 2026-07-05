@@ -64,6 +64,20 @@ object NativeBridge {
     private external fun nativeVolumeSectorSize(handle: Long): Int
     private external fun nativeVolumeIsHidden(handle: Long): Boolean
 
+    /** 灌熵：把 Kotlin SecureRandom 的字节注入 native 随机池（B2 建卷前调）。 */
+    private external fun nativeSeedRandom(entropy: ByteArray)
+
+    /**
+     * 生成一对 VeraCrypt 卷头（主头 + 备份头，共享随机主密钥、各用独立随机盐）。
+     * outPrimary / outBackup 各须 ≥512B，成功就地写入 512B 有效头。
+     * 返回 0 = 成功（ERR_SUCCESS），非 0 = VeraCrypt ERR_* 码（熵不足 / 弱密钥 / 参数错）。
+     */
+    private external fun nativeCreateHeaders(
+        outPrimary: ByteArray, outBackup: ByteArray,
+        ea: Int, prf: Int, pim: Int, password: ByteArray,
+        volumeSize: Long, encStart: Long,
+    ): Int
+
     // ---------------- 对上层暴露 ----------------
 
     /** native 核心版本串。native 不可用时返回占位串。 */
@@ -88,6 +102,41 @@ object NativeBridge {
         if (!isAvailable) return null
         val h = nativeOpenVolume(header, password, pim, prf)
         return if (h != 0L) Volume(h) else null
+    }
+
+    /**
+     * B2 灌熵：把 Kotlin SecureRandom（Android CSPRNG）产生的熵注入 native 随机池。
+     * 生成卷头前必须先灌足量（一次卷头最多需 主密钥 128B + 盐 64B，建议 ≥4KB）。
+     * native 侧一次用尽即弃、取过即抹；池不足时 [createVolumeHeaders] 明确失败，绝不吐可预测随机。
+     * 本方法调用后会清零 [entropy]，调用方仍应自行 fill(0) 兜底。
+     */
+    fun seedRandom(entropy: ByteArray) {
+        if (!isAvailable) return
+        nativeSeedRandom(entropy)
+    }
+
+    /**
+     * B2 生成一对 VeraCrypt 卷头（主头 + 备份头，共享随机主密钥、各用独立随机盐）。
+     * 调官方 `CreateVolumeHeaderInMemory`，字节级与桌面 VC 一致。**调用前须先 [seedRandom] 灌足熵**。
+     *
+     * @param password keyfile 混入后的有效密码 UTF-8 字节（可空长度 0）。调用后 native 侧副本已抹，调用方仍应 fill(0)。
+     * @param ea 加密算法 ID（AES=1…级联另计）；@param prf PRF ID（不可为 0，须指定）；@param pim。
+     * @param volumeSize 数据区字节数（不含头组）；@param encStart 数据区起始（标准 131072）。
+     * @return Pair(主头 512B, 备份头 512B)，失败返回 null（熵不足 / 弱密钥 / 参数错 / native 不可用）。
+     */
+    fun createVolumeHeaders(
+        ea: Int, prf: Int, pim: Int, password: ByteArray,
+        volumeSize: Long, encStart: Long,
+    ): Pair<ByteArray, ByteArray>? {
+        if (!isAvailable) return null
+        val primary = ByteArray(512)
+        val backup = ByteArray(512)
+        val err = nativeCreateHeaders(primary, backup, ea, prf, pim, password, volumeSize, encStart)
+        if (err != 0) {
+            primary.fill(0); backup.fill(0)
+            return null
+        }
+        return primary to backup
     }
 
     /**

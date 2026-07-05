@@ -47,6 +47,25 @@ void sc_volume_encrypt_units(sc_volume* v, uint64_t start_unit,
 /* 关卷：销毁密钥并释放。传 NULL 安全无操作。 */
 void sc_volume_close(sc_volume* v);
 
+/* --- B2 创建容器 --- */
+
+/* 灌熵：Kotlin SecureRandom（Android CSPRNG）经此注入 native 随机池。
+ * 生成卷头前必须先灌足量（远超一次卷头所需），一次用尽即弃。
+ * 池不足时 sc_volume_create_headers 会明确失败，绝不吐可预测随机。 */
+void sc_random_seed(const uint8_t* entropy, int len);
+
+/* 生成一对 VeraCrypt 卷头（主头 + 备份头，共享同一随机主密钥、各用独立随机盐）。
+ * 调官方 CreateVolumeHeaderInMemory，字节级与桌面 VC 一致。
+ *   out_primary / out_backup：各收 512B 有效头（调用方保证 ≥512B）。
+ *   ea：加密算法 ID（AES=1…级联另计）；prf：PRF ID（不可为 0，须指定）；pim。
+ *   password / password_len：keyfile 混入后的有效密码（UTF-8，可空长度 0）。
+ *   volume_size：数据区字节数（不含头组）；encrypted_area_start：数据区起始（标准 131072）。
+ * 成功返回 0（ERR_SUCCESS），失败返回 VeraCrypt ERR_* 码（熵不足 / 弱密钥 / 参数错）。 */
+int sc_volume_create_headers(uint8_t* out_primary, uint8_t* out_backup,
+                             int ea, int prf, int pim,
+                             const uint8_t* password, int password_len,
+                             uint64_t volume_size, uint64_t encrypted_area_start);
+
 /* --- 只读信息 getter（开卷后卷头解析出的字段）--- */
 int      sc_volume_ea(const sc_volume* v);            /* 加密算法 ID（AES=1…KUZNYECHIK=5，级联另计）*/
 int      sc_volume_prf(const sc_volume* v);           /* 命中的 PRF ID */

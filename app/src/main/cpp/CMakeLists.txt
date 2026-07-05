@@ -83,6 +83,7 @@ add_library(veracrypt_core OBJECT
         ${VC_COMMON_SRC}
         sc_stubs.c
         sc_volume.c
+        sc_random.c
 )
 
 # include 拓扑：VeraCrypt 源混用「有前缀」(Common/Endian.h) 与「无前缀」

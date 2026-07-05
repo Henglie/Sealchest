@@ -95,12 +95,11 @@ void aes_hw_cpu_decrypt_32_blocks (const uint8 *ks, uint8 *data) { (void)ks; (vo
  * 故不需要任何桩。编 SerpentFast.c（出 _blocks + set_key），不编
  * Serpent.c，避免 serpent_set_key 重复定义。 */
 
-/* --- A. RNG 桩（写卷路径死代码）------------------------------
- * Volumes.c 的 CreateVolumeHeaderInMemory / WriteRandomDataToReservedHeaderAreas
- * 引用 RandgetBytes*，只读开卷不生成随机数。桩返 FALSE（失败），
- * 真误入写卷路径会安全报错而非吐弱随机。 */
-BOOL RandgetBytes (void* hwndDlg, unsigned char *buf, int len, BOOL forceSlowPoll) { (void)hwndDlg; (void)buf; (void)len; (void)forceSlowPoll; return FALSE; }
-BOOL RandgetBytesFull (void* hwndDlg, unsigned char *buf, int len, BOOL forceSlowPoll, BOOL allowAnyLength) { (void)hwndDlg; (void)buf; (void)len; (void)forceSlowPoll; (void)allowAnyLength; return FALSE; }
+/* --- RNG：已移交 sc_random.c（B2 起）------------------------------
+ * RandgetBytes / RandgetBytesFull 原在此桩返 FALSE（只读路径安全占位）。
+ * B2 创建容器需真随机 → 移到 sc_random.c，由 Kotlin SecureRandom 经 JNI
+ * 注入熵池后按需吐出。此处删桩，避免与 sc_random.c 同名符号重复定义。
+ * 安全不变量：熵池未灌够时 sc_random.c 的实现返 FALSE，绝不吐弱/零随机。 */
 
 /* --- A. t1ha 桩（RAM 加密路径死代码）------------------------------
  * Crypto.c 的 GetEncryptionID / VcProtectKeys 用 t1ha 做 RAM 加密密钥

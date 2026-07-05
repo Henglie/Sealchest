@@ -119,4 +119,27 @@
     <string name="header_rescue_need_write">救砖需要容器的写权限（重选容器并授予写权限）</string>
     <string name="header_restore_ok">救砖成功：备份头已覆盖主头，可尝试重新解锁。</string>
     <string name="header_restore_failed">救砖失败，容器未改动。</string>
+
+    <!-- 创建容器向导（B2） -->
+    <string name="create_entry">新建加密容器</string>
+    <string name="create_title">创建容器</string>
+    <string name="create_algorithm">加密算法</string>
+    <string name="create_algo_aes">AES</string>
+    <string name="create_algo_serpent">Serpent</string>
+    <string name="create_algo_twofish">Twofish</string>
+    <string name="create_algo_camellia">Camellia</string>
+    <string name="create_algo_kuznyechik">Kuznyechik</string>
+    <string name="create_prf">哈希算法（PRF）</string>
+    <string name="create_size_mb">大小（MB）</string>
+    <string name="create_size_hint">容器数据区大小，单位 MB。最小 1 MB，越大能装越多文件。</string>
+    <string name="create_password">密码</string>
+    <string name="create_password_confirm">确认密码</string>
+    <string name="create_password_mismatch">两次输入的密码不一致</string>
+    <string name="create_pim">PIM（可选，留空用默认）</string>
+    <string name="create_pim_hint">个人迭代倍数。留空则用默认迭代次数。</string>
+    <string name="create_cancel">取消</string>
+    <string name="create_submit">创建</string>
+    <string name="create_ok">容器已创建</string>
+    <string name="create_failed">创建容器失败</string>
+    <string name="create_in_progress">正在创建容器…</string>
 </resources>

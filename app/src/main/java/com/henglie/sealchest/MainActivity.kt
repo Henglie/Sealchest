@@ -78,10 +78,83 @@ class MainActivity : ComponentActivity() {
                 // DocumentsUI —— 老安卓（7/9）自带文件管理器多半不认第三方 SAF，
                 // 内置浏览器保证任何机型都能浏览容器。
                 var showBrowser by remember { mutableStateOf(false) }
-                if (showBrowser && MountManager.isMounted) {
+                var showCreate by remember { mutableStateOf(false) }
+
+                val ctx = LocalContext.current
+                val createScope = rememberCoroutineScope()
+                // 建卷参数暂存：CreateVolumeScreen 采集后先存这里，再启 CreateDocument 建空文件，
+                // 拿到 URI 才真正 VolumeCreator.create。密码字节随 params，成功/失败后抹除。
+                var pendingParams by remember {
+                    mutableStateOf<com.henglie.sealchest.create.CreateParams?>(null)
+                }
+                var creating by remember { mutableStateOf(false) }
+                var createMsg by remember { mutableStateOf<String?>(null) }
+
+                // 建卷文件：SAF 建新文档（.hc），拿到可写 URI 后预分配 + 写卷头 + 空 FAT。
+                val createFileLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.CreateDocument("application/octet-stream")
+                ) { uri ->
+                    val params = pendingParams
+                    if (uri == null || params == null) {
+                        // 用户取消建文件：抹密码，回到向导。
+                        params?.password?.fill(0)
+                        pendingParams = null
+                        return@rememberLauncherForActivityResult
+                    }
+                    creating = true
+                    createMsg = null
+                    val totalSize = params.sizeBytes + 2L * 131072   // 数据区 + 主/备头组各 128KB
+                    createScope.launch {
+                        val result = withContext(Dispatchers.IO) {
+                            runCatching {
+                                // 预分配到目标总大小：VolumeCreator 要在末尾写备份头。
+                                ctx.contentResolver.openFileDescriptor(uri, "rw")?.use { pfd ->
+                                    java.io.RandomAccessFile("/proc/self/fd/${pfd.fd}", "rw").use { raf ->
+                                        raf.setLength(totalSize)
+                                    }
+                                } ?: throw java.io.FileNotFoundException("无法打开新建容器文件")
+                                com.henglie.sealchest.fs.VolumeCreator.create(
+                                    resolver = ctx.contentResolver,
+                                    containerUri = uri,
+                                    ea = params.algorithm,
+                                    prf = params.prf,
+                                    pim = params.pim,
+                                    password = params.password,
+                                    keyfiles = emptyList(),
+                                    volumeSizeBytes = params.sizeBytes,
+                                ).getOrThrow()
+                            }
+                        }
+                        params.password.fill(0)
+                        pendingParams = null
+                        creating = false
+                        createMsg = result.fold(
+                            { ctx.getString(R.string.create_ok) },
+                            { it.message ?: ctx.getString(R.string.create_failed) },
+                        )
+                        if (result.isSuccess) showCreate = false
+                    }
+                }
+
+                if (showCreate) {
+                    com.henglie.sealchest.create.CreateVolumeScreen(
+                        busy = creating,
+                        message = createMsg,
+                        onCancel = { if (!creating) { showCreate = false; createMsg = null } },
+                        onCreate = { params ->
+                            // 采集完参数：暂存 + 启动建文件（默认文件名带 .hc 后缀，与 VeraCrypt 惯例一致）。
+                            pendingParams = params
+                            createMsg = null
+                            createFileLauncher.launch("sealchest-container.hc")
+                        },
+                    )
+                } else if (showBrowser && MountManager.isMounted) {
                     BrowserScreen(onExit = { showBrowser = false })
                 } else {
-                    HomeScreen(onBrowse = { showBrowser = true })
+                    HomeScreen(
+                        onBrowse = { showBrowser = true },
+                        onCreateVolume = { showCreate = true; createMsg = null },
+                    )
                 }
             }
         }
@@ -106,7 +179,7 @@ private val PRF_OPTIONS = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-private fun HomeScreen(onBrowse: () -> Unit) {
+private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -297,6 +370,16 @@ private fun HomeScreen(onBrowse: () -> Unit) {
                         if (pickedUri == null) stringResource(R.string.home_pick_container)
                         else pickedName
                     )
+                }
+
+                // 创建新容器入口：仅未选容器时显示，与「选已有容器」并列。
+                if (pickedUri == null) {
+                    OutlinedButton(
+                        onClick = onCreateVolume,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.create_entry))
+                    }
                 }
 
                 if (pickedUri != null) {

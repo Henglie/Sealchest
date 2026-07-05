@@ -190,4 +190,61 @@ Java_com_henglie_sealchest_crypto_NativeBridge_nativeVolumeIsHidden(
         ? JNI_TRUE : JNI_FALSE;
 }
 
+// --- B2 创建容器 ---
+
+// seedRandom(entropy: ByteArray)：Kotlin SecureRandom 灌熵入 native 随机池。
+// 生成卷头前必须先灌足量；池不足时 createHeaders 明确失败，绝不吐可预测随机。
+JNIEXPORT void JNICALL
+Java_com_henglie_sealchest_crypto_NativeBridge_nativeSeedRandom(
+    JNIEnv* env, jobject /*thiz*/, jbyteArray entropy) {
+    if (entropy == nullptr) return;
+    jsize len = env->GetArrayLength(entropy);
+    if (len <= 0) return;
+    jbyte* e = env->GetByteArrayElements(entropy, nullptr);
+    if (e == nullptr) return;
+    sc_random_seed(reinterpret_cast<const uint8_t*>(e), static_cast<int>(len));
+    // 抹除 native 侧熵副本 + 回写清零到 Java 数组（调用方也应 fill(0)）。
+    memset(e, 0, static_cast<size_t>(len));
+    env->ReleaseByteArrayElements(entropy, e, 0);
+}
+
+// createHeaders(outPrimary, outBackup, ea, prf, pim, password, volumeSize, encStart): Int
+// 生成主头 + 备份头（共享随机主密钥、各用独立随机盐），各写 512B 到 out 数组。
+// 返回 0 = 成功，非 0 = VeraCrypt ERR_* 码。password 为 keyfile 混入后的有效密码。
+JNIEXPORT jint JNICALL
+Java_com_henglie_sealchest_crypto_NativeBridge_nativeCreateHeaders(
+    JNIEnv* env, jobject /*thiz*/,
+    jbyteArray outPrimary, jbyteArray outBackup,
+    jint ea, jint prf, jint pim, jbyteArray password,
+    jlong volumeSize, jlong encStart) {
+
+    if (outPrimary == nullptr || outBackup == nullptr || password == nullptr) return -1;
+    if (env->GetArrayLength(outPrimary) < 512 || env->GetArrayLength(outBackup) < 512) return -1;
+
+    jsize plen = env->GetArrayLength(password);
+    jbyte* pbuf = env->GetByteArrayElements(password, nullptr);
+    jbyte* prim = env->GetByteArrayElements(outPrimary, nullptr);
+    jbyte* back = env->GetByteArrayElements(outBackup, nullptr);
+    if (pbuf == nullptr || prim == nullptr || back == nullptr) {
+        if (pbuf) env->ReleaseByteArrayElements(password, pbuf, JNI_ABORT);
+        if (prim) env->ReleaseByteArrayElements(outPrimary, prim, JNI_ABORT);
+        if (back) env->ReleaseByteArrayElements(outBackup, back, JNI_ABORT);
+        return -1;
+    }
+
+    int err = sc_volume_create_headers(
+        reinterpret_cast<uint8_t*>(prim), reinterpret_cast<uint8_t*>(back),
+        static_cast<int>(ea), static_cast<int>(prf), static_cast<int>(pim),
+        reinterpret_cast<const uint8_t*>(pbuf), static_cast<int>(plen),
+        static_cast<uint64_t>(volumeSize), static_cast<uint64_t>(encStart));
+
+    // 抹除口令 native 副本（JNI_ABORT 不回写 Java 数组，仅清 native 侧）。
+    memset(pbuf, 0, static_cast<size_t>(plen));
+    env->ReleaseByteArrayElements(password, pbuf, JNI_ABORT);
+    // 成功才回写头（0=回写），失败 ABORT 不留半成品。
+    env->ReleaseByteArrayElements(outPrimary, prim, err == 0 ? 0 : JNI_ABORT);
+    env->ReleaseByteArrayElements(outBackup, back, err == 0 ? 0 : JNI_ABORT);
+    return static_cast<jint>(err);
+}
+
 }  // extern "C"

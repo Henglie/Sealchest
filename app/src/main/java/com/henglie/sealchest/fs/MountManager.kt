@@ -87,6 +87,11 @@ object MountManager {
          * FAT 写方向（T3）才能把加密数据写回真实容器。UI 侧须已 take 了带写权限的 URI。
          */
         writable: Boolean = false,
+        /**
+         * keyfile 内容列表（每项一个 keyfile 的完整字节，已由 SAF 读入内存）。空 = 不用 keyfile。
+         * 派生前经 [KeyfileMixer] 混入 [password]，与桌面 VeraCrypt 字节级一致。
+         */
+        keyfiles: List<ByteArray> = emptyList(),
     ): Mount = synchronized(lock) {
         check(NativeBridge.isAvailable) { "加密核心库未加载" }
 
@@ -120,8 +125,14 @@ object MountManager {
                 pos += n
             }
 
-            val volume = NativeBridge.openVolume(header, password, pim, prf)
-                ?: throw SecurityException("密码、PIM 或 PRF 不正确")
+            // keyfile 混入：无 keyfile 时 apply 返回 password 拷贝（等价原路径）。
+            // effective 是混合后的有效密码，用完立即抹；原 password 由 catch/结尾各自处理。
+            val effective = com.henglie.sealchest.crypto.KeyfileMixer.apply(password, keyfiles)
+            val volume = try {
+                NativeBridge.openVolume(header, effective, pim, prf)
+            } finally {
+                effective.fill(0)
+            } ?: throw SecurityException("密码、PIM、PRF 或 keyfile 不正确")
 
             reader = VolumeReader(channel, volume)
             val fs = FatFileSystem.mount(reader)

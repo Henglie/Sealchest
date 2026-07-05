@@ -97,5 +97,13 @@
     <string name="about_author">恒烈 / EternalBlaze</string>
     <string name="about_project_label">项目地址</string>
     <string name="about_version_label">版本</string>
+    <string name="about_upstream_label">VeraCrypt 核心</string>
+    <string name="about_upstream_commit_label">锁定 commit</string>
+    <string name="about_toolchain_label">构建工具链</string>
+    <string name="about_abis_label">ABI</string>
+    <string name="about_supplychain_note">本应用编译 VeraCrypt 上游 C 加密核心，锁定于上方 commit。可在 github.com/veracrypt/VeraCrypt 逐字节审计实际编入的源码。</string>
     <string name="about_credit">加解密核心移植自 VeraCrypt（Apache-2.0 + TrueCrypt License 3.0）。匿匣是独立产品，不隶属于、也不冒充 VeraCrypt 或 TrueCrypt 项目。</string>
+    <string name="unlock_keyfiles_none">密钥文件（可选）</string>
+    <string name="unlock_keyfiles_selected">密钥文件：已选 %1$d 个</string>
+    <string name="unlock_keyfiles_clear">清空密钥文件</string>
 </resources>

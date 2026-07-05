@@ -130,6 +130,19 @@ private fun HomeScreen(onBrowse: () -> Unit) {
     var mountWritable by remember { mutableStateOf(true) }
     // 选中的 URI 是否实际拿到了可持久化写权限（源 provider 未必授予）。
     var uriWritable by remember { mutableStateOf(false) }
+    // 选中的 keyfile URI 列表（可多选，顺序无关）。空 = 仅密码解锁。keyfile 只读内容、
+    // 不持久化权限（解锁当次读完即弃），故存 URI 不存内容，解锁时才 SAF 读字节混入。
+    var keyfileUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
+
+    val keyfilePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        // 追加去重（多次选择累加），不覆盖已选。keyfile 走当次读取，无需 take 持久权限。
+        if (uris.isNotEmpty()) {
+            keyfileUris = (keyfileUris + uris).distinct()
+            error = null
+        }
+    }
 
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -150,6 +163,8 @@ private fun HomeScreen(onBrowse: () -> Unit) {
             }.isSuccess
             // 拿到写权限则默认读写打开，拿不到回落只读（换选容器时同步重置，不残留上次状态）。
             mountWritable = uriWritable
+            // 换选容器时清空 keyfile：不同容器 keyfile 组不同，残留会导致误开卷失败。
+            keyfileUris = emptyList()
             pickedUri = uri
             pickedName = queryDisplayName(context, uri) ?: uri.lastPathSegment
                 ?: context.getString(R.string.mount_default_container)
@@ -287,6 +302,29 @@ private fun HomeScreen(onBrowse: () -> Unit) {
                         modifier = Modifier.fillMaxWidth(),
                     )
 
+                    // Keyfile 入口。带 keyfile 的容器必须选齐同一组 keyfile 才能开卷（顺序无关）。
+                    // 空 = 仅密码。选择走多选累加，可清空重来。keyfile 只读内容、不 take 持久权限。
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        OutlinedButton(
+                            onClick = { keyfilePicker.launch(arrayOf("*/*")) },
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text(
+                                if (keyfileUris.isEmpty()) stringResource(R.string.unlock_keyfiles_none)
+                                else stringResource(R.string.unlock_keyfiles_selected, keyfileUris.size)
+                            )
+                        }
+                        if (keyfileUris.isNotEmpty()) {
+                            TextButton(onClick = { keyfileUris = emptyList() }) {
+                                Text(stringResource(R.string.unlock_keyfiles_clear))
+                            }
+                        }
+                    }
+
                     Button(
                         onClick = {
                             val uri = pickedUri ?: return@Button
@@ -295,11 +333,19 @@ private fun HomeScreen(onBrowse: () -> Unit) {
                             val pw = password.toByteArray(Charsets.UTF_8)
                             val pimVal = pim.toIntOrNull() ?: 0
                             val prfVal = PRF_OPTIONS[prfIndex].second
+                            val kfUris = keyfileUris
                             scope.launch {
                                 val result = withContext(Dispatchers.IO) {
                                     runCatching {
+                                        // keyfile 内容当次读入内存（各截断至 1 MiB 由 KeyfileMixer 处理）。
+                                        val keyfiles = kfUris.mapNotNull { kfUri ->
+                                            runCatching {
+                                                context.contentResolver.openInputStream(kfUri)
+                                                    ?.use { it.readBytes() }
+                                            }.getOrNull()
+                                        }
                                         MountManager.unlock(
-                                            context, uri, pickedName, pw, pimVal, prfVal, mountWritable
+                                            context, uri, pickedName, pw, pimVal, prfVal, mountWritable, keyfiles
                                         )
                                     }
                                 }
@@ -314,7 +360,8 @@ private fun HomeScreen(onBrowse: () -> Unit) {
                                 }
                             }
                         },
-                        enabled = !unlocking && password.isNotEmpty(),
+                        // 纯 keyfile 解锁：VC 允许空密码 + keyfile。有 keyfile 时放开空密码。
+                        enabled = !unlocking && (password.isNotEmpty() || keyfileUris.isNotEmpty()),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         if (unlocking) {
@@ -378,6 +425,36 @@ private fun AboutDialog(onDismiss: () -> Unit) {
                     stringResource(R.string.about_version_label) + "：" +
                         BuildConfig.VERSION_NAME,
                     style = MaterialTheme.typography.bodyMedium,
+                )
+                // 供应链透明：编入的上游 VeraCrypt 版本、pinned commit、构建工具链、ABI。
+                // 数据源为 build.gradle.kts 的 buildConfigField，与实际编译绑定，非手写。
+                Text(
+                    stringResource(R.string.about_upstream_label) + "：VeraCrypt " +
+                        BuildConfig.VC_UPSTREAM_VERSION,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    stringResource(R.string.about_upstream_commit_label) + "：" +
+                        BuildConfig.VC_UPSTREAM_COMMIT,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    stringResource(R.string.about_toolchain_label) + "：" +
+                        BuildConfig.BUILD_TOOLCHAIN,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    stringResource(R.string.about_abis_label) + "：" +
+                        BuildConfig.BUILD_ABIS,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    stringResource(R.string.about_supplychain_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
                     stringResource(R.string.about_credit),

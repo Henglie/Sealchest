@@ -106,6 +106,11 @@ JNI 只暴露三个能力：开卷（验密码、派生密钥、出 CRYPTO_INFO 
 - [x] FAT32 FSInfo 失效：写后置 `FSI_Free_Count`/`FSI_Nxt_Free` 为 0xFFFFFFFF（unknown，OS 重算，防 chkdsk 报「空闲空间不符」）
 - [x] T4 真机端到端 + 桌面 VeraCrypt 回验（互通唯一判据，两端已验：app 内写/改/删 + 桌面 VC 打开同容器改动可见 + chkdsk 干净）
 
+### 三期 · 容器兼容性补全（对齐上游功能，路线图见 `路线图.md`）
+
+- [x] A1 keyfile 解锁：`KeyfileMixer`（纯 Kotlin 复刻 VC `KeyFilesApply`，CRC32 0xEDB88320 池化模加，字节级一致）+ `MountManager.unlock` 加 `keyfiles` 参数 openVolume 前混入 + 解锁 UI 多选 keyfile 入口（`OpenMultipleDocuments`，当次读入，无需持久权限；有 keyfile 时允许空密码解锁）。编译 46/46 全量过。**待恒烈真机回验**：带 keyfile 的已知容器能开 + 与桌面 VC 同组 keyfile 结果一致。
+- [x] 关于页安全信息：`buildConfigField` 注入上游 VC 版本（1.26.29）/ pinned commit / 构建工具链 / ABI，关于页展示，供审计。单一真相源，与实际编译绑定。
+
 ---
 
 ## ▍踩坑记录

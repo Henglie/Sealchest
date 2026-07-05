@@ -19,6 +19,15 @@ android {
         versionCode = 4
         versionName = "0.4"
 
+        // 供应链透明信息：把「编进这个 APK 的上游 VeraCrypt 到底是哪个版本 / commit」
+        // 与构建环境编入 BuildConfig，关于页直接读，单一真相源与实际构建绑定。
+        // 同步上游后必须同步改这几项（见 上游同步与供应链安全.md「当前锁定版本」）。
+        buildConfigField("String", "VC_UPSTREAM_VERSION", "\"1.26.29\"")
+        buildConfigField("String", "VC_UPSTREAM_COMMIT", "\"21dba20af41101e59c36bf9a29c26af2870d30b3\"")
+        buildConfigField("String", "VC_UPSTREAM_REPO", "\"github.com/veracrypt/VeraCrypt\"")
+        buildConfigField("String", "BUILD_TOOLCHAIN", "\"NDK 30.0.14904198 · CMake 3.22.1 · C11/C++17\"")
+        buildConfigField("String", "BUILD_ABIS", "\"arm64-v8a, armeabi-v7a, x86_64\"")
+
         // JNI 层（VeraCrypt 解密核心）。arm64-v8a 主流，armeabi-v7a 覆盖老 ARM，
         // x86_64 给模拟器调试。
         ndk {

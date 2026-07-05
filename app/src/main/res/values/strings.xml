@@ -99,5 +99,13 @@
     <string name="about_author">Henglie / EternalBlaze</string>
     <string name="about_project_label">Project</string>
     <string name="about_version_label">Version</string>
+    <string name="about_upstream_label">VeraCrypt core</string>
+    <string name="about_upstream_commit_label">Pinned commit</string>
+    <string name="about_toolchain_label">Build toolchain</string>
+    <string name="about_abis_label">ABIs</string>
+    <string name="about_supplychain_note">This app compiles VeraCrypt\'s upstream C crypto core, pinned to the commit above. You can audit exactly which source is built at github.com/veracrypt/VeraCrypt.</string>
     <string name="about_credit">The crypto core is ported from VeraCrypt (Apache-2.0 + TrueCrypt License 3.0). Sealchest is an independent product and is not affiliated with, nor does it impersonate, the VeraCrypt or TrueCrypt projects.</string>
+    <string name="unlock_keyfiles_none">Keyfiles (optional)</string>
+    <string name="unlock_keyfiles_selected">Keyfiles: %1$d selected</string>
+    <string name="unlock_keyfiles_clear">Clear keyfiles</string>
 </resources>

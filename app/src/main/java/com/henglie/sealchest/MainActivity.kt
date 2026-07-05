@@ -144,6 +144,65 @@ private fun HomeScreen(onBrowse: () -> Unit) {
         }
     }
 
+    // 卷头工具（A2 救砖）状态：弹窗显隐 + 忙碌标志 + 结果提示。
+    var showHeaderTool by remember { mutableStateOf(false) }
+    var headerBusy by remember { mutableStateOf(false) }
+    var headerMsg by remember { mutableStateOf<String?>(null) }
+
+    // 导出卷头备份：选保存位置 → 原始 128KB 主头组转储（只读容器，最安全）。
+    val exportHeaderLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { dest ->
+        val uri = pickedUri
+        if (dest != null && uri != null) {
+            headerBusy = true
+            scope.launch {
+                val r = withContext(Dispatchers.IO) {
+                    com.henglie.sealchest.fs.VolumeHeaderTool.export(context.contentResolver, uri, dest)
+                }
+                headerBusy = false
+                headerMsg = r.fold(
+                    { context.getString(R.string.header_export_ok) },
+                    { it.message ?: context.getString(R.string.header_export_failed) },
+                )
+            }
+        }
+    }
+
+    // 救砖：先让用户选“救援文件”保存位置（覆盖前的可逆兜底），onResult 才真正跑恢复。
+    // 恢复内部严格序：验证备份头能开卷 → 导出当前主头到救援文件 → 备份头组覆盖主头组。
+    val rescueLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { rescueDest ->
+        val uri = pickedUri
+        if (rescueDest != null && uri != null) {
+            headerBusy = true
+            val pw = password.toByteArray(Charsets.UTF_8)
+            val pimVal = pim.toIntOrNull() ?: 0
+            val prfVal = PRF_OPTIONS[prfIndex].second
+            val kfUris = keyfileUris
+            scope.launch {
+                val r = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val keyfiles = kfUris.mapNotNull { kfUri ->
+                            context.contentResolver.openInputStream(kfUri)?.use { it.readBytes() }
+                        }
+                        com.henglie.sealchest.fs.VolumeHeaderTool.restoreFromEmbedded(
+                            context.contentResolver, uri, pw, pimVal, prfVal, keyfiles, rescueDest
+                        ).getOrThrow()
+                    }
+                }
+                pw.fill(0)
+                headerBusy = false
+                headerMsg = r.fold(
+                    { context.getString(R.string.header_restore_ok) },
+                    { it.message ?: context.getString(R.string.header_restore_failed) },
+                )
+                if (r.isSuccess) showHeaderTool = false
+            }
+        }
+    }
+
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -375,13 +434,105 @@ private fun HomeScreen(onBrowse: () -> Unit) {
                             Text(stringResource(R.string.unlock_submit))
                         }
                     }
+
+                    // 卷头工具入口（A2 救砖）：低调 TextButton，主头损坏打不开时的最后一道保险。
+                    TextButton(
+                        onClick = { headerMsg = null; showHeaderTool = true },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.header_tool_entry))
+                    }
                 }
             }
         }
 
         // 「关于」弹窗：TopAppBar 信息按钮触发。
         if (showAbout) AboutDialog(onDismiss = { showAbout = false })
+
+        // 卷头工具弹窗（A2）：导出备份 + 从内嵌备份头救砖。
+        if (showHeaderTool) {
+            HeaderToolDialog(
+                busy = headerBusy,
+                message = headerMsg,
+                canRescue = uriWritable,
+                onExport = {
+                    exportHeaderLauncher.launch("${pickedName}.scheader")
+                },
+                onRescue = {
+                    rescueLauncher.launch("${pickedName}.rescue.scheader")
+                },
+                onDismiss = { if (!headerBusy) { showHeaderTool = false; headerMsg = null } },
+            )
+        }
     }
+}
+
+/**
+ * 卷头工具弹窗（A2 救砖）。两个动作：
+ * - 导出卷头备份：只读容器，把 128KB 主头组转储到文件。平时备份，最安全。
+ * - 从内嵌备份头救砖：用卷尾备份头覆盖主头。需密码/keyfile 验证 + 写权限，
+ *   覆盖前强制先存救援文件（可逆兜底）。危险操作，文案强提示。
+ *
+ * [canRescue] = 容器 URI 是否拿到写权限（无写权限只能导出、不能救砖）。
+ */
+@Composable
+private fun HeaderToolDialog(
+    busy: Boolean,
+    message: String?,
+    canRescue: Boolean,
+    onExport: () -> Unit,
+    onRescue: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = onDismiss, enabled = !busy) {
+                Text(stringResource(R.string.header_tool_close))
+            }
+        },
+        title = { Text(stringResource(R.string.header_tool_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    stringResource(R.string.header_tool_desc),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                OutlinedButton(
+                    onClick = onExport,
+                    enabled = !busy,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.header_export_button))
+                }
+                Text(
+                    stringResource(R.string.header_rescue_warn),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                Button(
+                    onClick = onRescue,
+                    enabled = !busy && canRescue,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        if (canRescue) stringResource(R.string.header_rescue_button)
+                        else stringResource(R.string.header_rescue_need_write)
+                    )
+                }
+                if (busy) {
+                    CircularProgressIndicator(modifier = Modifier.height(20.dp), strokeWidth = 2.dp)
+                }
+                if (message != null) {
+                    Text(
+                        message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        },
+    )
 }
 
 /** 「关于」弹窗。展示描述、作者、可点项目地址、版本、核心致谢。 */

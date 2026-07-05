@@ -106,4 +106,17 @@
     <string name="unlock_keyfiles_none">密钥文件（可选）</string>
     <string name="unlock_keyfiles_selected">密钥文件：已选 %1$d 个</string>
     <string name="unlock_keyfiles_clear">清空密钥文件</string>
+    <!-- 卷头工具（A2 救砖） -->
+    <string name="header_tool_entry">卷头工具（备份 / 救砖）</string>
+    <string name="header_tool_title">卷头工具</string>
+    <string name="header_tool_desc">导出主卷头备份，或在卷头损坏、密码对却打不开时，用卷尾的备份头救回容器。所有操作不需先解锁，直接对选中的容器进行。</string>
+    <string name="header_tool_close">关闭</string>
+    <string name="header_export_button">导出卷头备份</string>
+    <string name="header_export_ok">卷头已备份到所选文件。</string>
+    <string name="header_export_failed">导出卷头失败。</string>
+    <string name="header_rescue_warn">救砖会用卷尾的备份头覆盖卷首主头，改写容器、不可逆。仅在主头已损坏、打不开容器时用。执行前会先验证备份头能用你的密码 / 密钥文件打开，并把当前主头存到一个救援文件；两步任一失败都不会改动容器。</string>
+    <string name="header_rescue_button">从备份头救砖…</string>
+    <string name="header_rescue_need_write">救砖需要容器的写权限（重选容器并授予写权限）</string>
+    <string name="header_restore_ok">救砖成功：备份头已覆盖主头，可尝试重新解锁。</string>
+    <string name="header_restore_failed">救砖失败，容器未改动。</string>
 </resources>

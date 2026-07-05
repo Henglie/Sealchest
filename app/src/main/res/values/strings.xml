@@ -108,4 +108,17 @@
     <string name="unlock_keyfiles_none">Keyfiles (optional)</string>
     <string name="unlock_keyfiles_selected">Keyfiles: %1$d selected</string>
     <string name="unlock_keyfiles_clear">Clear keyfiles</string>
+    <!-- Volume header tool (A2: backup / rescue) -->
+    <string name="header_tool_entry">Volume header tools (backup / rescue)</string>
+    <string name="header_tool_title">Volume header tools</string>
+    <string name="header_tool_desc">A VeraCrypt volume keeps a backup header at the end of the container. If the primary header is damaged and the volume won\'t open, restore it from the embedded backup. Back up the header regularly while the volume is healthy.</string>
+    <string name="header_tool_close">Close</string>
+    <string name="header_export_button">Back up primary header to file</string>
+    <string name="header_export_ok">Header backed up.</string>
+    <string name="header_export_failed">Header backup failed.</string>
+    <string name="header_rescue_warn">Rescue overwrites the primary header with the embedded backup header. It first verifies the backup opens with your password/keyfiles and saves the current header to a rescue file, but this still writes the container — make sure the volume is not mounted elsewhere.</string>
+    <string name="header_rescue_button">Rescue from embedded backup header</string>
+    <string name="header_rescue_need_write">Rescue needs write permission (re-pick the container granting write access)</string>
+    <string name="header_restore_ok">Primary header restored from the backup. Try unlocking now.</string>
+    <string name="header_restore_failed">Restore failed. The container was not modified.</string>
 </resources>

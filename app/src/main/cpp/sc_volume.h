@@ -74,6 +74,25 @@ int sc_volume_create_headers(uint8_t* out_primary, uint8_t* out_backup,
                              const uint8_t* password, int password_len,
                              uint64_t volume_size, uint64_t encrypted_area_start);
 
+/* 改密码 / PIM / PRF（B1）：字节级复刻 VC ChangePwd（Common/Password.c:190）。
+ * 主密钥不变，只用新密码 + 新盐重新派生 header key 重加密主头 + 备份头。
+ *
+ * 从已开卷句柄 v（其 v->ci 由 ReadVolumeHeaderWithAbort 填充）读取全部卷参数
+ * 原样透传（ea/mode/master_keydata/VolumeSize/EncryptedAreaStart/EncryptedAreaLength/
+ * RequiredProgramVersion/HeaderFlags/SectorSize），只 password/prf/pim 换新，
+ * 内部各取新随机盐（故主头与备份头盐不同，与 VC 一致）。
+ *   v：已成功开卷的句柄（不可为 NULL）。
+ *   new_prf：新 PRF ID；传 0 = 保持原卷 PRF（对齐 ChangePwd 的 pkcs5==0 语义）。
+ *   new_pim：新 PIM（<0 视作 0）。
+ *   new_password / password_len：keyfile 混入后的新有效密码（UTF-8，可空长度 0）。
+ *   out_primary / out_backup：各收 512B 重加密后的头（调用方保证 ≥512B）。
+ * 成功返回 0（ERR_SUCCESS），失败返回 VeraCrypt ERR_* 码。
+ * 调用前须先 sc_random_seed 灌足熵（内部取新盐用 RandgetBytes，池空返 FALSE 即失败）。 */
+int sc_volume_rekey_headers(const sc_volume* v,
+                            int new_prf, int new_pim,
+                            const uint8_t* new_password, int password_len,
+                            uint8_t* out_primary, uint8_t* out_backup);
+
 /* --- 只读信息 getter（开卷后卷头解析出的字段）--- */
 int      sc_volume_ea(const sc_volume* v);            /* 加密算法 ID（AES=1…KUZNYECHIK=5，级联另计）*/
 int      sc_volume_prf(const sc_volume* v);           /* 命中的 PRF ID */

@@ -222,6 +222,24 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
     var headerBusy by remember { mutableStateOf(false) }
     var headerMsg by remember { mutableStateOf<String?>(null) }
 
+    // 改密码（B1）状态：弹窗显隐 + 忙碌 + 结果提示 + 新凭据（旧凭据复用解锁区已填的）。
+    var showChangePwd by remember { mutableStateOf(false) }
+    var changePwdBusy by remember { mutableStateOf(false) }
+    var changePwdMsg by remember { mutableStateOf<String?>(null) }
+    var newPassword by remember { mutableStateOf("") }
+    var newPim by remember { mutableStateOf("") }
+    var newPrfIndex by remember { mutableStateOf(0) }
+    var newKeyfileUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
+
+    val newKeyfilePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            newKeyfileUris = (newKeyfileUris + uris).distinct()
+            changePwdMsg = null
+        }
+    }
+
     // 导出卷头备份：选保存位置 → 原始 128KB 主头组转储（只读容器，最安全）。
     val exportHeaderLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/octet-stream")
@@ -272,6 +290,59 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
                     { it.message ?: context.getString(R.string.header_restore_failed) },
                 )
                 if (r.isSuccess) showHeaderTool = false
+            }
+        }
+    }
+
+    // 改密码（B1）：先选“救援文件”保存位置（写头前的可逆兜底），onResult 才真正执行。
+    // 旧凭据取解锁区已填的（password/pim/prfIndex/keyfileUris），新凭据取对话框内的。
+    val changePwdLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { rescueDest ->
+        val uri = pickedUri
+        if (rescueDest != null && uri != null) {
+            changePwdBusy = true
+            val oldPw = password.toByteArray(Charsets.UTF_8)
+            val oldPimVal = pim.toIntOrNull() ?: 0
+            val oldPrfVal = PRF_OPTIONS[prfIndex].second
+            val oldKfUris = keyfileUris
+            val newPw = newPassword.toByteArray(Charsets.UTF_8)
+            val newPimVal = newPim.toIntOrNull() ?: 0
+            val newPrfVal = PRF_OPTIONS[newPrfIndex].second
+            val newKfUris = newKeyfileUris
+            scope.launch {
+                val r = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val oldKeyfiles = oldKfUris.mapNotNull { kfUri ->
+                            runCatching {
+                                context.contentResolver.openInputStream(kfUri)?.use { it.readBytes() }
+                            }.getOrNull()
+                        }
+                        val newKeyfiles = newKfUris.mapNotNull { kfUri ->
+                            runCatching {
+                                context.contentResolver.openInputStream(kfUri)?.use { it.readBytes() }
+                            }.getOrNull()
+                        }
+                        com.henglie.sealchest.fs.PasswordChanger.change(
+                            context.contentResolver, uri,
+                            oldPw, oldPimVal, oldPrfVal, oldKeyfiles,
+                            newPw, newPimVal, newPrfVal, newKeyfiles,
+                            rescueDest,
+                        ).getOrThrow()
+                    }
+                }
+                oldPw.fill(0)
+                newPw.fill(0)
+                changePwdBusy = false
+                changePwdMsg = r.fold(
+                    { context.getString(R.string.change_pwd_ok) },
+                    { it.message ?: context.getString(R.string.change_pwd_failed) },
+                )
+                if (r.isSuccess) {
+                    // 改成功：清空新旧口令输入，防残留。
+                    newPassword = ""; newPim = ""; newKeyfileUris = emptyList()
+                    showChangePwd = false
+                }
             }
         }
     }
@@ -518,6 +589,17 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
                         }
                     }
 
+                    // 改密码入口（B1）：写操作，仅拿到写权限时可用。旧凭据取上方已填的
+                    // 密码 / PIM / PRF / keyfile；点开对话框收集新凭据。
+                    if (uriWritable) {
+                        TextButton(
+                            onClick = { changePwdMsg = null; showChangePwd = true },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(stringResource(R.string.change_pwd_entry))
+                        }
+                    }
+
                     // 卷头工具入口（A2 救砖）：低调 TextButton，主头损坏打不开时的最后一道保险。
                     TextButton(
                         onClick = { headerMsg = null; showHeaderTool = true },
@@ -545,6 +627,30 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
                     rescueLauncher.launch("${pickedName}.rescue.scheader")
                 },
                 onDismiss = { if (!headerBusy) { showHeaderTool = false; headerMsg = null } },
+            )
+        }
+
+        // 改密码弹窗（B1）：收集新口令/PIM/PRF/keyfile，确认后先选救援文件再执行。
+        if (showChangePwd) {
+            ChangePasswordDialog(
+                busy = changePwdBusy,
+                message = changePwdMsg,
+                newPassword = newPassword,
+                onNewPasswordChange = { newPassword = it; changePwdMsg = null },
+                newPim = newPim,
+                onNewPimChange = { newPim = it.filter(Char::isDigit); changePwdMsg = null },
+                newPrfIndex = newPrfIndex,
+                onNewPrfChange = { newPrfIndex = it },
+                newKeyfileCount = newKeyfileUris.size,
+                onPickNewKeyfiles = { newKeyfilePicker.launch(arrayOf("*/*")) },
+                onClearNewKeyfiles = { newKeyfileUris = emptyList() },
+                onConfirm = { changePwdLauncher.launch("${pickedName}.rescue.scheader") },
+                onDismiss = {
+                    if (!changePwdBusy) {
+                        showChangePwd = false; changePwdMsg = null
+                        newPassword = ""; newPim = ""; newKeyfileUris = emptyList()
+                    }
+                },
             )
         }
     }
@@ -619,6 +725,135 @@ private fun HeaderToolDialog(
 }
 
 /** 「关于」弹窗。展示描述、作者、可点项目地址、版本、核心致谢。 */
+/**
+ * 改密码 / PIM / PRF / keyfile 弹窗（B1）。
+ *
+ * 旧凭据复用解锁区已填的密码 / PIM / PRF / keyfile（不在此弹窗重复输入）——用户改密码前
+ * 本就要先在解锁区填对当前口令。本弹窗只收集**新**口令 / PIM / PRF / keyfile。
+ *
+ * 确认时先让用户选一个救援文件保存位置（[onConfirm] 触发 CreateDocument），写头前把当前
+ * 主头组导出到该文件（可逆兜底）。改密码是写操作，需容器 URI 已授予写权限。
+ * 忙碌时禁用全部输入并显示进度；结果 / 错误经 [message] 展示。
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun ChangePasswordDialog(
+    busy: Boolean,
+    message: String?,
+    newPassword: String,
+    onNewPasswordChange: (String) -> Unit,
+    newPim: String,
+    onNewPimChange: (String) -> Unit,
+    newPrfIndex: Int,
+    onNewPrfChange: (Int) -> Unit,
+    newKeyfileCount: Int,
+    onPickNewKeyfiles: () -> Unit,
+    onClearNewKeyfiles: () -> Unit,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.change_pwd_title)) },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+            ) {
+                Text(stringResource(R.string.change_pwd_desc))
+                OutlinedTextField(
+                    value = newPassword,
+                    onValueChange = onNewPasswordChange,
+                    label = { Text(stringResource(R.string.change_pwd_new_password)) },
+                    singleLine = true,
+                    enabled = !busy,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = newPim,
+                    onValueChange = onNewPimChange,
+                    label = { Text(stringResource(R.string.change_pwd_new_pim)) },
+                    singleLine = true,
+                    enabled = !busy,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    stringResource(R.string.change_pwd_new_prf),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    PRF_OPTIONS.forEachIndexed { i, (labelResId, _) ->
+                        FilterChip(
+                            selected = newPrfIndex == i,
+                            onClick = { if (!busy) onNewPrfChange(i) },
+                            label = { Text(stringResource(labelResId)) },
+                            modifier = Modifier.widthIn(min = 96.dp),
+                        )
+                    }
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    OutlinedButton(
+                        onClick = onPickNewKeyfiles,
+                        enabled = !busy,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(
+                            if (newKeyfileCount == 0) stringResource(R.string.change_pwd_new_keyfiles_none)
+                            else stringResource(R.string.change_pwd_new_keyfiles_selected, newKeyfileCount)
+                        )
+                    }
+                    if (newKeyfileCount > 0) {
+                        TextButton(onClick = onClearNewKeyfiles, enabled = !busy) {
+                            Text(stringResource(R.string.unlock_keyfiles_clear))
+                        }
+                    }
+                }
+                if (message != null) {
+                    Text(
+                        message,
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                if (busy) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.height(20.dp),
+                            strokeWidth = 2.dp,
+                        )
+                        Text("  " + stringResource(R.string.change_pwd_working))
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            // 空新口令 + 无新 keyfile 不允许（VC 允许纯 keyfile，故有 keyfile 时放开空口令）。
+            TextButton(
+                onClick = onConfirm,
+                enabled = !busy && (newPassword.isNotEmpty() || newKeyfileCount > 0),
+            ) {
+                Text(stringResource(R.string.change_pwd_submit))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !busy) {
+                Text(stringResource(R.string.change_pwd_dismiss))
+            }
+        },
+    )
+}
+
 @Composable
 private fun AboutDialog(onDismiss: () -> Unit) {
     val uriHandler = LocalUriHandler.current

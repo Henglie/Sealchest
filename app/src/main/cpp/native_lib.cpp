@@ -261,4 +261,41 @@ Java_com_henglie_sealchest_crypto_NativeBridge_nativeCreateHeaders(
     return static_cast<jint>(err);
 }
 
+// rekeyHeaders(handle, newPrf, newPim, newPassword, outPrimary, outBackup): Int
+// B1 改密码/PIM/PRF：复用已开卷句柄的旧主密钥，用新口令重加密主头+备份头，各写 512B 到 out。
+// 返回 0=成功，非 0=VeraCrypt ERR_*。newPassword 为 keyfile 混入后的有效密码。
+// 调用前须先 nativeSeedRandom 灌足熵（内部取新盐用 RandgetBytes）。
+JNIEXPORT jint JNICALL
+Java_com_henglie_sealchest_crypto_NativeBridge_nativeRekeyHeaders(
+    JNIEnv* env, jobject /*thiz*/,
+    jlong handle, jint newPrf, jint newPim, jbyteArray newPassword,
+    jbyteArray outPrimary, jbyteArray outBackup) {
+
+    if (handle == 0 || newPassword == nullptr || outPrimary == nullptr || outBackup == nullptr) return -1;
+    if (env->GetArrayLength(outPrimary) < 512 || env->GetArrayLength(outBackup) < 512) return -1;
+
+    jsize plen = env->GetArrayLength(newPassword);
+    jbyte* pbuf = env->GetByteArrayElements(newPassword, nullptr);
+    jbyte* prim = env->GetByteArrayElements(outPrimary, nullptr);
+    jbyte* back = env->GetByteArrayElements(outBackup, nullptr);
+    if (pbuf == nullptr || prim == nullptr || back == nullptr) {
+        if (pbuf) env->ReleaseByteArrayElements(newPassword, pbuf, JNI_ABORT);
+        if (prim) env->ReleaseByteArrayElements(outPrimary, prim, JNI_ABORT);
+        if (back) env->ReleaseByteArrayElements(outBackup, back, JNI_ABORT);
+        return -1;
+    }
+
+    int err = sc_volume_rekey_headers(
+        reinterpret_cast<sc_volume*>(handle),
+        static_cast<int>(newPrf), static_cast<int>(newPim),
+        reinterpret_cast<const uint8_t*>(pbuf), static_cast<int>(plen),
+        reinterpret_cast<uint8_t*>(prim), reinterpret_cast<uint8_t*>(back));
+
+    memset(pbuf, 0, static_cast<size_t>(plen));
+    env->ReleaseByteArrayElements(newPassword, pbuf, JNI_ABORT);
+    env->ReleaseByteArrayElements(outPrimary, prim, err == 0 ? 0 : JNI_ABORT);
+    env->ReleaseByteArrayElements(outBackup, back, err == 0 ? 0 : JNI_ABORT);
+    return static_cast<jint>(err);
+}
+
 }  // extern "C"

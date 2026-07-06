@@ -231,3 +231,114 @@ cleanup:
     sc_random_wipe();
     return retVal;
 }
+
+/* --- B1 改密码 / PIM / PRF ---
+ *
+ * 严格照 VC ChangePwd（Common/Password.c:190）标准文件容器路径：
+ *   主头 + 备份头各调一次 CreateVolumeHeaderInMemory，masterKeydata = 旧卷主密钥
+ *   （v->ci->master_keydata，256B）→ 复用同一主密钥（改密码不动数据区），
+ *   全部卷参数从旧 cryptoInfo 原样透传，只 password/pkcs5/pim 换新，内部各取新盐。
+ *   （Password.c:513-528 那个 hiddenVolumeSize=VolumeSize 的调用是设备级 in-place
+ *    加密专用的假隐藏头，bDevice && NONSYS_INPLACE_ENC 分支，文件容器不走 → 此处
+ *    两头 hiddenVolumeSize 均传 0，与主头调用一致。）
+ */
+int sc_volume_rekey_headers(const sc_volume* v,
+                            int new_prf, int new_pim,
+                            const uint8_t* new_password, int password_len,
+                            uint8_t* out_primary, uint8_t* out_backup)
+{
+    if (!v || !v->ci || !out_primary || !out_backup)
+        return ERR_PARAMETER_INCORRECT;
+    if (password_len < 0 || password_len > MAX_PASSWORD)
+        return ERR_PARAMETER_INCORRECT;
+
+    PCRYPTO_INFO src = v->ci;
+
+    /* new_prf==0 → 保持原卷 PRF（对齐 ChangePwd 的 pkcs5==0 语义）。 */
+    int prf = (new_prf != 0) ? new_prf : src->pkcs5;
+    if (prf == 0)
+        return ERR_PARAMETER_INCORRECT;
+
+    /* 组装新密码（栈上，用完抹）。 */
+    Password pw;
+    memset(&pw, 0, sizeof(pw));
+    pw.Length = (unsigned __int32) password_len;
+    if (password_len > 0)
+        memcpy(pw.Text, new_password, (size_t) password_len);
+
+    unsigned char primary[TC_VOLUME_HEADER_EFFECTIVE_SIZE];
+    unsigned char backup[TC_VOLUME_HEADER_EFFECTIVE_SIZE];
+    memset(primary, 0, sizeof(primary));
+    memset(backup, 0, sizeof(backup));
+
+    PCRYPTO_INFO ci = NULL;
+    PCRYPTO_INFO ciBackup = NULL;
+    int retVal = ERR_SUCCESS;
+
+    /* ① 主头：masterKeydata = 旧卷主密钥 → 重加密路径，全部卷参数从 src 透传。 */
+    int err = CreateVolumeHeaderInMemory(
+        NULL,                               /* hwndDlg */
+        FALSE,                              /* bBoot */
+        (char*) primary,
+        src->ea,
+        src->mode,
+        &pw,
+        prf,
+        new_pim,
+        (char*) src->master_keydata,        /* 复用旧主密钥（256B）*/
+        &ci,
+        src->VolumeSize.Value,
+        0,                                  /* hiddenVolumeSize=0（标准卷，文件容器）*/
+        src->EncryptedAreaStart.Value,
+        src->EncryptedAreaLength.Value,
+        src->RequiredProgramVersion,        /* 原样保留，勿写死 */
+        src->HeaderFlags,                   /* 原样保留 */
+        src->SectorSize,                    /* 原样保留 */
+        FALSE);                             /* bWipeMode */
+
+    if (err != ERR_SUCCESS || ci == NULL) {
+        retVal = (err != ERR_SUCCESS) ? err : ERR_OUTOFMEMORY;
+        goto cleanup;
+    }
+
+    /* ② 备份头：同参数再调一次，内部取新盐（主/备盐不同，与 VC 一致）。 */
+    {
+        ciBackup = ci;
+        int err2 = CreateVolumeHeaderInMemory(
+            NULL,
+            FALSE,
+            (char*) backup,
+            src->ea,
+            src->mode,
+            &pw,
+            prf,
+            new_pim,
+            (char*) src->master_keydata,
+            &ciBackup,
+            src->VolumeSize.Value,
+            0,
+            src->EncryptedAreaStart.Value,
+            src->EncryptedAreaLength.Value,
+            src->RequiredProgramVersion,
+            src->HeaderFlags,
+            src->SectorSize,
+            FALSE);
+
+        if (err2 != ERR_SUCCESS) {
+            retVal = err2;
+            goto cleanup;
+        }
+    }
+
+    memcpy(out_primary, primary, TC_VOLUME_HEADER_EFFECTIVE_SIZE);
+    memcpy(out_backup,  backup,  TC_VOLUME_HEADER_EFFECTIVE_SIZE);
+
+cleanup:
+    if (ciBackup && ciBackup != ci) crypto_close(ciBackup);
+    if (ci) crypto_close(ci);
+    burn(&pw, sizeof(pw));
+    burn(primary, sizeof(primary));
+    burn(backup, sizeof(backup));
+    sc_random_wipe();
+    return retVal;
+}

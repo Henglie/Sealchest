@@ -148,4 +148,19 @@
     <string name="create_entropy_hint">Swipe your finger around the box below. Your unpredictable movements add entropy to the master key (like moving the mouse in desktop VeraCrypt).</string>
     <string name="create_entropy_progress">Keep swiping… %1$d%%</string>
     <string name="create_entropy_done">Enough randomness collected</string>
+
+    <!-- Change password / PIM / PRF / keyfiles (B1) -->
+    <string name="change_pwd_entry">Change password / PIM / keyfiles</string>
+    <string name="change_pwd_title">Change password</string>
+    <string name="change_pwd_desc">Enter the current password / PIM / PRF / keyfiles above (same as unlocking), then set the new ones here. Only the header is re-encrypted — the master key and your data never change. A rescue copy of the current header is saved before writing, in case anything goes wrong.</string>
+    <string name="change_pwd_new_password">New password</string>
+    <string name="change_pwd_new_pim">New PIM (optional)</string>
+    <string name="change_pwd_new_prf">New PRF (0 = keep current)</string>
+    <string name="change_pwd_new_keyfiles_none">New keyfiles (optional)</string>
+    <string name="change_pwd_new_keyfiles_selected">New keyfiles: %1$d selected</string>
+    <string name="change_pwd_working">Re-encrypting header…</string>
+    <string name="change_pwd_submit">Change password</string>
+    <string name="change_pwd_dismiss">Cancel</string>
+    <string name="change_pwd_ok">Password changed. Unlock with the new password from now on.</string>
+    <string name="change_pwd_failed">Failed to change password</string>
 </resources>

@@ -146,4 +146,19 @@
     <string name="create_entropy_hint">在下方区域内用手指随意涂抹滑动。你的触摸轨迹是不可预测的物理随机源，用于加固容器的加密密钥（等同桌面版晃动鼠标）。</string>
     <string name="create_entropy_done">熵已充足，可以创建</string>
     <string name="create_entropy_progress">继续涂抹… %1$d%%</string>
+
+    <!-- 改密码 / PIM / keyfile（B1） -->
+    <string name="change_pwd_entry">修改密码 / PIM / 密钥文件</string>
+    <string name="change_pwd_title">修改密码</string>
+    <string name="change_pwd_desc">在上方填入当前的密码 / PIM / PRF / 密钥文件（同解锁），再在这里设置新的。只重加密卷头——主密钥和你的数据一个字节都不动。写入前会先把当前卷头存一份救援备份，万一出错可恢复。</string>
+    <string name="change_pwd_new_password">新密码</string>
+    <string name="change_pwd_new_pim">新 PIM（可选）</string>
+    <string name="change_pwd_new_prf">新 PRF（0 = 保持原样）</string>
+    <string name="change_pwd_new_keyfiles_none">新密钥文件（可选）</string>
+    <string name="change_pwd_new_keyfiles_selected">新密钥文件：已选 %1$d 个</string>
+    <string name="change_pwd_working">正在重加密卷头…</string>
+    <string name="change_pwd_submit">修改密码</string>
+    <string name="change_pwd_dismiss">取消</string>
+    <string name="change_pwd_ok">密码已修改，以后用新密码解锁。</string>
+    <string name="change_pwd_failed">修改密码失败</string>
 </resources>

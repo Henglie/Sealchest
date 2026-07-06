@@ -81,6 +81,16 @@ object NativeBridge {
         volumeSize: Long, encStart: Long,
     ): Int
 
+    /**
+     * B1 改密码/PIM/PRF：复用已开卷句柄的旧主密钥，用新口令重加密主头+备份头。
+     * outPrimary / outBackup 各须 ≥512B，成功就地写入 512B 有效头。
+     * newPrf 传 0 = 保持原卷 PRF。返回 0 = 成功，非 0 = VeraCrypt ERR_*。
+     */
+    private external fun nativeRekeyHeaders(
+        handle: Long, newPrf: Int, newPim: Int, newPassword: ByteArray,
+        outPrimary: ByteArray, outBackup: ByteArray,
+    ): Int
+
     // ---------------- 对上层暴露 ----------------
 
     /** native 核心版本串。native 不可用时返回占位串。 */
@@ -193,6 +203,31 @@ object NativeBridge {
         fun encryptUnits(startUnit: Long, buf: ByteArray, nbrUnits: Int) {
             check(handle != 0L) { "卷已关闭" }
             nativeEncryptUnits(handle, startUnit, buf, nbrUnits)
+        }
+
+        /**
+         * B1 改密码 / PIM / PRF：复用本卷旧主密钥，用新口令重加密主头 + 备份头。
+         * 主密钥不变（不动数据区），只换头 —— 字节级复刻 VC `ChangePwd`。
+         * **调用前须先 [seedRandom] 灌足熵**（内部各取新随机盐派生新 header key）。
+         *
+         * @param newPrf 新 PRF ID；传 0 保持原卷 PRF（对齐 ChangePwd 的 pkcs5==0 语义）。
+         * @param newPim 新 PIM（0 = 默认）。
+         * @param newPassword keyfile 混入后的新有效密码 UTF-8 字节（可空长度 0）。
+         *        调用后 native 侧副本已抹，调用方仍应自行 fill(0)。
+         * @return Pair(新主头 512B, 新备份头 512B)，失败返回 null（熵不足 / 参数错 / 卷已关）。
+         */
+        fun rekeyHeaders(
+            newPrf: Int, newPim: Int, newPassword: ByteArray,
+        ): Pair<ByteArray, ByteArray>? {
+            check(handle != 0L) { "卷已关闭" }
+            val primary = ByteArray(512)
+            val backup = ByteArray(512)
+            val err = nativeRekeyHeaders(handle, newPrf, newPim, newPassword, primary, backup)
+            if (err != 0) {
+                primary.fill(0); backup.fill(0)
+                return null
+            }
+            return primary to backup
         }
 
         override fun close() {

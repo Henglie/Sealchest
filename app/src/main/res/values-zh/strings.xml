@@ -142,4 +142,8 @@
     <string name="create_ok">容器已创建</string>
     <string name="create_failed">创建容器失败</string>
     <string name="create_in_progress">正在创建容器…</string>
+    <string name="create_entropy_title">收集随机熵</string>
+    <string name="create_entropy_hint">在下方区域内用手指随意涂抹滑动。你的触摸轨迹是不可预测的物理随机源，用于加固容器的加密密钥（等同桌面版晃动鼠标）。</string>
+    <string name="create_entropy_done">熵已充足，可以创建</string>
+    <string name="create_entropy_progress">继续涂抹… %1$d%%</string>
 </resources>

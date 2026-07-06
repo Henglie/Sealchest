@@ -54,6 +54,14 @@ void sc_volume_close(sc_volume* v);
  * 池不足时 sc_volume_create_headers 会明确失败，绝不吐可预测随机。 */
 void sc_random_seed(const uint8_t* entropy, int len);
 
+/* 追加熵：手指滑动/涂抹采集的物理不可预测输入（坐标+时间戳），经此混入熵池
+ * （对齐桌面 VC 晃鼠标收集熵；VC 走 RandaddBuf，本函数同一语义）。多次调用累积。
+ * 与 sc_random_seed 互补：seed 灌 SecureRandom 基底，本函数叠加用户交互熵。 */
+void sc_random_add_entropy(const uint8_t* buf, int len);
+
+/* 抹除熵池（创建完成后调，不留主密钥种子于内存）。 */
+void sc_random_wipe(void);
+
 /* 生成一对 VeraCrypt 卷头（主头 + 备份头，共享同一随机主密钥、各用独立随机盐）。
  * 调官方 CreateVolumeHeaderInMemory，字节级与桌面 VC 一致。
  *   out_primary / out_backup：各收 512B 有效头（调用方保证 ≥512B）。

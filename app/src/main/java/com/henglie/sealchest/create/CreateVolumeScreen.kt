@@ -1,12 +1,16 @@
 package com.henglie.sealchest.create
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -20,6 +24,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -33,11 +38,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
 import com.henglie.sealchest.R
+import com.henglie.sealchest.crypto.NativeBridge
 
 /**
  * 创建新 VeraCrypt 容器的参数（向导 UI 采集，交主开发接线到 native 创建逻辑）。
@@ -99,6 +109,16 @@ private val CREATE_PRF_OPTIONS = listOf(
 private const val MIN_SIZE_MB = 1L
 
 /**
+ * 手指涂抹收集熵的目标触点数（对齐桌面 VeraCrypt「晃鼠标收集熵」）。
+ * 每个触点带坐标 + 纳秒时间戳，经 [NativeBridge.addEntropy] 混入 native 熵池的 SHA512 搅拌层。
+ * 200 个不可预测的物理输入事件，远超一次卷头所需的熵下限，给足冗余。
+ */
+private const val ENTROPY_TARGET = 200
+
+/** 每积攒这么多触点就 flush 一次进 native 池（避免每点一次 JNI 调用）。 */
+private const val ENTROPY_FLUSH_BATCH = 16
+
+/**
  * 创建新 VeraCrypt 容器向导（B2）。独立 @Composable，主开发稍后接线进 MainActivity。
  *
  * [onCancel] 用户放弃创建。
@@ -128,7 +148,15 @@ fun CreateVolumeScreen(
     // 两次密码一致且非空。VeraCrypt 允许空密码（配 keyfile），但本向导第一版不含 keyfile，强制非空。
     val passwordFilled = password.isNotEmpty()
     val passwordsMatch = password == confirm
-    val canCreate = sizeValid && passwordFilled && passwordsMatch
+
+    // 熵采集进度：已收集的触点事件数。达到 [ENTROPY_TARGET] 才允许创建（对齐桌面晃鼠标）。
+    // 用显式 MutableState（非 by 委托）：suspend 的 awaitPointerEventScope 闭包里
+    // 写委托 var 会报 "Val cannot be reassigned"，改 .value 读写则合法。
+    val entropyState = remember { mutableStateOf(0) }
+    val entropyCollected = entropyState.value
+    val entropyReady = entropyCollected >= ENTROPY_TARGET
+
+    val canCreate = sizeValid && passwordFilled && passwordsMatch && entropyReady
 
     Scaffold(
         topBar = {
@@ -251,6 +279,69 @@ fun CreateVolumeScreen(
                 stringResource(R.string.create_pim_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            // ---- 熵采集：手指在区域内涂抹，采触点坐标+纳秒时间戳喂 native 熵池 ----
+            // 对齐桌面 VeraCrypt「晃鼠标收集熵」：用户不可预测的物理输入是随机主密钥的
+            // 额外熵源（叠加 SecureRandom）。攒够 ENTROPY_TARGET 个触点才放行创建。
+            Text(
+                stringResource(R.string.create_entropy_title),
+                style = MaterialTheme.typography.labelLarge,
+            )
+            Text(
+                stringResource(R.string.create_entropy_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(140.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(
+                        if (entropyReady) MaterialTheme.colorScheme.secondaryContainer
+                        else MaterialTheme.colorScheme.surfaceVariant
+                    )
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                // 每个触点：x/y（Float 位）+ System.nanoTime 低位，凑 12 字节喂熵池。
+                                val buf = ByteArray(12)
+                                var idx = 0
+                                for (ptr in event.changes) {
+                                    if (idx > 0) break // 每事件取一个主触点即可，多指下批再采
+                                    val xb = ptr.position.x.toRawBits()
+                                    val yb = ptr.position.y.toRawBits()
+                                    val t = System.nanoTime()
+                                    buf[0] = (xb ushr 24).toByte(); buf[1] = (xb ushr 16).toByte()
+                                    buf[2] = (xb ushr 8).toByte();  buf[3] = xb.toByte()
+                                    buf[4] = (yb ushr 24).toByte(); buf[5] = (yb ushr 16).toByte()
+                                    buf[6] = (yb ushr 8).toByte();  buf[7] = yb.toByte()
+                                    buf[8] = (t ushr 24).toByte();  buf[9] = (t ushr 16).toByte()
+                                    buf[10] = (t ushr 8).toByte();  buf[11] = t.toByte()
+                                    com.henglie.sealchest.crypto.NativeBridge.addEntropy(buf)
+                                    if (entropyState.value < ENTROPY_TARGET) entropyState.value++
+                                    idx++
+                                }
+                            }
+                        }
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    if (entropyReady) stringResource(R.string.create_entropy_done)
+                    else stringResource(
+                        R.string.create_entropy_progress,
+                        entropyCollected * 100 / ENTROPY_TARGET
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            LinearProgressIndicator(
+                progress = { (entropyCollected.toFloat() / ENTROPY_TARGET).coerceIn(0f, 1f) },
+                modifier = Modifier.fillMaxWidth(),
             )
 
             // ---- 创建进行中：进度指示 + 提示文字（busy 时显示）----

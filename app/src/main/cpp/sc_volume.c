@@ -118,6 +118,7 @@ int sc_volume_is_hidden(const sc_volume* v)
 
 /* 熵注入实现在 sc_random.c（RandgetBytes 从池取）。此处仅声明，链接期解析。 */
 extern void sc_random_seed(const uint8_t* entropy, int len);
+extern void sc_random_wipe(void);
 
 /* 生成主头 + 备份头（共享同一随机主密钥，各用独立随机盐）。
  *
@@ -226,5 +227,7 @@ cleanup:
     burn(&pw, sizeof(pw));
     burn(primary, sizeof(primary));
     burn(backup, sizeof(backup));
+    /* 抹熵池：主密钥种子已用完，不留在内存（VC 的 RandStop(freePool) 等价）。 */
+    sc_random_wipe();
     return retVal;
 }

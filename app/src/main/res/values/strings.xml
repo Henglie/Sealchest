@@ -144,4 +144,8 @@
     <string name="create_ok">Container created</string>
     <string name="create_failed">Failed to create container</string>
     <string name="create_in_progress">Creating container…</string>
+    <string name="create_entropy_title">Collect randomness</string>
+    <string name="create_entropy_hint">Swipe your finger around the box below. Your unpredictable movements add entropy to the master key (like moving the mouse in desktop VeraCrypt).</string>
+    <string name="create_entropy_progress">Keep swiping… %1$d%%</string>
+    <string name="create_entropy_done">Enough randomness collected</string>
 </resources>

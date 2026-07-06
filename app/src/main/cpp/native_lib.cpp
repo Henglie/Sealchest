@@ -208,6 +208,20 @@ Java_com_henglie_sealchest_crypto_NativeBridge_nativeSeedRandom(
     env->ReleaseByteArrayElements(entropy, e, 0);
 }
 
+// addEntropy(sample: ByteArray)：手指滑动采样（坐标+时间戳+压力）混入随机池。
+// 对齐桌面 VC 晃鼠标收集熵：额外物理不可预测输入，经 sc_random_add_entropy 混入搅拌池。
+JNIEXPORT void JNICALL
+Java_com_henglie_sealchest_crypto_NativeBridge_nativeAddEntropy(
+    JNIEnv* env, jobject /*thiz*/, jbyteArray sample) {
+    if (sample == nullptr) return;
+    jsize len = env->GetArrayLength(sample);
+    if (len <= 0) return;
+    jbyte* s = env->GetByteArrayElements(sample, nullptr);
+    if (s == nullptr) return;
+    sc_random_add_entropy(reinterpret_cast<const uint8_t*>(s), static_cast<int>(len));
+    env->ReleaseByteArrayElements(sample, s, JNI_ABORT);
+}
+
 // createHeaders(outPrimary, outBackup, ea, prf, pim, password, volumeSize, encStart): Int
 // 生成主头 + 备份头（共享随机主密钥、各用独立随机盐），各写 512B 到 out 数组。
 // 返回 0 = 成功，非 0 = VeraCrypt ERR_* 码。password 为 keyfile 混入后的有效密码。

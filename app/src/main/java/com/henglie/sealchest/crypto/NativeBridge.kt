@@ -67,6 +67,9 @@ object NativeBridge {
     /** 灌熵：把 Kotlin SecureRandom 的字节注入 native 随机池（B2 建卷前调）。 */
     private external fun nativeSeedRandom(entropy: ByteArray)
 
+    /** 追加熵：手指滑动采集的坐标/时间戳等物理熵混入池（等价桌面 VC 晃鼠标）。 */
+    private external fun nativeAddEntropy(entropy: ByteArray)
+
     /**
      * 生成一对 VeraCrypt 卷头（主头 + 备份头，共享随机主密钥、各用独立随机盐）。
      * outPrimary / outBackup 各须 ≥512B，成功就地写入 512B 有效头。
@@ -113,6 +116,17 @@ object NativeBridge {
     fun seedRandom(entropy: ByteArray) {
         if (!isAvailable) return
         nativeSeedRandom(entropy)
+    }
+
+    /**
+     * 追加用户交互熵（等价桌面 VeraCrypt 建卷时的「晃鼠标收集熵」）。
+     * 手指在屏幕滑动采集的触点坐标 + 时间戳 + 压力等不可预测字节，经此混入 native 熵池
+     * （与 SecureRandom 灌入同一个 VC 搅拌池，CRC32 扩散后逐字节模加 + SHA512 Randmix）。
+     * 可反复调用累积。纯增量：不调也能靠 [seedRandom] 的 SecureRandom 正常建卷。
+     */
+    fun addEntropy(entropy: ByteArray) {
+        if (!isAvailable) return
+        nativeAddEntropy(entropy)
     }
 
     /**

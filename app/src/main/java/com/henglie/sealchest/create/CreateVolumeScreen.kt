@@ -24,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -75,6 +76,12 @@ data class CreateParams(
     val pim: Int,
     val sizeBytes: Long,
     val password: ByteArray,
+    /** 文件系统：0=FAT（可创建），1=exFAT（后端待接），2=NTFS（后端待接）。 */
+    val fsType: Int = 0,
+    /** 簇大小（字节）。0=自动（沿用 Formatter 阶梯），否则须为 512 的幂次倍数。 */
+    val clusterSize: Int = 0,
+    /** 动态卷（稀疏）：UI 已备，后端暂当普通卷处理（见 X2 回执）。 */
+    val dynamic: Boolean = false,
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -83,7 +90,10 @@ data class CreateParams(
             prf == other.prf &&
             pim == other.pim &&
             sizeBytes == other.sizeBytes &&
-            password.contentEquals(other.password)
+            password.contentEquals(other.password) &&
+            fsType == other.fsType &&
+            clusterSize == other.clusterSize &&
+            dynamic == other.dynamic
     }
 
     override fun hashCode(): Int {
@@ -92,6 +102,9 @@ data class CreateParams(
         result = 31 * result + pim
         result = 31 * result + sizeBytes.hashCode()
         result = 31 * result + password.contentHashCode()
+        result = 31 * result + fsType
+        result = 31 * result + clusterSize
+        result = 31 * result + dynamic.hashCode()
         return result
     }
 }
@@ -112,6 +125,25 @@ private val CREATE_PRF_OPTIONS = listOf(
     R.string.prf_sha256 to 3,
     R.string.prf_blake2s to 4,
     R.string.prf_streebog to 5,
+)
+
+/** 文件系统选项：显示名 string res id + ID。0=FAT（可创建），1=exFAT / 2=NTFS 后端未就绪灰显。 */
+private val FS_OPTIONS = listOf(
+    R.string.create_fs_fat to 0,
+    R.string.create_fs_exfat to 1,
+    R.string.create_fs_ntfs to 2,
+)
+
+/** 簇大小选项（字节）。0=自动（沿用 Formatter 阶梯），其余为显式字节值。 */
+private val CLUSTER_OPTIONS = listOf(
+    R.string.create_cluster_default to 0,
+    R.string.create_cluster_512 to 512,
+    R.string.create_cluster_1024 to 1024,
+    R.string.create_cluster_2048 to 2048,
+    R.string.create_cluster_4096 to 4096,
+    R.string.create_cluster_8192 to 8192,
+    R.string.create_cluster_16384 to 16384,
+    R.string.create_cluster_32768 to 32768,
 )
 
 /** 建议的最小容器大小（MB）。<1MB 装不下 FAT 元数据+文件，故建议 ≥1MB。 */
@@ -146,6 +178,9 @@ fun CreateVolumeScreen(
 
     var algoIndex by remember { mutableStateOf(0) }
     var prfIndex by remember { mutableStateOf(0) }
+    var fsIndex by remember { mutableStateOf(0) }
+    var clusterIndex by remember { mutableStateOf(0) }
+    var dynamic by remember { mutableStateOf(false) }
     var sizeMb by remember { mutableStateOf("") }
     var pim by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -173,6 +208,12 @@ fun CreateVolumeScreen(
             passwordsMatch = passwordsMatch,
             pim = pim,
             onPimChange = { pim = it.filter(Char::isDigit) },
+            fsIndex = fsIndex,
+            onFsChange = { fsIndex = it },
+            clusterIndex = clusterIndex,
+            onClusterChange = { clusterIndex = it },
+            dynamic = dynamic,
+            onDynamicChange = { dynamic = it },
             formValid = formValid,
             onCancel = onCancel,
             onNext = { phase = 1 },
@@ -194,6 +235,9 @@ fun CreateVolumeScreen(
                         pim = pimVal,
                         sizeBytes = mb * 1024L * 1024L,
                         password = password.toByteArray(Charsets.UTF_8),
+                        fsType = FS_OPTIONS[fsIndex].second,
+                        clusterSize = CLUSTER_OPTIONS[clusterIndex].second,
+                        dynamic = dynamic,
                     )
                 )
             },
@@ -219,6 +263,12 @@ private fun CreateFormPage(
     passwordsMatch: Boolean,
     pim: String,
     onPimChange: (String) -> Unit,
+    fsIndex: Int,
+    onFsChange: (Int) -> Unit,
+    clusterIndex: Int,
+    onClusterChange: (Int) -> Unit,
+    dynamic: Boolean,
+    onDynamicChange: (Boolean) -> Unit,
     formValid: Boolean,
     onCancel: () -> Unit,
     onNext: () -> Unit,
@@ -339,6 +389,66 @@ private fun CreateFormPage(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
+            // ---- 文件系统（X2）：FAT 可选，exFAT / NTFS 后端未就绪灰显 ----
+            Text(stringResource(R.string.create_fs_type), style = MaterialTheme.typography.labelLarge)
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                FS_OPTIONS.forEachIndexed { i, (labelResId, _) ->
+                    FilterChip(
+                        selected = fsIndex == i,
+                        onClick = { onFsChange(i) },
+                        enabled = i == 0, // 仅 FAT 可创建，exFAT / NTFS 后端待接
+                        label = {
+                            Text(
+                                if (i == 0) stringResource(labelResId)
+                                else stringResource(labelResId) + " " + stringResource(R.string.create_fs_coming_soon)
+                            )
+                        },
+                        modifier = Modifier.widthIn(min = 96.dp),
+                    )
+                }
+            }
+
+            // ---- 簇大小（X2）：0=自动沿用 Formatter 阶梯，其余为显式字节值 ----
+            Text(stringResource(R.string.create_cluster_size), style = MaterialTheme.typography.labelLarge)
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                CLUSTER_OPTIONS.forEachIndexed { i, (labelResId, _) ->
+                    FilterChip(
+                        selected = clusterIndex == i,
+                        onClick = { onClusterChange(i) },
+                        label = { Text(stringResource(labelResId)) },
+                        modifier = Modifier.widthIn(min = 96.dp),
+                    )
+                }
+            }
+
+            // ---- 动态卷（X2）：UI 已备，后端暂当普通卷处理 ----
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Checkbox(
+                    checked = dynamic,
+                    onCheckedChange = onDynamicChange,
+                )
+                Column {
+                    Text(stringResource(R.string.create_dynamic))
+                    Text(
+                        stringResource(R.string.create_dynamic_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
             // ---- 取消 / 下一步 ----
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -439,6 +549,24 @@ private fun EntropyPage(
                 poolHex = sb.toString()
             }
             delay(80)
+        }
+    }
+
+    // ---- 空闲微搅动：对齐桌面 VC，无涂抹/传感器事件时也持续补喂真熵 ----
+    // 每 200ms 用系统真熵源（nanoTime 低位 + elapsedRealtimeNanos 低位）补喂 8B，
+    // 触发 native Randmix 搅拌 → 池真在变，hex 快照自然跳动。这是「持续搅拌」而非假动画：
+    // 喂的是真实时间抖动熵，不是 Random() 伪随机。不影响 ENTROPY_TARGET 放行门槛（涂抹计）。
+    LaunchedEffect(Unit) {
+        while (true) {
+            val t1 = System.nanoTime()
+            val t2 = android.os.SystemClock.elapsedRealtimeNanos()
+            val buf = ByteArray(8)
+            buf[0] = (t1 ushr 24).toByte(); buf[1] = (t1 ushr 16).toByte()
+            buf[2] = (t1 ushr 8).toByte();  buf[3] = t1.toByte()
+            buf[4] = (t2 ushr 24).toByte(); buf[5] = (t2 ushr 16).toByte()
+            buf[6] = (t2 ushr 8).toByte();  buf[7] = t2.toByte()
+            NativeBridge.addEntropy(buf)
+            delay(200)
         }
     }
 

@@ -155,6 +155,24 @@
     <string name="create_entropy_pool_label">Randomness pool</string>
     <string name="create_entropy_swipe_here">Swipe anywhere here</string>
 
+    <!-- File system / cluster size / dynamic volume (X2) -->
+    <string name="create_fs_type">File system</string>
+    <string name="create_fs_fat">FAT</string>
+    <string name="create_fs_exfat">exFAT</string>
+    <string name="create_fs_ntfs">NTFS</string>
+    <string name="create_fs_coming_soon">(coming soon)</string>
+    <string name="create_cluster_size">Cluster size</string>
+    <string name="create_cluster_default">Default</string>
+    <string name="create_cluster_512">512 bytes</string>
+    <string name="create_cluster_1024">1024 bytes</string>
+    <string name="create_cluster_2048">2048 bytes</string>
+    <string name="create_cluster_4096">4096 bytes</string>
+    <string name="create_cluster_8192">8192 bytes</string>
+    <string name="create_cluster_16384">16384 bytes</string>
+    <string name="create_cluster_32768">32768 bytes</string>
+    <string name="create_dynamic">Dynamic volume (sparse)</string>
+    <string name="create_dynamic_hint">Allocates space on demand. UI is ready; backend treats it as a regular volume for now.</string>
+
     <!-- Change password / PIM / PRF / keyfiles (B1) -->
     <string name="change_pwd_entry">Change password / PIM / keyfiles</string>
     <string name="change_pwd_title">Change password</string>
@@ -189,4 +207,18 @@
     <string name="rescue_mgr_delete">Delete</string>
     <string name="rescue_mgr_clear_all">Delete all</string>
     <string name="close">Close</string>
+    <string name="settings_title">Settings</string>
+    <string name="settings_close">Close</string>
+    <string name="settings_entry">Settings</string>
+    <string name="settings_autolock">Auto-lock</string>
+    <string name="settings_autolock_desc">Destroy in-memory keys automatically to protect the container</string>
+    <string name="settings_timeout">Idle timeout</string>
+    <string name="settings_lock_bg">Lock when backgrounded</string>
+    <string name="settings_lock_bg_desc">Lock immediately when the app goes to background</string>
+    <string name="settings_lock_screen">Lock on screen off</string>
+    <string name="settings_lock_screen_desc">Lock immediately when the screen turns off</string>
+    <string name="settings_autolock_enable">Auto-lock</string>
+    <string name="settings_autolock_timeout">Idle timeout</string>
+    <string name="settings_lock_background">Lock when app goes to background</string>
+    <string name="settings_lock_screen_off">Lock when screen turns off</string>
 </resources>

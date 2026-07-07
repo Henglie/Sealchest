@@ -31,3 +31,8 @@ third_party/
 # 多 Agent 内部任务板与临时构建信息，不进主仓库
 多Agent协作.md
 _commit_msg.txt
+
+# 临时补丁脚本 / 日志
+.tmp/
+.tmp_*
+*.tmp

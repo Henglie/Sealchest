@@ -61,6 +61,9 @@ object VolumeCreator {
         password: ByteArray,
         keyfiles: List<ByteArray>,
         volumeSizeBytes: Long,
+        fsType: Int = 0,
+        clusterSize: Int = 0,
+        dynamic: Boolean = false,
     ): Result<Unit> {
         // ---------- 1. 参数校验 ----------
         if (!NativeBridge.isAvailable) {
@@ -78,6 +81,18 @@ object VolumeCreator {
         }
         if (pim < 0) {
             return Result.failure(IllegalArgumentException("PIM 不能为负：$pim"))
+        }
+        // X2：文件系统目前仅支持 FAT(0)，exFAT(1) / NTFS(2) 后端 Formatter 未就绪。
+        // UI 侧已对未就绪项灰显，此处兜底拦截，防止误传。
+        if (fsType != 0) {
+            return Result.failure(
+                IllegalArgumentException("暂不支持该文件系统创建：fsType=$fsType（目前仅 FAT）")
+            )
+        }
+        // X2：dynamic（稀疏卷）UI 已备，后端稀疏实现待接，暂当普通卷处理。
+        // 此处收下标志不使用，待后端实现稀疏分配后接入。
+        if (dynamic) {
+            // 故意不报错：UI 已勾选，后端按普通卷创建仍能产出合法容器。
         }
         // ea / prf 合法性：本层不硬编码算法枚举（那属 native 常量域），交由 native
         // createVolumeHeaders 校验并在非法时返回 null。此处只挡明显越界。
@@ -140,6 +155,7 @@ object VolumeCreator {
                 backup = backup,
                 backupHeaderOffset = backupHeaderOffset,
                 volumeSizeBytes = volumeSizeBytes,
+                clusterSize = clusterSize,
             )
         } catch (t: Throwable) {
             return Result.failure(t)
@@ -164,6 +180,7 @@ object VolumeCreator {
         backup: ByteArray,
         backupHeaderOffset: Long,
         volumeSizeBytes: Long,
+        clusterSize: Int = 0,
     ): Result<Unit> {
         // 可写打开：SAF 要求 URI 已被授予 FLAG_GRANT_WRITE。
         val pfd = resolver.openFileDescriptor(containerUri, "rw")
@@ -219,7 +236,7 @@ object VolumeCreator {
             // TODO(契约): FatFormatter.buildEmptyFat(volumeSizeBytes) 由另一位辅开发提供。
             //   返回 FatImage(bytesPerSector, sectors: List<Pair<卷内逻辑偏移, 字节段>>)，
             //   逻辑偏移 0 = 数据区首字节。这里只消费逻辑偏移与字节段，逐段 reader.write。
-            val img = FatFormatter.buildEmptyFat(volumeSizeBytes)
+            val img = FatFormatter.buildEmptyFat(volumeSizeBytes, clusterSize)
             for ((logicalOffset, bytes) in img.sectors) {
                 if (bytes.isEmpty()) continue
                 // 防御：FAT 段不得越过数据区尾（否则会写进/越过备份头区，破坏容器）。

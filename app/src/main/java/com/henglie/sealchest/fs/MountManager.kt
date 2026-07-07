@@ -183,7 +183,7 @@ object MountManager {
     }
 
     /** 在锁内执行 FAT 操作。Provider / UI 都经此串行化访问。未挂载返回 null。 */
-    fun <R> withFs(block: (FatFileSystem) -> R): R? = synchronized(lock) {
+    fun <R> withFs(block: (VolumeFs) -> R): R? = synchronized(lock) {
         val m = current ?: return null
         if (m.closed) return null
         block(m.fs)
@@ -197,7 +197,7 @@ object MountManager {
      * 事务性：一次 block 内可连做多个结构改动（分配簇 + 写数据 + 目录项），
      * 全部完成才 flush 一次，减少半写窗口。仍非崩溃原子（二期日志/双写头）。
      */
-    fun <R> withWritableFs(block: (FatFileSystem) -> R): R? = synchronized(lock) {
+    fun <R> withWritableFs(block: (VolumeFs) -> R): R? = synchronized(lock) {
         val m = current ?: return null
         if (m.closed || !m.writable) return null
         val r = block(m.fs)
@@ -229,7 +229,7 @@ object MountManager {
      * 返回 null 有两种情况：未挂载，或当前挂载 id 已非 [expectMountId]（被换 / 已上锁）。
      * 调用方据此安全中止流。
      */
-    fun <R> withMount(expectMountId: Long, block: (FatFileSystem) -> R): R? = synchronized(lock) {
+    fun <R> withMount(expectMountId: Long, block: (VolumeFs) -> R): R? = synchronized(lock) {
         val m = current ?: return null
         if (m.closed || m.mountId != expectMountId) return null
         block(m.fs)

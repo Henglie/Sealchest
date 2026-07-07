@@ -34,27 +34,35 @@ object FatFormatter {
      * @param volumeSizeBytes 数据区字节数（不含卷头组），512 对齐。
      * @return 稀疏 FAT 镜像；调用方按 sectors 逐段加密写入数据区。
      */
-    fun buildEmptyFat(volumeSizeBytes: Long): FatImage {
+    fun buildEmptyFat(volumeSizeBytes: Long, clusterSize: Int = 0): FatImage {
         require(volumeSizeBytes % SECTOR == 0L) { "数据区须 512 对齐：$volumeSizeBytes" }
         val totalSectors = volumeSizeBytes / SECTOR
         require(totalSectors >= 64) { "数据区过小，放不下 FAT：$totalSectors 扇区" }
+        // X2：clusterSize=0 自动沿用阶梯，否则换算成 sectorsPerCluster 覆盖阶梯。
+        // clusterSize 须为 512 倍数（FAT 簇大小是扇区整数倍），非法抛 IllegalArgumentException。
+        val overrideSpc: Int? = if (clusterSize <= 0) null else {
+            require(clusterSize % SECTOR == 0) { "簇大小须 512 倍数：$clusterSize" }
+            val spc = clusterSize / SECTOR
+            require(spc >= 1 && spc <= 128) { "簇大小越界（1..128 扇区）：$spc" }
+            spc
+        }
 
         return if (volumeSizeBytes < FAT32_THRESHOLD) {
-            buildFat16(totalSectors)
+            buildFat16(totalSectors, overrideSpc)
         } else {
-            buildFat32(totalSectors)
+            buildFat32(totalSectors, overrideSpc)
         }
     }
 
     // ================================================================
     //  FAT16
     // ================================================================
-    private fun buildFat16(totalSectors: Long): FatImage {
+    private fun buildFat16(totalSectors: Long, overrideSpc: Int? = null): FatImage {
         val sectors = mutableListOf<Pair<Long, ByteArray>>()
 
         val volumeSizeBytes = totalSectors * SECTOR
-        // 簇大小：保证簇数落在 FAT16 合法区间（4085..65524）。经验阶梯。
-        val sectorsPerCluster = when {
+        // 簇大小：overrideSpc 非空时用用户指定（X2），否则按卷大小自动选（保证簇数落在 FAT16 合法区间 4085..65524）。
+        val sectorsPerCluster = overrideSpc ?: when {
             volumeSizeBytes < 16L * 1024 * 1024 -> 4     // <16MB: 2KB 簇
             volumeSizeBytes < 128L * 1024 * 1024 -> 8    // <128MB: 4KB 簇
             else -> 16                                   // 8KB 簇
@@ -99,11 +107,11 @@ object FatFormatter {
     // ================================================================
     //  FAT32
     // ================================================================
-    private fun buildFat32(totalSectors: Long): FatImage {
+    private fun buildFat32(totalSectors: Long, overrideSpc: Int? = null): FatImage {
         val sectors = mutableListOf<Pair<Long, ByteArray>>()
 
         val volumeSizeBytes = totalSectors * SECTOR
-        val sectorsPerCluster = when {
+        val sectorsPerCluster = overrideSpc ?: when {
             volumeSizeBytes < 8L * 1024 * 1024 * 1024 -> 8    // <8GB: 4KB 簇
             else -> 16                                        // 8KB 簇
         }

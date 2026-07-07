@@ -28,6 +28,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material3.AlertDialog
@@ -64,6 +65,7 @@ import com.henglie.sealchest.browse.BrowserScreen
 import com.henglie.sealchest.browse.FileExport
 import com.henglie.sealchest.crypto.NativeBridge
 import com.henglie.sealchest.fs.VolumeFs
+import com.henglie.sealchest.core.AutoLock
 import com.henglie.sealchest.fs.MountManager
 import com.henglie.sealchest.ui.theme.SealchestTheme
 import kotlinx.coroutines.Dispatchers
@@ -71,6 +73,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
+    // 任何触摸/滑动都重置自动锁定计时（见 AutoLock）。挂载时才真正计时。
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        AutoLock.touch()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -124,6 +132,9 @@ class MainActivity : ComponentActivity() {
                                     password = params.password,
                                     keyfiles = emptyList(),
                                     volumeSizeBytes = params.sizeBytes,
+                                    fsType = params.fsType,
+                                    clusterSize = params.clusterSize,
+                                    dynamic = params.dynamic,
                                 ).getOrThrow()
                             }
                         }
@@ -219,6 +230,7 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     // 「关于」弹窗显隐。
     var showAbout by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
     // 是否以可写方式挂载。选中容器若拿到写权限则默认开（读写），拿不到自动回落只读。
     var mountWritable by remember { mutableStateOf(true) }
     // 选中的 URI 是否实际拿到了可持久化写权限（源 provider 未必授予）。
@@ -469,6 +481,9 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
             TopAppBar(
                 title = { Text(stringResource(R.string.home_title)) },
                 actions = {
+                    IconButton(onClick = { showSettings = true }) {
+                        Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.settings_title))
+                    }
                     IconButton(onClick = { showAbout = true }) {
                         Icon(
                             Icons.Filled.Info,
@@ -656,6 +671,7 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
                                 result.onSuccess {
                                     password = ""
                                     mountToken++
+                                    AutoLock.touch()
                                 }.onFailure {
                                     error = it.message
                                         ?: context.getString(R.string.unlock_wrong)
@@ -721,6 +737,7 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
 
         // 「关于」弹窗：TopAppBar 信息按钮触发。
         if (showAbout) AboutDialog(onDismiss = { showAbout = false })
+        if (showSettings) SettingsDialog(onDismiss = { showSettings = false })
 
         // 卷头工具弹窗（A2）：导出备份 + 从内嵌备份头救砖。
         if (showHeaderTool) {

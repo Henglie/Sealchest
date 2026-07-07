@@ -153,6 +153,37 @@
     <string name="create_entropy_pool_label">随机池（实时）</string>
     <string name="create_entropy_swipe_here">在此涂抹 / 晃动手机</string>
 
+    <!-- 文件系统 / 簇大小 / 动态卷（X2） -->
+    <string name="create_fs_type">文件系统</string>
+    <string name="create_fs_fat">FAT</string>
+    <string name="create_fs_exfat">exFAT</string>
+    <string name="create_fs_ntfs">NTFS</string>
+    <string name="create_fs_coming_soon">（即将支持）</string>
+    <string name="create_cluster_size">簇大小</string>
+    <string name="create_cluster_default">默认</string>
+    <string name="create_cluster_512">512 字节</string>
+    <string name="create_cluster_1024">1024 字节</string>
+    <string name="create_cluster_2048">2048 字节</string>
+    <string name="create_cluster_4096">4096 字节</string>
+    <string name="create_cluster_8192">8192 字节</string>
+    <string name="create_cluster_16384">16384 字节</string>
+    <string name="create_cluster_32768">32768 字节</string>
+    <string name="create_dynamic">动态卷（稀疏）</string>
+    <string name="create_dynamic_hint">按需分配空间。UI 已备，后端暂当普通卷处理。</string>
+
+    <!-- 创建隐藏卷（C2） -->
+    <string name="create_hidden_entry">创建隐藏卷</string>
+    <string name="create_hidden_title">创建隐藏卷</string>
+    <string name="create_hidden_desc">隐藏卷位于这个（外层）容器尾部的空闲空间。外层卷用上方填入的凭据解锁，读取其 FAT 定位空闲空间（不覆盖已有文件），然后用下方的新密码创建隐藏卷。</string>
+    <string name="create_hidden_password">隐藏卷密码</string>
+    <string name="create_hidden_size_mb">隐藏卷大小（MB）</string>
+    <string name="create_hidden_pim">隐藏卷 PIM（可选）</string>
+    <string name="create_hidden_working">正在创建隐藏卷…</string>
+    <string name="create_hidden_submit">创建隐藏卷</string>
+    <string name="create_hidden_cancel">取消</string>
+    <string name="create_hidden_ok">隐藏卷已创建。用隐藏卷密码解锁即可使用。</string>
+    <string name="create_hidden_failed">创建隐藏卷失败</string>
+
     <!-- 改密码 / PIM / keyfile（B1） -->
     <string name="change_pwd_entry">修改密码 / PIM / 密钥文件</string>
     <string name="change_pwd_title">修改密码</string>
@@ -174,4 +205,18 @@
     <string name="rescue_mgr_delete">删除</string>
     <string name="rescue_mgr_clear_all">全部删除</string>
     <string name="close">关闭</string>
+    <string name="settings_title">设置</string>
+    <string name="settings_close">关闭</string>
+    <string name="settings_entry">设置</string>
+    <string name="settings_autolock">自动锁定</string>
+    <string name="settings_autolock_desc">超时/切后台/息屏时自动销毁内存密钥，保护容器</string>
+    <string name="settings_timeout">无操作超时</string>
+    <string name="settings_lock_bg">切后台即锁</string>
+    <string name="settings_lock_bg_desc">应用退到后台时立即上锁</string>
+    <string name="settings_lock_screen">息屏即锁</string>
+    <string name="settings_lock_screen_desc">屏幕关闭时立即上锁</string>
+    <string name="settings_autolock_enable">自动锁定</string>
+    <string name="settings_autolock_timeout">无操作超时</string>
+    <string name="settings_lock_background">切到后台时立即锁定</string>
+    <string name="settings_lock_screen_off">息屏时立即锁定</string>
 </resources>

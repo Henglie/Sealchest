@@ -38,7 +38,7 @@ object MountManager {
         val displayName: String,
         private val pfd: android.os.ParcelFileDescriptor,
         internal val reader: VolumeReader,
-        val fs: FatFileSystem,
+        val fs: VolumeFs,
         /** 是否以可写方式挂载（PFD "rw" + 双向 channel）。只读挂载为 false。 */
         val writable: Boolean = false,
         /**
@@ -149,7 +149,9 @@ object MountManager {
             } ?: throw SecurityException("密码、PIM、PRF 或 keyfile 不正确")
 
             reader = VolumeReader(channel, volume)
-            val fs = FatFileSystem.mount(reader)
+            // 文件系统分发：读解密后的引导扇区（逻辑偏移 0），exFAT 签名走 exFAT，否则当 FAT。
+            val boot0 = reader.read(0, 512)
+            val fs: VolumeFs = if (ExFatBoot.isExFat(boot0)) ExFatFileSystem.mount(reader) else FatFileSystem.mount(reader)
 
             val mount = Mount(idGen.getAndIncrement(), displayName, pfd, reader, fs, writable, raf)
             // 成功了才替换 + 关旧挂载。

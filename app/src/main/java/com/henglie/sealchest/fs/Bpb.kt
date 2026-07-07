@@ -19,7 +19,7 @@ class Bpb private constructor(
     val totalSectors: Long,
     val rootCluster: Long,        // FAT32 专有；FAT12/16 为 0
     val countOfClusters: Int,
-    val fatType: FatFileSystem.FatType,
+    val fatType: FatType,
     val volumeLabel: String,
     /** FAT32 FSInfo 扇区号（BPB 偏移 48，u16）；FAT12/16 或无 FSInfo 为 0。 */
     val fsInfoSector: Int,
@@ -67,20 +67,20 @@ class Bpb private constructor(
             val countOfClusters = (dataSectors / sectorsPerCluster).toInt()
 
             val fatType = when {
-                countOfClusters < 4085 -> FatFileSystem.FatType.FAT12
-                countOfClusters < 65525 -> FatFileSystem.FatType.FAT16
-                else -> FatFileSystem.FatType.FAT32
+                countOfClusters < 4085 -> FatType.FAT12
+                countOfClusters < 65525 -> FatType.FAT16
+                else -> FatType.FAT32
             }
 
-            val rootCluster = if (fatType == FatFileSystem.FatType.FAT32) u32(44) else 0L
+            val rootCluster = if (fatType == FatType.FAT32) u32(44) else 0L
             // FSInfo 扇区号在 FAT32 BPB 偏移 48（u16）。0 或 0xFFFF 视为无。
-            val fsInfoSector = if (fatType == FatFileSystem.FatType.FAT32) {
+            val fsInfoSector = if (fatType == FatType.FAT32) {
                 val s = u16(48)
                 if (s == 0 || s == 0xFFFF) 0 else s
             } else 0
 
             // 卷标：FAT12/16 在 0x2B（11 字节），FAT32 在 0x47。
-            val labelOff = if (fatType == FatFileSystem.FatType.FAT32) 0x47 else 0x2B
+            val labelOff = if (fatType == FatType.FAT32) 0x47 else 0x2B
             val label = buildString {
                 for (k in 0 until 11) {
                     val c = boot[labelOff + k].toInt() and 0xFF

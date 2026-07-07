@@ -6,6 +6,7 @@
 
 - [x] 救援文件双写（恒烈定「两个都做，注意安全」）：改密（B1 ）与头恢复（A2 /）覆盖主头组前，除写用户手动选的救援 URI 外，**自动再写一份到 app 私有目录** 。私有沙盒别的 app 读不到、卸载即删。**安全关键**：救援文件是**旧主头组**，用**旧密码**能解密还原——等于旧密码在改密后仍能开卷。故加「救援文件管理」入口（主界面 TextButton →）：列出全部自动救援文件（名/时间/大小）、可单删、可一键清空，红字警告「旧头组可被旧密码解密，泄漏等于旧密码仍有效」。native/桥无改动，仅  加  形参 + 三处调用补传  helper。编译全量过。
 
+- [x] D1 exFAT 读写（全链编译过，待真机回验）：架构先抽 `VolumeFs` 接口（8 方法 + fsType/volumeLabel），`FatFileSystem` 与新 `ExFatFileSystem` 都实现它，`MountManager`/SAF/UI 全吃接口零感知底层；`Entry`→顶层 `FsEntry`、`FatType` 提顶层（顺带解 Bpb 循环依赖）。exFAT 只读：`ExFatBoot`（偏移 3 "EXFAT" 签名判定 + 偏移 64 起字段，扇区偏移换算逻辑字节偏移）+ 目录项组解析（0x85 文件项 + 0xC0 流扩展含 NoFatChain 位 + N×0xC1 UTF-16LE 名字项，SecondaryCount 定组长）+ 簇链（NoFatChain 连续分配 vs FAT 链）+ chainHint 缓存。exFAT 写：mount 时 scanRootMeta 回填分配位图(0x81)/upcase 表(0x82)/卷标(0x83)；allocCluster（位图找空闲位→置1）+ allocAndWriteChain（建 FAT 链末簇 EOC，走链非连续分配永远合法）+ buildEntrySet（造 0x85+0xC0+N×0xC1，含 exFAT NameHash 规范 7.4.1 + SetChecksum 规范 6.3，upcase 大写）+ writeFile/deleteFile（清 InUse 位 + freeChain 释放位图与 FAT）/overwriteFile（删+写）。MountManager.unlock 读引导扇区分发 FAT/exFAT。**待恒烈真机回验（唯一判据）**：桌面格 exFAT 的 VC 容器 app 能挂读；app 写入的文件桌面 VC + Windows 能读、chkdsk 干净。
 ---
 
 ## ▍一句话

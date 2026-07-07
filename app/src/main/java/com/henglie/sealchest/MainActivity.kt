@@ -63,7 +63,7 @@ import androidx.compose.ui.unit.dp
 import com.henglie.sealchest.browse.BrowserScreen
 import com.henglie.sealchest.browse.FileExport
 import com.henglie.sealchest.crypto.NativeBridge
-import com.henglie.sealchest.fs.FatFileSystem
+import com.henglie.sealchest.fs.VolumeFs
 import com.henglie.sealchest.fs.MountManager
 import com.henglie.sealchest.ui.theme.SealchestTheme
 import kotlinx.coroutines.Dispatchers
@@ -1176,7 +1176,7 @@ private fun AboutDialog(onDismiss: () -> Unit) {
 
 @Composable
 private fun MountedPanel(
-    fs: FatFileSystem,
+    fs: VolumeFs,
     displayName: String,
     scope: kotlinx.coroutines.CoroutineScope,
     onBrowse: () -> Unit,
@@ -1205,7 +1205,7 @@ private fun MountedPanel(
             }
             val label = fs.volumeLabel.ifBlank { stringResource(R.string.mounted_no_label) }
             Text(
-                stringResource(R.string.mounted_filesystem, fs.fatType.toString()),
+                stringResource(R.string.mounted_filesystem, fs.fsType),
                 style = MaterialTheme.typography.bodyMedium,
             )
             Text(

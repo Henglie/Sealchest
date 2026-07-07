@@ -65,7 +65,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.henglie.sealchest.R
-import com.henglie.sealchest.fs.FatFileSystem
+import com.henglie.sealchest.fs.FsEntry
 import com.henglie.sealchest.fs.MountManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -102,17 +102,17 @@ fun BrowserScreen(onExit: () -> Unit) {
     val dirStack = remember { mutableStateListOf(DirFrame("", -1L, true)) }
     val current = dirStack.last()
 
-    var entries by remember { mutableStateOf<List<FatFileSystem.Entry>>(emptyList()) }
+    var entries by remember { mutableStateOf<List<FsEntry>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
-    var selected by remember { mutableStateOf<FatFileSystem.Entry?>(null) }
+    var selected by remember { mutableStateOf<FsEntry?>(null) }
     var preview by remember { mutableStateOf<Preview?>(null) }
-    var exportTarget by remember { mutableStateOf<FatFileSystem.Entry?>(null) }
+    var exportTarget by remember { mutableStateOf<FsEntry?>(null) }
     // 写操作后自增，触发目录重载。
     var refreshToken by remember { mutableStateOf(0) }
     // 删除确认弹窗目标。
-    var deleteConfirm by remember { mutableStateOf<FatFileSystem.Entry?>(null) }
+    var deleteConfirm by remember { mutableStateOf<FsEntry?>(null) }
     // 覆写：先选容器内文件，再选手机上的源文件。
-    var overwriteTarget by remember { mutableStateOf<FatFileSystem.Entry?>(null) }
+    var overwriteTarget by remember { mutableStateOf<FsEntry?>(null) }
 
     val writable = MountManager.isWritable
 
@@ -128,7 +128,7 @@ fun BrowserScreen(onExit: () -> Unit) {
             } ?: emptyList()
         }
         entries = list.sortedWith(
-            compareByDescending<FatFileSystem.Entry> { it.isDirectory }
+            compareByDescending<FsEntry> { it.isDirectory }
                 .thenBy { it.name.lowercase() }
         )
         loading = false
@@ -348,7 +348,7 @@ fun BrowserScreen(onExit: () -> Unit) {
 }
 
 @Composable
-private fun EntryRow(e: FatFileSystem.Entry, onClick: () -> Unit) {
+private fun EntryRow(e: FsEntry, onClick: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -377,7 +377,7 @@ private fun EntryRow(e: FatFileSystem.Entry, onClick: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FileActionSheet(
-    entry: FatFileSystem.Entry,
+    entry: FsEntry,
     writable: Boolean,
     onDismiss: () -> Unit,
     onPreview: () -> Unit,
@@ -472,7 +472,7 @@ private fun PreviewDialog(preview: Preview, onDismiss: () -> Unit) {
 }
 
 /** 读文件头部并判定可否预览。图片 ≤8MB 整读；文本 ≤256KB 读前段。 */
-private suspend fun loadPreview(e: FatFileSystem.Entry): Preview? = withContext(Dispatchers.IO) {
+private suspend fun loadPreview(e: FsEntry): Preview? = withContext(Dispatchers.IO) {
     val name = e.name.lowercase()
     val imageExt = listOf(".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp")
     val textExt = listOf(
@@ -499,7 +499,7 @@ private suspend fun loadPreview(e: FatFileSystem.Entry): Preview? = withContext(
 }
 
 /** 导出到缓存 + FileProvider，拉起「用其它应用打开」。 */
-private suspend fun openWith(context: android.content.Context, e: FatFileSystem.Entry) {
+private suspend fun openWith(context: android.content.Context, e: FsEntry) {
     val file = withContext(Dispatchers.IO) {
         FileExport.exportToCache(context, e.name, e.firstCluster, e.size)
     }

@@ -23,6 +23,9 @@ object NativeBridge {
     /** PRF 选择：0 = 依次尝试全部（推荐，兼容任意容器）。 */
     const val PRF_AUTO = 0
 
+    /** native 随机池大小（字节），对齐 VeraCrypt RNG_POOL_SIZE = 320。仅供 UI 快照展示。 */
+    const val RANDOM_POOL_SIZE = 320
+
     /** native 库是否成功加载且自检通过。 */
     @JvmStatic
     val isAvailable: Boolean
@@ -70,6 +73,9 @@ object NativeBridge {
     /** 追加熵：手指滑动采集的坐标/时间戳等物理熵混入池（等价桌面 VC 晃鼠标）。 */
     private external fun nativeAddEntropy(entropy: ByteArray)
 
+    /** 拷当前随机池字节到 [out]（仅供 UI 可视化）。只读旁观，不消耗熵。返回拷贝字节数。 */
+    private external fun nativeRandomPoolSnapshot(out: ByteArray): Int
+
     /**
      * 生成一对 VeraCrypt 卷头（主头 + 备份头，共享随机主密钥、各用独立随机盐）。
      * outPrimary / outBackup 各须 ≥512B，成功就地写入 512B 有效头。
@@ -90,6 +96,22 @@ object NativeBridge {
         handle: Long, newPrf: Int, newPim: Int, newPassword: ByteArray,
         outPrimary: ByteArray, outBackup: ByteArray,
     ): Int
+
+    /**
+     * C2 生成隐藏卷头（隐藏主头 + 隐藏备份头，独立新随机主密钥）。
+     * outPrimary / outBackup 各须 ≥512B。hostSize=外层容器总字节，hiddenSize=隐藏卷毛尺寸。
+     * 返回 0 = 成功，非 0 = VeraCrypt ERR_*。字节级复刻 Format.c 隐藏卷分支。
+     */
+    private external fun nativeCreateHiddenHeaders(
+        outPrimary: ByteArray, outBackup: ByteArray,
+        ea: Int, prf: Int, pim: Int, password: ByteArray,
+        hostSize: Long, hiddenSize: Long,
+    ): Int
+
+    // 数据区随机填充（字节级复刻 VC FormatNoFs 临时密钥机制）。
+    private external fun nativeRandomFillOpen(ea: Int): Long
+    private external fun nativeRandomFillBlock(handle: Long, buf: ByteArray, startUnit: Long, nbrUnits: Int)
+    private external fun nativeRandomFillClose(handle: Long)
 
     // ---------------- 对上层暴露 ----------------
 
@@ -140,6 +162,19 @@ object NativeBridge {
     }
 
     /**
+     * 随机池快照（仅供创建页可视化，对齐桌面 VeraCrypt 显示 Random Pool）。
+     * 拷当前 native 随机池的原始字节到返回数组（最多 [RANDOM_POOL_SIZE] 字节）。
+     * 只读旁观：不推进读写指针、不搅拌、不消耗熵——纯展示，绝不影响真实取数。
+     * native 不可用时返回空数组。未灌种也能看（此时是交互熵累积的中间态）。
+     */
+    fun randomPoolSnapshot(): ByteArray {
+        if (!isAvailable) return ByteArray(0)
+        val out = ByteArray(RANDOM_POOL_SIZE)
+        val n = nativeRandomPoolSnapshot(out)
+        return if (n == RANDOM_POOL_SIZE) out else out.copyOf(n.coerceAtLeast(0))
+    }
+
+    /**
      * B2 生成一对 VeraCrypt 卷头（主头 + 备份头，共享随机主密钥、各用独立随机盐）。
      * 调官方 `CreateVolumeHeaderInMemory`，字节级与桌面 VC 一致。**调用前须先 [seedRandom] 灌足熵**。
      *
@@ -164,9 +199,57 @@ object NativeBridge {
     }
 
     /**
+     * C2 生成隐藏卷头（隐藏主头 + 隐藏备份头，独立新随机主密钥、各用独立随机盐）。
+     * 字节级复刻 VC Format.c 隐藏卷分支。**调用前须先 [seedRandom] 灌足熵**。
+     *
+     * @param password keyfile 混入后的有效密码 UTF-8 字节（可空长度 0）。调用后 native 侧副本已抹，调用方仍应 fill(0)。
+     * @param ea 加密算法 ID；@param prf PRF ID（不可为 0）；@param pim。
+     * @param hostSize 外层容器总字节数（含两侧头组）；@param hiddenSize 隐藏卷毛尺寸（native 内部扣保留区算真实数据区）。
+     * @return Pair(隐藏主头 512B, 隐藏备份头 512B)，失败返回 null（熵不足 / 尺寸非法 / native 不可用）。
+     */
+    fun createHiddenVolumeHeaders(
+        ea: Int, prf: Int, pim: Int, password: ByteArray,
+        hostSize: Long, hiddenSize: Long,
+    ): Pair<ByteArray, ByteArray>? {
+        if (!isAvailable) return null
+        val primary = ByteArray(512)
+        val backup = ByteArray(512)
+        val err = nativeCreateHiddenHeaders(primary, backup, ea, prf, pim, password, hostSize, hiddenSize)
+        if (err != 0) {
+            primary.fill(0); backup.fill(0)
+            return null
+        }
+        return primary to backup
+    }
+
+    /**
      * 已开启的卷句柄。线程不安全（VeraCrypt 单线程核心），调用方自行串行化。
      * 用完必须 [close]。
      */
+    /**
+     * 数据区随机填充会话（对齐桌面 VeraCrypt：用一套临时随机密钥 XTS 加密全零扇区填满
+     * 数据区，使未用区与真实数据密文不可区分——隐藏卷可否认性的基础）。
+     * **调用前须先 [seedRandom] 灌足熵**（临时密钥经 RandgetBytes 取）。
+     * native 不可用 / 熵不足返回 null。用完必须 [RandomFill.close]。
+     */
+    fun openRandomFill(ea: Int): RandomFill? {
+        if (!isAvailable) return null
+        val h = nativeRandomFillOpen(ea)
+        return if (h != 0L) RandomFill(h) else null
+    }
+
+    /** 随机填充会话句柄。线程不安全，调用方串行化。 */
+    class RandomFill internal constructor(private var handle: Long) : AutoCloseable {
+        /** 把 [buf]（长度 = nbrUnits*512）原地清零后用临时密钥 XTS 加密，单元号从 [startUnit] 连续。 */
+        fun encryptZeroBlock(buf: ByteArray, startUnit: Long, nbrUnits: Int) {
+            check(handle != 0L) { "填充会话已关闭" }
+            nativeRandomFillBlock(handle, buf, startUnit, nbrUnits)
+        }
+        override fun close() {
+            if (handle != 0L) { nativeRandomFillClose(handle); handle = 0L }
+        }
+    }
+
     class Volume internal constructor(private var handle: Long) : AutoCloseable {
 
         val encryptionAlgorithm: Int get() = nativeVolumeEa(handle)

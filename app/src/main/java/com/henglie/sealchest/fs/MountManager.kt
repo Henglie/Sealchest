@@ -24,6 +24,12 @@ import java.util.concurrent.atomic.AtomicLong
 object MountManager {
 
     /**
+     * 隐藏卷头在容器文件内的绝对偏移（TC_HIDDEN_VOLUME_HEADER_OFFSET = TC_VOLUME_HEADER_SIZE = 64KB）。
+     * 主头开不了时用此偏移读隐藏卷头再试开，与桌面 VeraCrypt「一次解锁先主后隐」一致。
+     */
+    private const val HIDDEN_VOLUME_HEADER_OFFSET = 64L * 1024
+
+    /**
      * 一次挂载：持有底层 PFD / channel / 解密 reader / FAT 文件系统。
      * [close] 释放全部资源并销毁密钥。
      */
@@ -115,21 +121,29 @@ object MountManager {
                 java.io.FileInputStream(pfd.fileDescriptor).channel
             }
 
-            // 读卷头 512B（VeraCrypt 卷头在文件起始）。
-            val header = ByteArray(512)
-            val hb = java.nio.ByteBuffer.wrap(header)
-            var pos = 0L
-            while (hb.hasRemaining()) {
-                val n = channel.read(hb, pos)
-                if (n < 0) break
-                pos += n
+            // 读指定绝对偏移处的 512B 卷头（VeraCrypt 头是自包含加密块）。
+            fun readHeaderAt(offset: Long): ByteArray {
+                val h = ByteArray(512)
+                val hb = java.nio.ByteBuffer.wrap(h)
+                var pos = offset
+                while (hb.hasRemaining()) {
+                    val n = channel.read(hb, pos)
+                    if (n < 0) break
+                    pos += n
+                }
+                return h
             }
 
             // keyfile 混入：无 keyfile 时 apply 返回 password 拷贝（等价原路径）。
-            // effective 是混合后的有效密码，用完立即抹；原 password 由 catch/结尾各自处理。
+            // effective 是混合后的有效密码，两次试开共用，最后统一抹除。
             val effective = com.henglie.sealchest.crypto.KeyfileMixer.apply(password, keyfiles)
             val volume = try {
-                NativeBridge.openVolume(header, effective, pim, prf)
+                // 先试主卷头（偏移 0）。开不了再试隐藏卷头（偏移 TC_HIDDEN_VOLUME_HEADER_OFFSET
+                // = 64KB）——同一密码/PIM/PRF/keyfile 依次试，与桌面 VeraCrypt「一次解锁先主后隐」
+                // 一致。隐藏卷头解出的 cryptoInfo 的 EncryptedAreaStart/VolumeSize 自动指向隐藏
+                // 数据区，VolumeReader / FAT 层无需任何改动即定位到隐藏卷。
+                NativeBridge.openVolume(readHeaderAt(0L), effective, pim, prf)
+                    ?: NativeBridge.openVolume(readHeaderAt(HIDDEN_VOLUME_HEADER_OFFSET), effective, pim, prf)
             } finally {
                 effective.fill(0)
             } ?: throw SecurityException("密码、PIM、PRF 或 keyfile 不正确")

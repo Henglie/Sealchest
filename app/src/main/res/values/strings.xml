@@ -148,6 +148,12 @@
     <string name="create_entropy_hint">Swipe your finger around the box below. Your unpredictable movements add entropy to the master key (like moving the mouse in desktop VeraCrypt).</string>
     <string name="create_entropy_progress">Keep swiping… %1$d%%</string>
     <string name="create_entropy_done">Enough randomness collected</string>
+    <string name="create_next">Next</string>
+    <string name="create_entropy_fullscreen_hint">Swipe your finger all over the screen, and shake the phone if it has a motion sensor. Your unpredictable movements feed the master key\'s randomness pool (like moving the mouse in desktop VeraCrypt). Keep going until the pool is full.</string>
+    <string name="create_entropy_sensor_on">Motion sensor active — shaking adds randomness too</string>
+    <string name="create_entropy_sensor_none">No motion sensor — swipe only</string>
+    <string name="create_entropy_pool_label">Randomness pool</string>
+    <string name="create_entropy_swipe_here">Swipe anywhere here</string>
 
     <!-- Change password / PIM / PRF / keyfiles (B1) -->
     <string name="change_pwd_entry">Change password / PIM / keyfiles</string>
@@ -163,4 +169,24 @@
     <string name="change_pwd_dismiss">Cancel</string>
     <string name="change_pwd_ok">Password changed. Unlock with the new password from now on.</string>
     <string name="change_pwd_failed">Failed to change password</string>
+
+    <!-- Create hidden volume (C2) -->
+    <string name="create_hidden_entry">Create hidden volume</string>
+    <string name="create_hidden_title">Create hidden volume</string>
+    <string name="create_hidden_desc">A hidden volume lives in the tail free space of this (outer) container. The outer volume is unlocked with the credentials entered above, its FAT is read to locate free space so existing files are not overwritten, then the hidden volume is created with its own password below.</string>
+    <string name="create_hidden_password">Hidden volume password</string>
+    <string name="create_hidden_size_mb">Hidden volume size (MB)</string>
+    <string name="create_hidden_pim">Hidden PIM (optional)</string>
+    <string name="create_hidden_working">Creating hidden volume…</string>
+    <string name="create_hidden_submit">Create hidden volume</string>
+    <string name="create_hidden_cancel">Cancel</string>
+    <string name="create_hidden_ok">Hidden volume created. Unlock with the hidden password to use it.</string>
+    <string name="create_hidden_failed">Failed to create hidden volume</string>
+    <string name="rescue_entry">Rescue file manager</string>
+    <string name="rescue_mgr_title">Rescue files</string>
+    <string name="rescue_mgr_warn">These are backups of the OLD header group. Anyone with the OLD password can still open the volume using them. Delete once you have confirmed the new password works.</string>
+    <string name="rescue_mgr_empty">No auto-saved rescue files.</string>
+    <string name="rescue_mgr_delete">Delete</string>
+    <string name="rescue_mgr_clear_all">Delete all</string>
+    <string name="close">Close</string>
 </resources>

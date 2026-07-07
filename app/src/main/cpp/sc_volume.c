@@ -342,3 +342,199 @@ cleanup:
     sc_random_wipe();
     return retVal;
 }
+
+/* --- C2 创建隐藏卷头（隐藏主头 + 隐藏备份头）---
+ *
+ * 字节级复刻 VC Format.c TCFormatVolume 的隐藏卷分支（Format.c:118-166 / :641-670）。
+ * 隐藏卷是**独立的新卷**（自己的随机主密钥），寄生在外层卷数据区尾部：
+ *
+ *   保留区 reservedSize = 隐藏卷 <2MB(TC_VOLUME_SMALL_SIZE_THRESHOLD) → 4096(TC_MAX_VOLUME_SECTOR_SIZE)
+ *                       否则 → 131072(TC_VOLUME_HEADER_GROUP_SIZE)（Format.c GetVolumeDataAreaSize）
+ *   dataAreaSize = hidden_size - reservedSize      （隐藏卷真实可用数据区）
+ *   dataOffset   = host_size - 131072(头组) - hidden_size  （隐藏数据区在容器内的绝对起始）
+ *
+ * 与创建标准卷（sc_volume_create_headers）的关键差异：
+ *   · volumeSize / encryptedAreaLength = dataAreaSize（不是传入的 hidden_size 毛值）；
+ *   · hiddenVolumeSize = dataAreaSize（非 0 → 头里标记为隐藏卷，ReadVolumeHeader 据此认隐藏）；
+ *   · encryptedAreaStart = dataOffset（解锁时 cryptoInfo 据此把数据区定位到容器尾部）。
+ *
+ * 头的写盘位置（由 Kotlin 层负责，字节级见 Format.c:641 & TC_HIDDEN_VOLUME_HEADER_OFFSET）：
+ *   隐藏主头   → 容器偏移 TC_HIDDEN_VOLUME_HEADER_OFFSET = 65536（主头组内第 2 个 64KB 槽）
+ *   隐藏备份头 → 容器偏移 host_size - TC_HIDDEN_VOLUME_HEADER_OFFSET = host_size-65536（备份头组末 64KB）
+ *
+ * 调用方须保证：① 已 sc_random_seed 灌足熵；② dataOffset 落在外层卷已用数据区上界之后
+ * （外层写保护，Kotlin 侧读外层 FAT 算，见 FatFileSystem.usedDataAreaUpperBound）。
+ * 返回 0 成功，非 0 = VeraCrypt ERR_*。参数非法（尺寸不够容纳头组+隐藏卷）返回 ERR_VOL_SIZE_WRONG。 */
+int sc_volume_create_hidden_headers(uint8_t* out_primary, uint8_t* out_backup,
+                                    int ea, int prf, int pim,
+                                    const uint8_t* password, int password_len,
+                                    uint64_t host_size, uint64_t hidden_size)
+{
+    if (!out_primary || !out_backup || password_len < 0 || password_len > MAX_PASSWORD)
+        return ERR_PARAMETER_INCORRECT;
+    if (prf == 0)
+        return ERR_PARAMETER_INCORRECT;
+
+    /* 尺寸约束（Format.c:127-128）：外层须容得下 4 个 64KB 头组 + 隐藏卷。 */
+    if (host_size <= TC_TOTAL_VOLUME_HEADERS_SIZE
+        || hidden_size > host_size - TC_TOTAL_VOLUME_HEADERS_SIZE)
+        return ERR_VOL_SIZE_WRONG;
+
+    /* 保留区（GetVolumeDataAreaSize 隐藏卷分支）。 */
+    uint64_t reservedSize = (hidden_size < TC_VOLUME_SMALL_SIZE_THRESHOLD)
+        ? TC_HIDDEN_VOLUME_HOST_FS_RESERVED_END_AREA_SIZE
+        : TC_HIDDEN_VOLUME_HOST_FS_RESERVED_END_AREA_SIZE_HIGH;
+    if (hidden_size < reservedSize)
+        return ERR_VOL_SIZE_WRONG;
+
+    uint64_t dataAreaSize = hidden_size - reservedSize;
+    uint64_t dataOffset   = host_size - TC_VOLUME_HEADER_GROUP_SIZE - hidden_size;
+
+    Password pw;
+    memset(&pw, 0, sizeof(pw));
+    pw.Length = (unsigned __int32) password_len;
+    if (password_len > 0)
+        memcpy(pw.Text, password, (size_t) password_len);
+
+    unsigned char primary[TC_VOLUME_HEADER_EFFECTIVE_SIZE];
+    unsigned char backup[TC_VOLUME_HEADER_EFFECTIVE_SIZE];
+    memset(primary, 0, sizeof(primary));
+    memset(backup, 0, sizeof(backup));
+
+    PCRYPTO_INFO ci = NULL;
+    PCRYPTO_INFO ciBackup = NULL;
+    int retVal = ERR_SUCCESS;
+
+    /* ① 隐藏主头：masterKeydata=NULL → 生成新随机主密钥（隐藏卷是独立新卷）。
+     *    volumeSize/encAreaLength=dataAreaSize，hiddenVolumeSize=dataAreaSize，encStart=dataOffset。 */
+    int err = CreateVolumeHeaderInMemory(
+        NULL, FALSE, (char*) primary,
+        ea, FIRST_MODE_OF_OPERATION_ID, &pw, prf, pim,
+        NULL,                               /* 新随机主密钥 */
+        &ci,
+        dataAreaSize,                       /* volumeSize */
+        dataAreaSize,                       /* hiddenVolumeSize（非 0 → 标记隐藏）*/
+        dataOffset,                         /* encryptedAreaStart */
+        dataAreaSize,                       /* encryptedAreaLength */
+        0, 0, TC_SECTOR_SIZE_LEGACY, FALSE);
+
+    if (err != ERR_SUCCESS || ci == NULL) {
+        retVal = (err != ERR_SUCCESS) ? err : ERR_OUTOFMEMORY;
+        goto cleanup;
+    }
+
+    /* ② 隐藏备份头：复用主密钥，同参数取新盐。 */
+    {
+        ciBackup = ci;
+        int err2 = CreateVolumeHeaderInMemory(
+            NULL, FALSE, (char*) backup,
+            ea, FIRST_MODE_OF_OPERATION_ID, &pw, prf, pim,
+            (char*) ci->master_keydata,     /* 复用同一隐藏卷主密钥 */
+            &ciBackup,
+            dataAreaSize,
+            dataAreaSize,
+            dataOffset,
+            dataAreaSize,
+            0, 0, TC_SECTOR_SIZE_LEGACY, FALSE);
+
+        if (err2 != ERR_SUCCESS) {
+            retVal = err2;
+            goto cleanup;
+        }
+    }
+
+    memcpy(out_primary, primary, TC_VOLUME_HEADER_EFFECTIVE_SIZE);
+    memcpy(out_backup,  backup,  TC_VOLUME_HEADER_EFFECTIVE_SIZE);
+
+cleanup:
+    if (ciBackup && ciBackup != ci) crypto_close(ciBackup);
+    if (ci) crypto_close(ci);
+    burn(&pw, sizeof(pw));
+    burn(primary, sizeof(primary));
+    burn(backup, sizeof(backup));
+    sc_random_wipe();
+    return retVal;
+}
+
+
+/* --- 数据区随机填充（B2 增强，字节级复刻 VC Format.c FormatNoFs 的 !quickFormat 路径）---
+ *
+ * VC 创建容器时默认把整个数据区用「一套临时随机密钥」加密全零扇区填满，使未用区与
+ * 真实用户数据的密文统计不可区分——这是隐藏卷可否认性的基础。**关键安全点**：填充用的
+ * 是临时随机密钥（temporaryKey + 临时 XTS k2），不是卷真实主密钥；填完即弃。若用真实
+ * 密钥或写明文随机字节，都会破坏不可区分性。
+ *
+ * 流式三段接口（文件 I/O 在 Kotlin 侧 /proc/self/fd channel，native 只管加密）：
+ *   sc_volume_random_fill_open(ea)                → 建临时密钥 crypto_info，返回不透明句柄
+ *   sc_volume_random_fill_block(h, buf, start, n) → 把 buf 前 n 个 512B 单元清零后 XTS 加密
+ *                                                    （单元号从 start 连续；对齐 WriteSector）
+ *   sc_volume_random_fill_close(h)                → crypto_close 抹临时密钥 + free
+ *
+ * 调用方须先 sc_random_seed 灌足熵（临时密钥经 RandgetBytes 取；池空返 NULL/失败）。 */
+
+struct sc_fill {
+    PCRYPTO_INFO ci;
+};
+
+sc_fill* sc_volume_random_fill_open(int ea)
+{
+    unsigned char tempKey[MASTER_KEYDATA_SIZE];
+    unsigned char tempK2[MASTER_KEYDATA_SIZE];
+    int keyLen;
+
+    if (ea <= 0) return NULL;
+
+    PCRYPTO_INFO ci = crypto_open();
+    if (!ci) return NULL;
+    ci->ea = ea;
+    ci->mode = FIRST_MODE_OF_OPERATION_ID;   /* XTS */
+
+    keyLen = EAGetKeySize(ea);
+    if (keyLen <= 0 || keyLen > (int)sizeof(tempKey)) {
+        crypto_close(ci);
+        return NULL;
+    }
+
+    /* 临时主密钥 + 临时 XTS 副密钥，均取自随机池（复刻 FormatNoFs 的 temporaryKey/k2）。 */
+    if (!RandgetBytes(NULL, tempKey, keyLen, FALSE)
+        || !RandgetBytes(NULL, tempK2, sizeof(ci->k2), FALSE)) {
+        burn(tempKey, sizeof(tempKey));
+        burn(tempK2, sizeof(tempK2));
+        crypto_close(ci);
+        return NULL;
+    }
+
+    if (EAInit(ci->ea, tempKey, ci->ks) != ERR_SUCCESS
+        || !EAInitMode(ci, tempK2)) {
+        burn(tempKey, sizeof(tempKey));
+        burn(tempK2, sizeof(tempK2));
+        crypto_close(ci);
+        return NULL;
+    }
+
+    burn(tempKey, sizeof(tempKey));
+    burn(tempK2, sizeof(tempK2));
+
+    sc_fill* f = (sc_fill*) malloc(sizeof(sc_fill));
+    if (!f) { crypto_close(ci); return NULL; }
+    f->ci = ci;
+    return f;
+}
+
+void sc_volume_random_fill_block(sc_fill* f, uint8_t* buf,
+                                 uint64_t start_unit, uint32_t nbr_units)
+{
+    if (!f || !f->ci || !buf || nbr_units == 0) return;
+    /* 全零明文 → XTS 加密（临时密钥）。单元号从 start_unit 连续，与 WriteSector 一致。 */
+    memset(buf, 0, (size_t) nbr_units * ENCRYPTION_DATA_UNIT_SIZE);
+    UINT64_STRUCT unitNo;
+    unitNo.Value = start_unit;
+    EncryptDataUnits((unsigned __int8*) buf, &unitNo, nbr_units, f->ci);
+}
+
+void sc_volume_random_fill_close(sc_fill* f)
+{
+    if (!f) return;
+    if (f->ci) crypto_close(f->ci);   /* 抹临时密钥 */
+    free(f);
+}

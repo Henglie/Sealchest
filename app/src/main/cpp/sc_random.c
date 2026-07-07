@@ -211,3 +211,18 @@ int RandgetBytesFull(void* hwnd, unsigned char* buf, int len, int forceSlowPoll,
     (void)allowAnyLength;
     return RandgetBytes(hwnd, buf, len, forceSlowPoll);
 }
+
+/* 池快照（仅供 UI 可视化，对齐桌面 VeraCrypt 显示 Random Pool）。
+ * 纯拷贝当前池的原始字节到 out，最多 len 字节（out 应 ≥ SC_RNG_POOL_SIZE 才能拿全池）。
+ * 绝不推进读/写指针、绝不搅拌、绝不消耗熵——展示是只读旁观，不能影响真实取数。
+ * 返回实际拷贝字节数。未灌种也可看（池此时是交互熵累积的中间态）。 */
+int sc_random_snapshot(unsigned char* out, int len)
+{
+    int n, i;
+    if (!out || len <= 0) return 0;
+    n = (len < SC_RNG_POOL_SIZE) ? len : SC_RNG_POOL_SIZE;
+    pthread_mutex_lock(&sc_rand_lock);
+    for (i = 0; i < n; i++) out[i] = sc_rand_pool[i];
+    pthread_mutex_unlock(&sc_rand_lock);
+    return n;
+}

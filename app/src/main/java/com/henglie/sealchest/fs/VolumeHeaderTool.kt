@@ -5,6 +5,7 @@ import android.net.Uri
 import com.henglie.sealchest.crypto.KeyfileMixer
 import com.henglie.sealchest.crypto.NativeBridge
 import java.io.FileNotFoundException
+import java.io.File
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 
@@ -72,6 +73,7 @@ object VolumeHeaderTool {
         prf: Int,
         keyfiles: List<ByteArray>,
         rescueDestUri: Uri,
+        autoRescueFile: File? = null,
     ): Result<Unit> = runCatching {
         val size = fileSize(resolver, containerUri)
         require(size >= MIN_VOLUME_SIZE) { "容器过小（<256KB），无独立备份头，无法救砖" }
@@ -83,7 +85,7 @@ object VolumeHeaderTool {
         verifyOpens(backupGroup.copyOf(HEADER_EFFECTIVE), password, pim, prf, keyfiles)
 
         // ② 兜底：先把当前主头组存出去。
-        rescueCurrentPrimary(resolver, containerUri, rescueDestUri)
+        rescueCurrentPrimary(resolver, containerUri, rescueDestUri, autoRescueFile)
 
         // ③ 覆盖：备份头组 → 主头组。
         writeRaw(resolver, containerUri, 0L, backupGroup)
@@ -104,6 +106,7 @@ object VolumeHeaderTool {
         prf: Int,
         keyfiles: List<ByteArray>,
         rescueDestUri: Uri,
+        autoRescueFile: File? = null,
     ): Result<Unit> = runCatching {
         val group = resolver.openInputStream(backupUri)?.use { it.readBytes() }
             ?: throw FileNotFoundException("无法读备份文件")
@@ -113,7 +116,7 @@ object VolumeHeaderTool {
         verifyOpens(group.copyOf(HEADER_EFFECTIVE), password, pim, prf, keyfiles)
 
         // ② 兜底 + ③ 覆盖。
-        rescueCurrentPrimary(resolver, containerUri, rescueDestUri)
+        rescueCurrentPrimary(resolver, containerUri, rescueDestUri, autoRescueFile)
         writeRaw(resolver, containerUri, 0L, group.copyOf(HEADER_GROUP))
     }
 
@@ -135,10 +138,13 @@ object VolumeHeaderTool {
     }
 
     /** 把当前主头组（128KB）导出到 [rescueDestUri]，作为恢复前的可逆兜底。 */
-    private fun rescueCurrentPrimary(resolver: ContentResolver, containerUri: Uri, rescueDestUri: Uri) {
+    private fun rescueCurrentPrimary(
+        resolver: ContentResolver, containerUri: Uri, rescueDestUri: Uri, autoRescueFile: File?,
+    ) {
         val current = readRaw(resolver, containerUri, 0L, HEADER_GROUP)
         resolver.openOutputStream(rescueDestUri)?.use { it.write(current) }
             ?: throw FileNotFoundException("无法写救援备份文件——恢复已中止，未改动容器")
+        autoRescueFile?.let { f -> runCatching { f.writeBytes(current) } }
     }
 
     /** 原始读：容器 [offset] 起 [len] 字节。只读打开，位置寻址，不动加解密。 */

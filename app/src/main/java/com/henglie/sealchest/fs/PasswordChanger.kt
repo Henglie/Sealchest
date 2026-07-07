@@ -5,6 +5,7 @@ import android.net.Uri
 import com.henglie.sealchest.crypto.KeyfileMixer
 import com.henglie.sealchest.crypto.NativeBridge
 import java.io.FileNotFoundException
+import java.io.File
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.security.SecureRandom
@@ -67,6 +68,7 @@ object PasswordChanger {
         newPrf: Int,
         newKeyfiles: List<ByteArray>,
         rescueDestUri: Uri,
+        autoRescueFile: File? = null,
     ): Result<Unit> = runCatching {
         check(NativeBridge.isAvailable) { "加密核心库未加载" }
 
@@ -110,7 +112,7 @@ object PasswordChanger {
 
         try {
             // ④ 兜底：先导出当前主头组（可逆）。
-            rescueCurrentPrimary(resolver, containerUri, rescueDestUri)
+            rescueCurrentPrimary(resolver, containerUri, rescueDestUri, autoRescueFile)
 
             // ⑤ 写新主头 @0、新备份头 @卷尾备份头组起始。
             writeHeaders(resolver, containerUri, backupHeaderOffset, newPrimary, newBackup)
@@ -137,8 +139,11 @@ object PasswordChanger {
     // ---------------- 内部（复刻 VolumeHeaderTool 的原始 I/O 手法）----------------
 
     /** 把当前主头组（128KB）导出到 [rescueDestUri]，作为写头前的可逆兜底。 */
-    private fun rescueCurrentPrimary(resolver: ContentResolver, containerUri: Uri, rescueDestUri: Uri) {
+    private fun rescueCurrentPrimary(
+        resolver: ContentResolver, containerUri: Uri, rescueDestUri: Uri, autoRescueFile: File?,
+    ) {
         val current = readRaw(resolver, containerUri, 0L, HEADER_GROUP)
+        autoRescueFile?.let { f -> runCatching { f.writeBytes(current) } }
         resolver.openOutputStream(rescueDestUri)?.use { it.write(current) }
             ?: throw FileNotFoundException("无法写救援备份文件——改密码已中止，未改动容器")
     }

@@ -146,6 +146,12 @@
     <string name="create_entropy_hint">在下方区域内用手指随意涂抹滑动。你的触摸轨迹是不可预测的物理随机源，用于加固容器的加密密钥（等同桌面版晃动鼠标）。</string>
     <string name="create_entropy_done">熵已充足，可以创建</string>
     <string name="create_entropy_progress">继续涂抹… %1$d%%</string>
+    <string name="create_next">下一步：收集随机性</string>
+    <string name="create_entropy_fullscreen_hint">用手指在整个屏幕上随意涂抹滑动，同时可以晃动手机。你不可预测的动作会不断搅动加密随机池，为主密钥注入熵——就像桌面版 VeraCrypt 里晃鼠标。收集得越久，随机性越充分。</string>
+    <string name="create_entropy_sensor_on">加速度传感器已接入：晃动手机也在收集熵</string>
+    <string name="create_entropy_sensor_none">本机无加速度传感器，仅靠涂抹收集</string>
+    <string name="create_entropy_pool_label">随机池（实时）</string>
+    <string name="create_entropy_swipe_here">在此涂抹 / 晃动手机</string>
 
     <!-- 改密码 / PIM / keyfile（B1） -->
     <string name="change_pwd_entry">修改密码 / PIM / 密钥文件</string>
@@ -161,4 +167,11 @@
     <string name="change_pwd_dismiss">取消</string>
     <string name="change_pwd_ok">密码已修改，以后用新密码解锁。</string>
     <string name="change_pwd_failed">修改密码失败</string>
+    <string name="rescue_entry">救援文件管理</string>
+    <string name="rescue_mgr_title">救援文件</string>
+    <string name="rescue_mgr_warn">这些是【旧】卷头组的备份。持有【旧】密码的人仍能用它们打开此卷。确认新密码可用后请尽快删除。</string>
+    <string name="rescue_mgr_empty">没有自动保存的救援文件。</string>
+    <string name="rescue_mgr_delete">删除</string>
+    <string name="rescue_mgr_clear_all">全部删除</string>
+    <string name="close">关闭</string>
 </resources>

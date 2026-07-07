@@ -62,6 +62,11 @@ void sc_random_add_entropy(const uint8_t* buf, int len);
 /* 抹除熵池（创建完成后调，不留主密钥种子于内存）。 */
 void sc_random_wipe(void);
 
+/* 池快照（仅供 UI 可视化，对齐桌面 VeraCrypt 显示 Random Pool）。
+ * 只读拷贝当前池字节到 out（最多 len，out 应 ≥320 才能拿全池），绝不推进指针 / 消耗熵。
+ * 返回实际拷贝字节数。 */
+int sc_random_snapshot(uint8_t* out, int len);
+
 /* 生成一对 VeraCrypt 卷头（主头 + 备份头，共享同一随机主密钥、各用独立随机盐）。
  * 调官方 CreateVolumeHeaderInMemory，字节级与桌面 VC 一致。
  *   out_primary / out_backup：各收 512B 有效头（调用方保证 ≥512B）。
@@ -73,6 +78,19 @@ int sc_volume_create_headers(uint8_t* out_primary, uint8_t* out_backup,
                              int ea, int prf, int pim,
                              const uint8_t* password, int password_len,
                              uint64_t volume_size, uint64_t encrypted_area_start);
+
+/* C2 生成一对隐藏卷头（隐藏主头 + 隐藏备份头，独立随机主密钥、各用独立随机盐）。
+ * 字节级复刻 VC Format.c 隐藏卷分支：内部据 host_size/hidden_size 算保留区、
+ * dataAreaSize、dataOffset，两头 hiddenVolumeSize=dataAreaSize（标记隐藏）、
+ * encryptedAreaStart=dataOffset（数据区寄生在容器尾部）。
+ *   out_primary / out_backup：各收 512B 有效头（调用方保证 ≥512B）。
+ *   host_size：外层容器总字节数（含头组）；hidden_size：隐藏卷毛尺寸（含保留区）。
+ * 头写盘位置由调用方负责：隐藏主头 → 偏移 65536；隐藏备份头 → host_size-65536。
+ * 调用前须先 sc_random_seed 灌足熵。成功返回 0，尺寸非法返回 ERR_VOL_SIZE_WRONG。 */
+int sc_volume_create_hidden_headers(uint8_t* out_primary, uint8_t* out_backup,
+                                    int ea, int prf, int pim,
+                                    const uint8_t* password, int password_len,
+                                    uint64_t host_size, uint64_t hidden_size);
 
 /* 改密码 / PIM / PRF（B1）：字节级复刻 VC ChangePwd（Common/Password.c:190）。
  * 主密钥不变，只用新密码 + 新盐重新派生 header key 重加密主头 + 备份头。
@@ -100,6 +118,23 @@ uint64_t sc_volume_encrypted_area_start(const sc_volume* v);
 uint64_t sc_volume_volume_size(const sc_volume* v);   /* 数据区字节数（不含头）*/
 uint32_t sc_volume_sector_size(const sc_volume* v);
 int      sc_volume_is_hidden(const sc_volume* v);
+
+/* --- 数据区随机填充（复刻 VC FormatNoFs 临时密钥机制）---
+ * 生成一套临时随机密钥（与 volume 真实主密钥无关），用 XTS 加密全零扇区填满
+ * 数据区，使未用区在统计上与真实密文不可区分（隐藏卷可否认性地基）。
+ * 用真实主密钥或明文随机字节都会破坏此性质。*/
+typedef struct sc_fill sc_fill;
+
+/* 打开填充器：ea = 加密算法 ID。内部取临时随机密钥 + 临时 k2 初始化 XTS。
+ * 失败（RNG 池不足等）返回 NULL。*/
+sc_fill* sc_volume_random_fill_open(int ea);
+
+/* 填一块：buf 长度 = nbr_units*512，内部先清零再原地 XTS 加密写回。
+ * start_unit = 该块首扇区的绝对数据单元号（文件绝对偏移/512）。*/
+void sc_volume_random_fill_block(sc_fill* f, uint8_t* buf, uint64_t start_unit, uint32_t nbr_units);
+
+/* 关闭并销毁临时密钥。*/
+void sc_volume_random_fill_close(sc_fill* f);
 
 #ifdef __cplusplus
 }

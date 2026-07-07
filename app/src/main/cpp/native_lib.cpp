@@ -298,4 +298,59 @@ Java_com_henglie_sealchest_crypto_NativeBridge_nativeRekeyHeaders(
     return static_cast<jint>(err);
 }
 
+// randomPoolSnapshot(out): Int —— 拷当前随机池字节到 out（仅供 UI 可视化，
+// 对齐桌面 VeraCrypt 显示 Random Pool）。只读旁观：不推进读写指针、不消耗熵。
+// 返回实际拷贝字节数。
+JNIEXPORT jint JNICALL
+Java_com_henglie_sealchest_crypto_NativeBridge_nativeRandomPoolSnapshot(
+    JNIEnv* env, jobject /*thiz*/, jbyteArray out) {
+    if (out == nullptr) return 0;
+    jsize len = env->GetArrayLength(out);
+    if (len <= 0) return 0;
+    jbyte* o = env->GetByteArrayElements(out, nullptr);
+    if (o == nullptr) return 0;
+    int n = sc_random_snapshot(reinterpret_cast<uint8_t*>(o), static_cast<int>(len));
+    env->ReleaseByteArrayElements(out, o, 0);   // 回写 Java 数组
+    return static_cast<jint>(n);
+}
+
+// createHiddenHeaders(outPrimary, outBackup, ea, prf, pim, password, hostSize, hiddenSize): Int
+// C2 生成隐藏卷头（隐藏主头 + 隐藏备份头，独立随机主密钥、各用独立随机盐），各写 512B 到 out。
+// 内部按 Format.c 隐藏卷分支算 reservedSize/dataAreaSize/dataOffset，头里 hiddenVolumeSize≠0。
+// hostSize = 外层容器总字节数，hiddenSize = 隐藏卷毛尺寸（含保留区）。写盘位置由 Kotlin 负责。
+// 返回 0 = 成功，非 0 = VeraCrypt ERR_*（尺寸不够返 ERR_VOL_SIZE_WRONG）。
+JNIEXPORT jint JNICALL
+Java_com_henglie_sealchest_crypto_NativeBridge_nativeCreateHiddenHeaders(
+    JNIEnv* env, jobject /*thiz*/,
+    jbyteArray outPrimary, jbyteArray outBackup,
+    jint ea, jint prf, jint pim, jbyteArray password,
+    jlong hostSize, jlong hiddenSize) {
+
+    if (outPrimary == nullptr || outBackup == nullptr || password == nullptr) return -1;
+    if (env->GetArrayLength(outPrimary) < 512 || env->GetArrayLength(outBackup) < 512) return -1;
+
+    jsize plen = env->GetArrayLength(password);
+    jbyte* pbuf = env->GetByteArrayElements(password, nullptr);
+    jbyte* prim = env->GetByteArrayElements(outPrimary, nullptr);
+    jbyte* back = env->GetByteArrayElements(outBackup, nullptr);
+    if (pbuf == nullptr || prim == nullptr || back == nullptr) {
+        if (pbuf) env->ReleaseByteArrayElements(password, pbuf, JNI_ABORT);
+        if (prim) env->ReleaseByteArrayElements(outPrimary, prim, JNI_ABORT);
+        if (back) env->ReleaseByteArrayElements(outBackup, back, JNI_ABORT);
+        return -1;
+    }
+
+    int err = sc_volume_create_hidden_headers(
+        reinterpret_cast<uint8_t*>(prim), reinterpret_cast<uint8_t*>(back),
+        static_cast<int>(ea), static_cast<int>(prf), static_cast<int>(pim),
+        reinterpret_cast<const uint8_t*>(pbuf), static_cast<int>(plen),
+        static_cast<uint64_t>(hostSize), static_cast<uint64_t>(hiddenSize));
+
+    memset(pbuf, 0, static_cast<size_t>(plen));
+    env->ReleaseByteArrayElements(password, pbuf, JNI_ABORT);
+    env->ReleaseByteArrayElements(outPrimary, prim, err == 0 ? 0 : JNI_ABORT);
+    env->ReleaseByteArrayElements(outBackup, back, err == 0 ? 0 : JNI_ABORT);
+    return static_cast<jint>(err);
+}
+
 }  // extern "C"

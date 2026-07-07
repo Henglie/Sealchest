@@ -2,6 +2,7 @@ package com.henglie.sealchest
 
 import android.content.Intent
 import android.net.Uri
+import java.io.File
 import android.os.Bundle
 import android.provider.DocumentsContract
 import androidx.activity.ComponentActivity
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
@@ -177,6 +179,24 @@ private val PRF_OPTIONS = listOf(
     R.string.prf_streebog to 5,
 )
 
+/** 创建（含隐藏卷）用的加密算法选项：显示名 res + native EA ID。与 CreateVolumeScreen 对齐。 */
+private val CREATE_ALGO_OPTIONS = listOf(
+    R.string.create_algo_aes to 1,
+    R.string.create_algo_serpent to 2,
+    R.string.create_algo_twofish to 3,
+    R.string.create_algo_camellia to 4,
+    R.string.create_algo_kuznyechik to 5,
+)
+
+/** 创建用 PRF 选项：不含「自动」（创建必须指定确定 PRF）。显示名 res + native PRF ID。 */
+private val CREATE_PRF_OPTIONS = listOf(
+    R.string.prf_sha512 to 1,
+    R.string.prf_whirlpool to 2,
+    R.string.prf_sha256 to 3,
+    R.string.prf_blake2s to 4,
+    R.string.prf_streebog to 5,
+)
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
@@ -221,6 +241,10 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
     var showHeaderTool by remember { mutableStateOf(false) }
     var headerBusy by remember { mutableStateOf(false) }
     var headerMsg by remember { mutableStateOf<String?>(null) }
+    var showRescueManager by remember { mutableStateOf(false) }
+
+    // 救援文件管理：列出/清理 app 私有目录自动兜底的旧头组备份（旧密码可解，须可清）。
+    var showRescueMgr by remember { mutableStateOf(false) }
 
     // 改密码（B1）状态：弹窗显隐 + 忙碌 + 结果提示 + 新凭据（旧凭据复用解锁区已填的）。
     var showChangePwd by remember { mutableStateOf(false) }
@@ -230,6 +254,16 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
     var newPim by remember { mutableStateOf("") }
     var newPrfIndex by remember { mutableStateOf(0) }
     var newKeyfileUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
+
+    // 隐藏卷创建（C2）状态：外层凭据复用解锁区已填的，隐藏卷凭据在对话框收集。
+    var showCreateHidden by remember { mutableStateOf(false) }
+    var createHiddenBusy by remember { mutableStateOf(false) }
+    var createHiddenMsg by remember { mutableStateOf<String?>(null) }
+    var hiddenPassword by remember { mutableStateOf("") }
+    var hiddenSizeMb by remember { mutableStateOf("") }
+    var hiddenAlgoIndex by remember { mutableStateOf(0) }
+    var hiddenPrfIndex by remember { mutableStateOf(0) }
+    var hiddenPimText by remember { mutableStateOf("") }
 
     val newKeyfilePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()
@@ -279,7 +313,8 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
                             context.contentResolver.openInputStream(kfUri)?.use { it.readBytes() }
                         }
                         com.henglie.sealchest.fs.VolumeHeaderTool.restoreFromEmbedded(
-                            context.contentResolver, uri, pw, pimVal, prfVal, keyfiles, rescueDest
+                            context.contentResolver, uri, pw, pimVal, prfVal, keyfiles, rescueDest,
+                            autoRescueFile(context, uri),
                         ).getOrThrow()
                     }
                 }
@@ -328,6 +363,7 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
                             oldPw, oldPimVal, oldPrfVal, oldKeyfiles,
                             newPw, newPimVal, newPrfVal, newKeyfiles,
                             rescueDest,
+                            autoRescueFile(context, uri),
                         ).getOrThrow()
                     }
                 }
@@ -343,6 +379,59 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
                     newPassword = ""; newPim = ""; newKeyfileUris = emptyList()
                     showChangePwd = false
                 }
+            }
+        }
+    }
+
+    // 创建隐藏卷（C2）：外层凭据取上方解锁区已填值，隐藏卷凭据取对话框。容器已存在、
+    // 无需 CreateDocument，直接在 IO 线程跑 HiddenVolumeCreator（读外层 FAT 算安全区 →
+    // 生成隐藏卷头 → 写隐藏主/备头 → 格式化隐藏 FAT）。
+    val runCreateHidden: () -> Unit = run@{
+        val uri = pickedUri ?: return@run
+        createHiddenBusy = true
+        createHiddenMsg = null
+        val outerPw = password.toByteArray(Charsets.UTF_8)
+        val outerPimVal = pim.toIntOrNull() ?: 0
+        val outerPrfVal = PRF_OPTIONS[prfIndex].second
+        val outerKfUris = keyfileUris
+        val hiddenPw = hiddenPassword.toByteArray(Charsets.UTF_8)
+        val hiddenPimVal = hiddenPimText.toIntOrNull() ?: 0
+        val eaVal = CREATE_ALGO_OPTIONS[hiddenAlgoIndex].second
+        val prfVal = CREATE_PRF_OPTIONS[hiddenPrfIndex].second
+        val hiddenBytes = (hiddenSizeMb.toLongOrNull() ?: 0L) * 1024L * 1024L
+        scope.launch {
+            val r = withContext(Dispatchers.IO) {
+                runCatching {
+                    val outerKeyfiles = outerKfUris.mapNotNull { kfUri ->
+                        runCatching {
+                            context.contentResolver.openInputStream(kfUri)?.use { it.readBytes() }
+                        }.getOrNull()
+                    }
+                    com.henglie.sealchest.fs.HiddenVolumeCreator.create(
+                        resolver = context.contentResolver,
+                        containerUri = uri,
+                        outerPassword = outerPw,
+                        outerPim = outerPimVal,
+                        outerPrf = outerPrfVal,
+                        outerKeyfiles = outerKeyfiles,
+                        hiddenPassword = hiddenPw,
+                        hiddenPim = hiddenPimVal,
+                        hiddenKeyfiles = emptyList(),
+                        hiddenEa = eaVal,
+                        hiddenPrf = prfVal,
+                        hiddenVolumeBytes = hiddenBytes,
+                    ).getOrThrow()
+                }
+            }
+            outerPw.fill(0); hiddenPw.fill(0)
+            createHiddenBusy = false
+            createHiddenMsg = r.fold(
+                { context.getString(R.string.create_hidden_ok) },
+                { it.message ?: context.getString(R.string.create_hidden_failed) },
+            )
+            if (r.isSuccess) {
+                hiddenPassword = ""; hiddenSizeMb = ""; hiddenPimText = ""
+                showCreateHidden = false
             }
         }
     }
@@ -600,6 +689,25 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
                         }
                     }
 
+                    // 创建隐藏卷入口（C2）：写操作，仅拿到写权限时可用。在选中的外层容器内
+                    // 造隐藏卷；上方已填的密码 / PIM / PRF / keyfile 作外层凭据（读外层 FAT 算安全区），
+                    // 点开对话框收集隐藏卷新凭据。
+                    if (uriWritable) {
+                        TextButton(
+                            onClick = { createHiddenMsg = null; showCreateHidden = true },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(stringResource(R.string.create_hidden_entry))
+                        }
+
+                        TextButton(
+                            onClick = { showRescueManager = true },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(stringResource(R.string.rescue_entry))
+                        }
+                    }
+
                     // 卷头工具入口（A2 救砖）：低调 TextButton，主头损坏打不开时的最后一道保险。
                     TextButton(
                         onClick = { headerMsg = null; showHeaderTool = true },
@@ -651,6 +759,14 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
                         newPassword = ""; newPim = ""; newKeyfileUris = emptyList()
                     }
                 },
+            )
+        }
+
+        // 救援文件管理：列出 app 私有目录自动兜底的旧头组备份，可删（旧密码可解密，安全敏感）。
+        if (showRescueManager) {
+            RescueManagerDialog(
+                context = context,
+                onDismiss = { showRescueManager = false },
             )
         }
     }
@@ -849,6 +965,129 @@ private fun ChangePasswordDialog(
         dismissButton = {
             TextButton(onClick = onDismiss, enabled = !busy) {
                 Text(stringResource(R.string.change_pwd_dismiss))
+            }
+        },
+    )
+}
+
+/**
+ * 隐藏卷创建对话框（C2）。外层凭据取解锁区已填字段（对话框不再问），这里只收隐藏卷
+ * 自己的算法 / PRF / 大小 / 密码 / PIM。确认后 [onConfirm] 触发 HiddenVolumeCreator：
+ * 解锁外层读 FAT 算安全区 → 校验不覆盖外层文件 → 写隐藏卷头 → 格式化隐藏 FAT。
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun CreateHiddenVolumeDialog(
+    busy: Boolean,
+    message: String?,
+    hiddenPassword: String,
+    onHiddenPasswordChange: (String) -> Unit,
+    sizeMb: String,
+    onSizeChange: (String) -> Unit,
+    algoIndex: Int,
+    onAlgoChange: (Int) -> Unit,
+    prfIndex: Int,
+    onPrfChange: (Int) -> Unit,
+    pim: String,
+    onPimChange: (String) -> Unit,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val sizeValid = (sizeMb.toLongOrNull() ?: 0L) > 0
+    val canCreate = !busy && hiddenPassword.isNotEmpty() && sizeValid
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.create_hidden_title)) },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+            ) {
+                Text(
+                    stringResource(R.string.create_hidden_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                Text(stringResource(R.string.create_algorithm), style = MaterialTheme.typography.labelLarge)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    CREATE_ALGO_OPTIONS.forEachIndexed { i, (labelResId, _) ->
+                        FilterChip(
+                            selected = algoIndex == i,
+                            onClick = { onAlgoChange(i) },
+                            label = { Text(stringResource(labelResId)) },
+                        )
+                    }
+                }
+
+                Text(stringResource(R.string.create_prf), style = MaterialTheme.typography.labelLarge)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    CREATE_PRF_OPTIONS.forEachIndexed { i, (labelResId, _) ->
+                        FilterChip(
+                            selected = prfIndex == i,
+                            onClick = { onPrfChange(i) },
+                            label = { Text(stringResource(labelResId)) },
+                        )
+                    }
+                }
+
+                OutlinedTextField(
+                    value = sizeMb,
+                    onValueChange = onSizeChange,
+                    label = { Text(stringResource(R.string.create_hidden_size_mb)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = hiddenPassword,
+                    onValueChange = onHiddenPasswordChange,
+                    label = { Text(stringResource(R.string.create_hidden_password)) },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = pim,
+                    onValueChange = onPimChange,
+                    label = { Text(stringResource(R.string.create_hidden_pim)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                if (message != null) {
+                    Text(
+                        message,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                if (busy) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.height(20.dp), strokeWidth = 2.dp)
+                        Text("  " + stringResource(R.string.create_hidden_working))
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm, enabled = canCreate) {
+                Text(stringResource(R.string.create_hidden_submit))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !busy) {
+                Text(stringResource(R.string.create_hidden_cancel))
             }
         },
     )
@@ -1077,4 +1316,83 @@ private fun queryDisplayName(context: android.content.Context, uri: Uri): String
     )?.use { c ->
         if (c.moveToFirst()) c.getString(0) else null
     }
+}
+
+// 自动兜底救援文件：写头前把当前主头组同时留一份到 app 私有目录（filesDir/rescue/，
+// 别的 app 读不到、卸载即删）。文件名带容器显示名+时间戳，可复原、可在设置里手动清。
+// 安全权衡：救援文件是旧主头组，旧密码可解密还原——即改密后旧密码经此文件仍能开卷。
+// 放私有沙盒是移动端对 VC 桌面版救援盘的等价处理。
+@Composable
+private fun RescueManagerDialog(
+    context: android.content.Context,
+    onDismiss: () -> Unit,
+) {
+    val dir = java.io.File(context.filesDir, "rescue")
+    var files by remember {
+        mutableStateOf(
+            (dir.listFiles()?.sortedByDescending { it.lastModified() } ?: emptyList())
+        )
+    }
+    val fmt = remember { java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.rescue_mgr_title)) },
+        text = {
+            androidx.compose.foundation.layout.Column {
+                Text(
+                    stringResource(R.string.rescue_mgr_warn),
+                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.error,
+                )
+                Spacer(Modifier.height(8.dp))
+                if (files.isEmpty()) {
+                    Text(stringResource(R.string.rescue_mgr_empty))
+                } else {
+                    androidx.compose.foundation.lazy.LazyColumn(
+                        modifier = Modifier.heightIn(max = 320.dp),
+                    ) {
+                        items(files.size) { i ->
+                            val f = files[i]
+                            androidx.compose.foundation.layout.Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                            ) {
+                                androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
+                                    Text(f.name, style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
+                                    Text(
+                                        fmt.format(java.util.Date(f.lastModified())) + "  " + (f.length() / 1024) + " KB",
+                                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                                        color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                TextButton(onClick = {
+                                    runCatching { f.delete() }
+                                    files = dir.listFiles()?.sortedByDescending { it.lastModified() } ?: emptyList()
+                                }) { Text(stringResource(R.string.rescue_mgr_delete)) }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    files.forEach { runCatching { it.delete() } }
+                    files = emptyList()
+                },
+                enabled = files.isNotEmpty(),
+            ) { Text(stringResource(R.string.rescue_mgr_clear_all)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
+        },
+    )
+}
+
+private fun autoRescueFile(context: android.content.Context, uri: Uri): java.io.File {
+    val dir = java.io.File(context.filesDir, "rescue").apply { mkdirs() }
+    val raw = queryDisplayName(context, uri) ?: "volume"
+    val safe = raw.replace(Regex("[^A-Za-z0-9._-]"), "_").take(40)
+    return java.io.File(dir, "rescue_" + safe + "_" + System.currentTimeMillis() + ".vcbak")
 }

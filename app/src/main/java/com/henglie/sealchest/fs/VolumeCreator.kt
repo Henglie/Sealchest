@@ -82,11 +82,10 @@ object VolumeCreator {
         if (pim < 0) {
             return Result.failure(IllegalArgumentException("PIM 不能为负：$pim"))
         }
-        // X2：文件系统目前仅支持 FAT(0)，exFAT(1) / NTFS(2) 后端 Formatter 未就绪。
-        // UI 侧已对未就绪项灰显，此处兜底拦截，防止误传。
-        if (fsType != 0) {
+        // 文件系统后端：FAT(0)、exFAT(1) 已就绪；NTFS(2) 造盘器待接（最高危单件），暂拦。
+        if (fsType != 0 && fsType != 1) {
             return Result.failure(
-                IllegalArgumentException("暂不支持该文件系统创建：fsType=$fsType（目前仅 FAT）")
+                IllegalArgumentException("暂不支持该文件系统创建：fsType=$fsType（目前 FAT / exFAT）")
             )
         }
         // X2：dynamic（稀疏卷）UI 已备，后端稀疏实现待接，暂当普通卷处理。
@@ -156,6 +155,8 @@ object VolumeCreator {
                 backupHeaderOffset = backupHeaderOffset,
                 volumeSizeBytes = volumeSizeBytes,
                 clusterSize = clusterSize,
+                fsType = fsType,
+                volumeLabel = "",
             )
         } catch (t: Throwable) {
             return Result.failure(t)
@@ -181,6 +182,8 @@ object VolumeCreator {
         backupHeaderOffset: Long,
         volumeSizeBytes: Long,
         clusterSize: Int = 0,
+        fsType: Int = 0,
+        volumeLabel: String = "",
     ): Result<Unit> {
         // 可写打开：SAF 要求 URI 已被授予 FLAG_GRANT_WRITE。
         val pfd = resolver.openFileDescriptor(containerUri, "rw")
@@ -232,11 +235,14 @@ object VolumeCreator {
             // TODO(增强): 后续版本加「创建时全区随机填充」开关：分块（如 1MB）生成随机
             //             明文 → reader.write 铺满数据区 → 再覆盖写 FAT 结构。可加进度回调。
 
-            // ---------- 8. 写空 FAT 结构 ----------
-            // TODO(契约): FatFormatter.buildEmptyFat(volumeSizeBytes) 由另一位辅开发提供。
-            //   返回 FatImage(bytesPerSector, sectors: List<Pair<卷内逻辑偏移, 字节段>>)，
+            // ---------- 8. 写空文件系统结构 ----------
+            //   Formatter 返回 FatImage(bytesPerSector, sectors: List<Pair<卷内逻辑偏移, 字节段>>)，
             //   逻辑偏移 0 = 数据区首字节。这里只消费逻辑偏移与字节段，逐段 reader.write。
-            val img = FatFormatter.buildEmptyFat(volumeSizeBytes, clusterSize)
+            //   fsType 分发：0=FAT（FatFormatter），1=exFAT（ExFatFormatter）。NTFS(2) 在 create 层已挡。
+            val img = when (fsType) {
+                1 -> ExFatFormatter.buildEmpty(volumeSizeBytes, clusterSize, volumeLabel)
+                else -> FatFormatter.buildEmptyFat(volumeSizeBytes, clusterSize)
+            }
             for ((logicalOffset, bytes) in img.sectors) {
                 if (bytes.isEmpty()) continue
                 // 防御：FAT 段不得越过数据区尾（否则会写进/越过备份头区，破坏容器）。

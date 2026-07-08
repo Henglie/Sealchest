@@ -400,10 +400,10 @@ private fun CreateFormPage(
                     FilterChip(
                         selected = fsIndex == i,
                         onClick = { onFsChange(i) },
-                        enabled = i == 0, // 仅 FAT 可创建，exFAT / NTFS 后端待接
+                        enabled = i <= 1, // FAT / exFAT 可创建，NTFS(2) 造盘器待接（最高危单件）
                         label = {
                             Text(
-                                if (i == 0) stringResource(labelResId)
+                                if (i <= 1) stringResource(labelResId)
                                 else stringResource(labelResId) + " " + stringResource(R.string.create_fs_coming_soon)
                             )
                         },

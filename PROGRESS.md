@@ -133,6 +133,35 @@ JNI 只暴露三个能力：开卷（验密码、派生密钥、出 CRYPTO_INFO 
 - [x] D2 NTFS 读 + 受限写（编译过，**待恒烈真机回验，本项目最高危块**）：`NtfsBoot`（偏移 3 "NTFS    " 判定）+ `NtfsFileSystem` 走同一 `VolumeFs` 接口。读：$MFT 记录（USA 修复）+ 属性解析（驻留/非驻留）+ data run 解码 + 目录 $INDEX_ROOT/$INDEX_ALLOCATION（INDX 块）遍历 + 卷标。写（**诚实边界：不写 $LogFile 日志，写完卷 Windows 当未净卸载、挂载时自动重置 $LogFile+chkdsk 补一致性——非内核 NTFS 写工具通行做法**）：双位图（$Bitmap 簇分配 + $MFT 的 $BITMAP 记录分配）+ FILE 记录 USA 打签名 + $MFTMirr 同步 + 父目录 $INDEX_ROOT 索引项插入/删除。**保守原则**：需 B+树分裂 / $INDEX_ALLOCATION 扩展的场景一律拒绝（返回 false 不动盘），绝不硬写赌运气。自审并修 4 bug：insertIndexEntry 双搬移交叉覆盖→单次整体搬移；$INDEX_ROOT 节点 allocSize 未更新（insert+remove 各补）；next-attr-id 冲突（2→7）。**唯一判据待恒烈真机验**：桌面格 NTFS 的 VC 容器 app 能挂读；app 写入文件桌面 VC + Windows 能读、chkdsk 干净。
 ---
 
+- [x] exFAT 创建后端（编译过，**待恒烈真机回验**）：桌面 VC 对 exFAT 是挂盘符后调 Windows `FormatEx`（`Format.c:802`，VC 源码本身无 exFAT 造盘逻辑），安卓无等价系统设施 → 从零按 MS exFAT 规范（2019）自研 `ExFatFormatter.buildEmpty`。产出复用 `FatFormatter.FatImage` 稀疏格式，`VolumeCreator.writeContainer` 按 `fsType` 分发（0=FAT / 1=exFAT）。空盘布局：主引导区（扇区 0..11，含扇区 11 主引导校验和 `bootChecksum` 跳偏移 106/107/112）+ 备份引导区（12..23 镜像）+ FAT（每项 4B）+ 簇堆（簇 2 分配位图 / upcase 表 / 根目录）。根目录三项：0x83 卷标 + 0x81 位图 + 0x82 upcase。upcase 压缩表（0xFFFF+count 恒等段）与 `ExFatFileSystem` 解压对称，`tableChecksum` 对压缩字节自洽（chkdsk 只校验自洽）。`PercentInUse=0xFF`（未知，让 Windows 重算）。UI 放开 exFAT chip（`enabled = i <= 1`），NTFS 仍灰。**唯一判据待恒烈真机验**：app 建 exFAT 容器 → 桌面 VeraCrypt 挂载 + Windows 资源管理器读写 + chkdsk 干净。commit `c0179d1`，APK `Sealchest-exFAT-create.apk`。
+
+### 进行中（交接）· NTFS 创建后端（造盘器，项目最高危单件，2026-07-08 未动工）
+
+**背景**：恒烈明确要求「两个都造」，完成 VC 原版复刻。已知事实（勘察坐实）：桌面 VC 对 NTFS 同样是挂盘符后调 Windows `FormatEx`/`format.com`（`Format.c:802-853`），VC 源码无 NTFS 造盘逻辑。安卓无等价设施 → 只能从零按 MS NTFS 规范 + ntfs-3g 公开实现自研。
+
+**恒烈的定调（务必遵守，别再劝退）**：他已知悉风险、会真机 chkdsk 迭代，要求达成而非警告。这是信息安全工具——**不泄露 + 不损坏信息**同等重要，NTFS 造盘/写入任何字节级错误都可能损毁容器数据，故：宁可保守拒绝（返回 false 不动盘），绝不硬写赌运气；每步都要能被 chkdsk 验证；预期真机 chkdsk 报错迭代 2-3 轮才干净，属正常，不是失败。
+
+**NTFS 空盘最小元数据集（从零全造，逐个 FILE 记录带 USA fixup）**：
+- 记录 0 `$MFT`（自身，$DATA 非驻留指向 MFT 簇 run + $BITMAP）
+- 记录 1 `$MFTMirr`（前 4 条记录镜像）
+- 记录 2 `$LogFile`（分配空间填 0xFF 页，Windows 挂载自重置）
+- 记录 3 `$Volume`（$VOLUME_NAME 卷标 + $VOLUME_INFORMATION 版本 3.1 + dirty 标志）
+- 记录 4 `$AttrDef`（**高危**：2560B 属性定义表，只能按 ntfs-3g 标准数组重建，flags/min/max 偏差 chkdsk 会挑）
+- 记录 5 `.`（根目录，$INDEX_ROOT 空 B+树 + 可能 $INDEX_ALLOCATION/$BITMAP）
+- 记录 6 `$Bitmap`（卷簇分配位图，非驻留）
+- 记录 7 `$Boot`（$DATA 指向扇区 0 引导区，$Boot 内容含 BPB + 0x55AA）
+- 记录 8 `$BadClus`（$DATA 命名流 `$Bad`，稀疏零长）
+- 记录 9 `$Secure`（**高危**：$SDS/$SDH/$SII 安全描述符库，第一版最小骨架）
+- 记录 10 `$UpCase`（128KB 大写映射表，标准内容，$INFO 命名流可选）
+- 记录 11 `$Extend`（目录，通常空 $INDEX_ROOT）
+- 记录 16.. 用户文件区起点
+
+**布局要点**：$Boot 引导区（512B×若干）含 BPB（bytesPerSector/sectorsPerCluster/mftLcn/mftMirrLcn/fileRecordSize/indexRecordSize/serialNumber）+ 0x55AA；$MFT 通常放卷约 1/3 处或固定 LCN；$MFTMirr 放卷中部；每条 FILE 记录 1024B 带 `FILE` 签名 + USA（`stampUsa` 已有）+ $STD_INFO + 属性 + END 0xFFFFFFFF。可复用现有 `NtfsFileSystem` 的：`putU16/putU32/putU64`、`stampUsa`、`encodeSingleRun`、`msToNtfsTime`、`writeStdInfo`、`ATTR_*` 常量、`NtfsBoot` 字段布局。
+
+**接手做法**：新建 `NtfsFormatter.kt`（对称 ExFatFormatter，`buildEmpty(volumeSizeBytes, clusterSize, volumeLabel): FatFormatter.FatImage`），产出稀疏扇区列表；`VolumeCreator` when 分支加 `2 -> NtfsFormatter.buildEmpty(...)`；create 层拦截放开 fsType==2；UI chip `enabled = i <= 2`。NTFS 造盘是单文件高危活，留主开发 M 串行，不派辅开发。$UpCase 128KB + $LogFile 可能较大，注意 FatImage 稀疏段别越数据区尾。
+
+**唯一判据**：app 建 NTFS 容器 → 桌面 VeraCrypt 挂载 + Windows 读写 + chkdsk 干净（预期迭代数轮）。
+
 ## ▍踩坑记录
 
 - 本机系统 JDK 是 25，Gradle 8.13 上限 JDK 23 → 必须用 gradle.properties 的 `org.gradle.java.home` 钉死到 Studio JBR 21，否则命令行 gradlew 误用 25 报错。（沿用 KarmaWitness 结论）

@@ -724,6 +724,7 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
                                     mountToken++
                                     AutoLock.touch()
                                     Settings.addFavorite(context, uri.toString(), pickedName)
+                                    favTick++
                                 }.onFailure {
                                     error = it.message
                                         ?: context.getString(R.string.unlock_wrong)

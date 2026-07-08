@@ -66,6 +66,7 @@ import com.henglie.sealchest.browse.FileExport
 import com.henglie.sealchest.crypto.NativeBridge
 import com.henglie.sealchest.fs.VolumeFs
 import com.henglie.sealchest.core.AutoLock
+import com.henglie.sealchest.core.Settings
 import com.henglie.sealchest.fs.MountManager
 import com.henglie.sealchest.ui.theme.SealchestTheme
 import kotlinx.coroutines.Dispatchers
@@ -221,6 +222,7 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
     // 选中的待解锁容器。
     var pickedUri by remember { mutableStateOf<Uri?>(null) }
     var pickedName by remember { mutableStateOf("") }
+    var favTick by remember { mutableStateOf(0) }
 
     var password by remember { mutableStateOf("") }
     var pim by remember { mutableStateOf("") }
@@ -555,6 +557,55 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
                     ) {
                         Text(stringResource(R.string.create_entry))
                     }
+
+                    // 收藏容器列表：点名字快速选中并尝试拿读写权限，右侧移除（只删收藏，不动容器）。
+                    val favs = remember(favTick) { Settings.favorites(context) }
+                    if (favs.isNotEmpty()) {
+                        Text(
+                            text = stringResource(R.string.favorites_title),
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                        favs.forEach { fav ->
+                            Card(modifier = Modifier.fillMaxWidth()) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        text = fav.name,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clickable {
+                                                val u = Uri.parse(fav.uri)
+                                                uriWritable = runCatching {
+                                                    context.contentResolver.takePersistableUriPermission(
+                                                        u, Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                                                    )
+                                                }.isSuccess
+                                                runCatching {
+                                                    context.contentResolver.takePersistableUriPermission(
+                                                        u, Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                                    )
+                                                }
+                                                mountWritable = uriWritable
+                                                keyfileUris = emptyList()
+                                                pickedUri = u
+                                                pickedName = fav.name
+                                                error = null
+                                            },
+                                    )
+                                    TextButton(onClick = {
+                                        Settings.removeFavorite(context, fav.uri)
+                                        favTick++
+                                    }) {
+                                        Text(stringResource(R.string.favorites_remove))
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
 
                 if (pickedUri != null) {
@@ -672,6 +723,7 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
                                     password = ""
                                     mountToken++
                                     AutoLock.touch()
+                                    Settings.addFavorite(context, uri.toString(), pickedName)
                                 }.onFailure {
                                     error = it.message
                                         ?: context.getString(R.string.unlock_wrong)

@@ -221,4 +221,6 @@
     <string name="settings_autolock_timeout">Idle timeout</string>
     <string name="settings_lock_background">Lock when app goes to background</string>
     <string name="settings_lock_screen_off">Lock when screen turns off</string>
+    <string name="favorites_title">Saved containers</string>
+    <string name="favorites_remove">Remove</string>
 </resources>

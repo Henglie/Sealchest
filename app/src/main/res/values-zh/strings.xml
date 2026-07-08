@@ -219,4 +219,6 @@
     <string name="settings_autolock_timeout">无操作超时</string>
     <string name="settings_lock_background">切到后台时立即锁定</string>
     <string name="settings_lock_screen_off">息屏时立即锁定</string>
+    <string name="favorites_title">收藏的容器</string>
+    <string name="favorites_remove">移除</string>
 </resources>

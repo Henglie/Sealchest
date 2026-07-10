@@ -27,6 +27,14 @@ class Bpb private constructor(
     companion object {
         fun parse(boot: ByteArray): Bpb {
             require(boot.size >= 512) { "引导扇区不足 512 字节" }
+            // 先排除 NTFS / exFAT：它们同样以 0xEB 跳转开头、末尾也是 0x55AA，但没有有效的
+            // FAT BPB（NTFS numFats/totalSectors 全 0、exFAT 偏移 11 起全零）。若不在此拦下，
+            // 会被下方的簇数推导算成 dataSectors≤0 → countOfClusters≤0 → 误判为 FAT12，
+            // 挂出垃圾数据；更严重的是 HiddenVolumeCreator 的写保护会因此把「已用上界」算成
+            // 数据区起点、校验必过，进而覆盖 NTFS/exFAT 外层卷的真实文件（不可逆损毁）。
+            // 宁可在此明确拒绝，绝不当 FAT 处理。
+            require(!NtfsBoot.isNtfs(boot)) { "这是 NTFS 卷，不能按 FAT 解析" }
+            require(!ExFatBoot.isExFat(boot)) { "这是 exFAT 卷，不能按 FAT 解析" }
             // 起手跳转指令：EB xx 90 或 E9。不满足基本不是 FAT 引导扇区。
             val b0 = boot[0].toInt() and 0xFF
             require(b0 == 0xEB || b0 == 0xE9) { "非 FAT 引导扇区（跳转指令不符）" }
@@ -65,6 +73,9 @@ class Bpb private constructor(
             val dataSectors = totalSectors -
                 (reservedSectors + numFats.toLong() * fatSizeSectors + rootDirSectors)
             val countOfClusters = (dataSectors / sectorsPerCluster).toInt()
+            // 纵深防御：合法 FAT 卷簇数必为正。≤0 说明 totalSectors/numFats 等字段无效
+            // （典型是非 FAT 卷混过了签名校验），绝不当退化 FAT12 挂出垃圾。
+            require(countOfClusters > 0) { "无效 FAT 卷：簇数 $countOfClusters（字段异常，拒绝按 FAT 解析）" }
 
             val fatType = when {
                 countOfClusters < 4085 -> FatType.FAT12

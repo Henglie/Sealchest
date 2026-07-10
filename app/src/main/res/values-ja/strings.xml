@@ -1,0 +1,320 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Default locale = English. Chinese lives in values-zh. This makes any
+         non-Chinese system language fall back to English (product requirement:
+         Chinese system -> Chinese, everything else -> English). -->
+    <string name="app_name">Sealchest</string>
+
+    <!-- Home -->
+    <string name="home_title">Sealchest</string>
+    <string name="home_subtitle">root 不要で VeraCrypt コンテナを開く</string>
+    <string name="home_pick_container">コンテナファイルを選択</string>
+    <string name="home_no_container">まだコンテナが開かれていません</string>
+    <string name="home_recent">最近開いた項目</string>
+
+    <!-- Unlock -->
+    <string name="unlock_title">コンテナのロック解除</string>
+    <string name="unlock_password">パスワード</string>
+    <string name="unlock_pim">PIM（省略可、既定値は空欄のまま）</string>
+    <string name="unlock_prf">ハッシュアルゴリズム（PRF）</string>
+    <string name="unlock_prf_auto">自動検出</string>
+    <string name="unlock_submit">ロック解除</string>
+    <string name="unlock_unlocking">鍵を導出中…</string>
+    <string name="unlock_wrong">パスワード、PIM、または PRF が正しくありません。ロック解除できません</string>
+
+    <!-- PRF options -->
+    <string name="prf_auto">自動検出</string>
+    <string name="prf_sha512">SHA-512</string>
+    <string name="prf_whirlpool">Whirlpool</string>
+    <string name="prf_sha256">SHA-256</string>
+    <string name="prf_blake2s">BLAKE2s</string>
+    <string name="prf_streebog">Streebog</string>
+
+    <!-- Mount / writable -->
+    <string name="mount_writable_on">書き込み可能マウント（変更はコンテナに書き戻されます）</string>
+    <string name="mount_writable_off">書き込み可能マウント（このソースは書き込みできません）</string>
+    <string name="mount_default_container">コンテナ</string>
+
+    <!-- Mounted panel -->
+    <string name="mounted_no_label">（ラベルなし）</string>
+    <string name="mounted_filesystem">ファイルシステム: %1$s</string>
+    <string name="mounted_label">ラベル: %1$s</string>
+
+    <!-- Self-test -->
+    <string name="selftest_running">  暗号セルフテストを実行中…</string>
+    <string name="selftest_button">暗号セルフテスト</string>
+    <string name="selftest_title">暗号セルフテスト</string>
+    <string name="selftest_ok_button">OK</string>
+    <string name="selftest_unavailable">セルフテストを実行できませんでした（マウントされていないか、コアエラー）。</string>
+    <string name="selftest_roundtrip1">%1$s ラウンドトリップ 1  encrypt(decrypt(C0)) == C0</string>
+    <string name="selftest_encchanges">%1$s 暗号化は実際にデータを変更します</string>
+    <string name="selftest_roundtrip2">%1$s ラウンドトリップ 2  decrypt(encrypt(X)) == X</string>
+    <string name="selftest_pass">すべて成功: 暗号化パスは復号パスの厳密な逆変換です。書き戻し後も、デスクトップ版 VeraCrypt でコンテナを開けます。</string>
+    <string name="selftest_fail">一部のチェックが失敗しました: 暗号化パスが壊れており、書き込みに使用できません。</string>
+
+    <!-- Browse -->
+    <string name="browse_title">コンテナの内容</string>
+    <string name="browse_empty">このフォルダは空です</string>
+    <string name="browse_lock">ロックして閉じる</string>
+    <string name="browse_root">ルート</string>
+    <string name="browse_back">戻る</string>
+    <string name="browse_exported">%1$s をエクスポートしました</string>
+    <string name="browse_export_failed">エクスポート失敗</string>
+    <string name="browse_no_preview">このファイル形式はプレビューできません</string>
+    <string name="browse_action_preview">プレビュー（画像 / テキスト）</string>
+    <string name="browse_action_export">端末にエクスポート</string>
+    <string name="browse_action_open_with">別のアプリで開く</string>
+    <string name="browse_image_decode_failed">画像のデコードに失敗しました</string>
+    <string name="browse_export_open_failed">エクスポート失敗、開けません</string>
+    <string name="browse_no_app_for_type">この種類のファイルを開けるアプリがありません</string>
+    <string name="browse_action_overwrite">端末のファイルで上書き</string>
+    <string name="browse_action_delete">削除</string>
+    <string name="browse_import_file">コンテナにファイルをインポート</string>
+    <string name="browse_delete_confirm_title">ファイルを削除</string>
+    <string name="browse_delete_confirm_msg">このコンテナから \"%1$s\" を削除しますか？この操作は元に戻せません。</string>
+    <string name="browse_delete_confirm_yes">削除</string>
+    <string name="browse_write_ok">書き込みました: %1$s</string>
+    <string name="browse_write_failed">書き込み失敗</string>
+    <string name="browse_overwrite_ok">上書きしました: %1$s</string>
+    <string name="browse_overwrite_failed">上書き失敗</string>
+    <string name="browse_delete_ok">削除しました: %1$s</string>
+    <string name="browse_delete_failed">削除失敗</string>
+
+    <!-- Common -->
+    <string name="cancel">キャンセル</string>
+    <string name="ok">OK</string>
+    <string name="error_generic">問題が発生しました</string>
+    <string name="native_unavailable">暗号コアの読み込みに失敗しました。コンテナを復号できません</string>
+
+    <!-- Self-test placeholder screen (first version) -->
+    <string name="app_tagline">root 不要で VeraCrypt コンテナを開く</string>
+    <string name="native_ready">暗号コアの準備ができました</string>
+    <string name="native_missing">暗号コアの読み込みに失敗しました</string>
+    <string name="native_version">コアバージョン: %1$s</string>
+
+    <!-- About -->
+    <string name="about_title">アプリについて</string>
+    <string name="about_button">アプリについて</string>
+    <string name="about_app_desc">Android で root 不要、純粋なユーザースペースで VeraCrypt 暗号化コンテナを開くツールです。</string>
+    <string name="about_author_label">作者</string>
+    <string name="about_author">Henglie / EternalBlaze</string>
+    <string name="about_project_label">プロジェクト</string>
+    <string name="about_version_label">バージョン</string>
+    <string name="about_upstream_label">VeraCrypt コア</string>
+    <string name="about_upstream_commit_label">固定コミット</string>
+    <string name="about_toolchain_label">ビルドツールチェーン</string>
+    <string name="about_abis_label">ABIs</string>
+    <string name="about_supplychain_note">このアプリは VeraCrypt の上流の C 暗号コアを、上記のコミットに固定してコンパイルしています。どのソースがビルドされているかは github.com/veracrypt/VeraCrypt で正確に監査できます。</string>
+    <string name="about_credit">暗号コアは VeraCrypt（Apache-2.0 + TrueCrypt License 3.0）から移植されました。Sealchest は独立した製品であり、VeraCrypt や TrueCrypt プロジェクトと提携関係になく、それらを偽装するものでもありません。</string>
+    <string name="unlock_keyfiles_none">キーファイル（省略可）</string>
+    <string name="unlock_keyfiles_selected">キーファイル: %1$d 個選択</string>
+    <string name="unlock_keyfiles_clear">キーファイルをクリア</string>
+    <!-- Volume header tool (A2: backup / rescue) -->
+    <string name="header_tool_entry">ボリュームヘッダツール（バックアップ / 復元）</string>
+    <string name="header_tool_title">ボリュームヘッダツール</string>
+    <string name="header_tool_desc">VeraCrypt ボリュームはコンテナの末尾にバックアップヘッダを保持しています。プライマリヘッダが破損してボリュームが開けなくなった場合、埋め込みバックアップから復元できます。ボリュームが正常なうちに定期的にヘッダをバックアップしてください。</string>
+    <string name="header_tool_close">閉じる</string>
+    <string name="header_export_button">プライマリヘッダをファイルにバックアップ</string>
+    <string name="header_export_ok">ヘッダをバックアップしました。</string>
+    <string name="header_export_failed">ヘッダのバックアップに失敗しました。</string>
+    <string name="header_rescue_warn">復元操作は、埋め込みバックアップヘッダでプライマリヘッダを上書きします。まずバックアップがパスワード/キーファイルで開けるか確認し、現在のヘッダを復元ファイルに保存しますが、それでもコンテナに書き込みが行われます。ボリュームが他の場所でマウントされていないことを確認してください。</string>
+    <string name="header_rescue_button">埋め込みバックアップヘッダから復元</string>
+    <string name="header_rescue_need_write">復元には書き込み権限が必要です（書き込みアクセスを許可してコンテナを再選択してください）</string>
+    <string name="header_restore_ok">バックアップからプライマリヘッダを復元しました。今すぐロック解除を試してください。</string>
+    <string name="header_restore_failed">復元に失敗しました。コンテナは変更されませんでした。</string>
+
+    <!-- Create volume wizard (B2) -->
+    <string name="create_entry">新規コンテナを作成</string>
+    <string name="create_title">コンテナを作成</string>
+    <string name="create_algorithm">暗号化アルゴリズム</string>
+    <string name="create_algo_aes">AES</string>
+    <string name="create_algo_serpent">Serpent</string>
+    <string name="create_algo_twofish">Twofish</string>
+    <string name="create_algo_camellia">Camellia</string>
+    <string name="create_algo_kuznyechik">Kuznyechik</string>
+    <string name="create_prf">ハッシュアルゴリズム（PRF）</string>
+    <string name="create_size_mb">サイズ（MB）</string>
+    <string name="create_size_hint">コンテナのデータ領域サイズ（MB）。最小 1 MB。大きいほど多くのファイルを保存できます。</string>
+    <string name="create_password">パスワード</string>
+    <string name="create_password_confirm">パスワード（確認）</string>
+    <string name="create_password_mismatch">2 つのパスワードが一致しません</string>
+    <string name="create_pim">PIM（省略可、既定値は空欄のまま）</string>
+    <string name="create_pim_hint">Personal Iterations Multiplier（反復回数乗数）。空欄のままにすると既定の反復回数が使われます。</string>
+    <string name="create_cancel">キャンセル</string>
+    <string name="create_submit">作成</string>
+    <string name="create_ok">コンテナを作成しました</string>
+    <string name="create_failed">コンテナの作成に失敗しました</string>
+    <string name="create_in_progress">コンテナを作成中…</string>
+    <string name="create_entropy_title">乱数を収集</string>
+    <string name="create_entropy_hint">下の枠内を指でなぞってください。予測不可能な動きがマスター鍵にエントロピーを追加します（デスクトップ版 VeraCrypt でマウスを動かすのと同じです）。</string>
+    <string name="create_entropy_progress">なぞり続けてください… %1$d%%</string>
+    <string name="create_entropy_done">十分な乱数が集まりました</string>
+    <string name="create_next">次へ</string>
+    <string name="create_entropy_fullscreen_hint">画面全体を指でなぞり、モーションセンサーがあれば端末を振ってください。予測不可能な動きがマスター鍵の乱数プールに供給されます（デスクトップ版 VeraCrypt でマウスを動かすのと同じです）。プールが満たされるまで続けてください。</string>
+    <string name="create_entropy_sensor_on">モーションセンサーが有効 — 振っても乱数を追加できます</string>
+    <string name="create_entropy_sensor_none">モーションセンサーなし — なぞる操作のみ</string>
+    <string name="create_entropy_pool_label">乱数プール</string>
+    <string name="create_entropy_swipe_here">ここをどこでもなぞってください</string>
+
+    <!-- File system / cluster size / dynamic volume (X2) -->
+    <string name="create_fs_type">ファイルシステム</string>
+    <string name="create_fs_fat">FAT</string>
+    <string name="create_fs_exfat">exFAT</string>
+    <string name="create_fs_ntfs">NTFS</string>
+    <string name="create_fs_coming_soon">（近日対応）</string>
+    <string name="create_cluster_size">クラスタサイズ</string>
+    <string name="create_cluster_default">既定</string>
+    <string name="create_cluster_512">512 バイト</string>
+    <string name="create_cluster_1024">1024 バイト</string>
+    <string name="create_cluster_2048">2048 バイト</string>
+    <string name="create_cluster_4096">4096 バイト</string>
+    <string name="create_cluster_8192">8192 バイト</string>
+    <string name="create_cluster_16384">16384 バイト</string>
+    <string name="create_cluster_32768">32768 バイト</string>
+    <string name="create_dynamic">ダイナミックボリューム（スパース）</string>
+    <string name="create_dynamic_hint">必要に応じて領域を割り当てます。UI は準備済み。現在のバックエンドは通常ボリュームとして扱います。</string>
+    <string name="create_random_fill">ランダム充填</string>
+    <string name="create_random_fill_hint">ボリューム全体をランダムデータで埋め、もっともらしい否認可能性を最大化します（より安全）。大きなコンテナほど作成に時間がかかります。</string>
+
+    <!-- Change password / PIM / PRF / keyfiles (B1) -->
+    <string name="change_pwd_entry">パスワード / PIM / キーファイルを変更</string>
+    <string name="change_pwd_title">パスワードを変更</string>
+    <string name="change_pwd_desc">上で現在のパスワード / PIM / PRF / キーファイルを入力し（ロック解除時と同じ）、ここで新しいものを設定します。再暗号化されるのはヘッダのみで、マスター鍵とデータは変わりません。問題発生に備え、書き込み前に現在のヘッダの復元コピーが保存されます。</string>
+    <string name="change_pwd_new_password">新しいパスワード</string>
+    <string name="change_pwd_new_pim">新しい PIM（省略可）</string>
+    <string name="change_pwd_new_prf">新しい PRF（0 = 現在を維持）</string>
+    <string name="change_pwd_new_keyfiles_none">新しいキーファイル（省略可）</string>
+    <string name="change_pwd_new_keyfiles_selected">新しいキーファイル: %1$d 個選択</string>
+    <string name="change_pwd_working">ヘッダを再暗号化中…</string>
+    <string name="change_pwd_submit">パスワードを変更</string>
+    <string name="change_pwd_dismiss">キャンセル</string>
+    <string name="change_pwd_ok">パスワードを変更しました。以降は新しいパスワードでロック解除してください。</string>
+    <string name="change_pwd_failed">パスワードの変更に失敗しました</string>
+
+    <!-- Create hidden volume (C2) -->
+    <string name="create_hidden_entry">隠しボリュームを作成</string>
+    <string name="create_hidden_title">隠しボリュームを作成</string>
+    <string name="create_hidden_desc">隠しボリュームは、この（外側の）コンテナの末尾の空き領域に存在します。外側のボリュームを上で入力した資格情報でロック解除し、既存ファイルを上書きしないよう空き領域を特定するために FAT を読み取り、その後下で独自のパスワードを使って隠しボリュームを作成します。</string>
+    <string name="create_hidden_password">隠しボリュームのパスワード</string>
+    <string name="create_hidden_size_mb">隠しボリュームのサイズ（MB）</string>
+    <string name="create_hidden_pim">隠し PIM（省略可）</string>
+    <string name="create_hidden_working">隠しボリュームを作成中…</string>
+    <string name="create_hidden_submit">隠しボリュームを作成</string>
+    <string name="create_hidden_cancel">キャンセル</string>
+    <string name="create_hidden_ok">隠しボリュームを作成しました。使用するには隠しパスワードでロック解除してください。</string>
+    <string name="create_hidden_failed">隠しボリュームの作成に失敗しました</string>
+    <string name="rescue_entry">復元ファイルマネージャ</string>
+    <string name="rescue_mgr_title">復元ファイル</string>
+    <string name="rescue_mgr_warn">これらは古いヘッダグループのバックアップです。古いパスワードを持つ人は、これらを使ってまだボリュームを開けます。新しいパスワードの動作を確認したら削除してください。</string>
+    <string name="rescue_mgr_empty">自動保存された復元ファイルはありません。</string>
+    <string name="rescue_mgr_delete">削除</string>
+    <string name="rescue_mgr_clear_all">すべて削除</string>
+    <string name="close">閉じる</string>
+    <string name="settings_title">設定</string>
+    <string name="settings_close">閉じる</string>
+    <string name="settings_entry">設定</string>
+    <string name="settings_autolock">自動ロック</string>
+    <string name="settings_autolock_desc">コンテナを保護するためメモリ上の鍵を自動的に破棄</string>
+    <string name="settings_timeout">アイドルタイムアウト</string>
+    <string name="settings_lock_bg">バックグラウンド時にロック</string>
+    <string name="settings_lock_bg_desc">アプリがバックグラウンドに移行したら即座にロック</string>
+    <string name="settings_lock_screen">画面オフ時にロック</string>
+    <string name="settings_lock_screen_desc">画面がオフになったら即座にロック</string>
+    <string name="settings_autolock_enable">自動ロック</string>
+    <string name="settings_autolock_timeout">アイドルタイムアウト</string>
+    <string name="settings_lock_background">アプリがバックグラウンドに移行したらロック</string>
+    <string name="settings_lock_screen_off">画面がオフになったらロック</string>
+    <string name="favorites_title">保存済みコンテナ</string>
+    <string name="favorites_remove">削除</string>
+    <!-- Hidden volume keyfile (C2 enhancement, align with desktop VC) -->
+    <string name="create_hidden_keyfiles_none">隠しキーファイル（省略可）</string>
+    <string name="create_hidden_keyfiles_selected">隠しキーファイル: %1$d 個選択</string>
+
+    <!-- Volume expansion (X17) -->
+    <string name="expand_volume_entry">ボリュームを拡張</string>
+    <string name="expand_volume_title">ボリュームを拡張</string>
+    <string name="expand_volume_desc">データを再暗号化せずにこのコンテナを拡大します。マスター鍵は同じままで、ヘッダとファイルサイズだけが変わります。下に新しい合計サイズを入力してください。拡大のみ対応しています。まず現在のヘッダの復元バックアップが保存されます。</string>
+    <string name="expand_volume_current_size">現在のサイズ: %1$s</string>
+    <string name="expand_volume_new_size_mb">新しい合計サイズ（MB）</string>
+    <string name="expand_volume_working">ボリュームを拡張中…</string>
+    <string name="expand_volume_submit">拡張</string>
+    <string name="expand_volume_cancel">キャンセル</string>
+    <string name="expand_volume_ok">ボリュームを %1$s に拡張しました。</string>
+    <string name="expand_volume_failed">ボリュームの拡張に失敗しました</string>
+    <string name="expand_volume_too_small">新しいサイズは現在のサイズより大きい必要があります</string>
+
+    <!-- Partition encryption probe (X2/X3, experimental, root-gated) -->
+    <string name="block_device_entry">パーティション暗号化（実験的）</string>
+    <string name="block_device_title">パーティション（読み取り専用プローブ）</string>
+    <string name="block_device_desc">実験的機能。ブロックデバイスを読み取り専用で一覧表示します。暗号化は行いません。root が必要です。</string>
+    <string name="block_device_loading">列挙中…</string>
+    <string name="block_device_empty">ブロックデバイスが見つかりませんでした。</string>
+    <string name="block_device_no_root">root が許可されていません。ブロックデバイスを列挙できません。</string>
+    <string name="block_device_request_root">root を許可</string>
+    <string name="block_device_close">閉じる</string>
+    <string name="block_device_size">サイズ: %1$s</string>
+    <string name="block_device_removable">リムーバブル</string>
+
+    <!-- Container info panel (X10) -->
+    <string name="info_entry">コンテナ情報</string>
+    <string name="info_title">コンテナ情報</string>
+    <string name="info_algorithm">暗号化</string>
+    <string name="info_prf">鍵導出（PRF）</string>
+    <string name="info_data_size">データ領域サイズ</string>
+    <string name="info_sector_size">セクタサイズ</string>
+    <string name="info_fs_type">ファイルシステム</string>
+    <string name="info_label">ボリュームラベル</string>
+    <string name="info_hidden">隠しボリューム</string>
+    <string name="info_writable">書き込み可能でマウント</string>
+    <string name="info_yes">はい</string>
+    <string name="info_no">いいえ</string>
+    <string name="info_close">閉じる</string>
+    <string name="info_bytes_fmt">%1$s（%2$d バイト）</string>
+    <string name="info_cascade">カスケード</string>
+    <string name="browse_write_full">コンテナが一杯です — 空き領域が足りません</string>
+    <!-- W16 目录操作 rename/mkdir/move/rmdir -->
+    <string name="browse_new_folder">新規フォルダ</string>
+    <string name="browse_new_folder_hint">フォルダ名</string>
+    <string name="browse_new_folder_ok">フォルダを作成しました: %1$s</string>
+    <string name="browse_new_folder_failed">フォルダを作成できませんでした</string>
+    <string name="browse_action_rename">名前の変更</string>
+    <string name="browse_action_move">移動…</string>
+    <string name="browse_action_delete_folder">フォルダを削除</string>
+    <string name="browse_rename_title">名前の変更</string>
+    <string name="browse_rename_hint">新しい名前</string>
+    <string name="browse_rename_ok">名前を %1$s に変更しました</string>
+    <string name="browse_rename_failed">名前の変更に失敗しました</string>
+    <string name="browse_move_title">\"%1$s\" を移動先</string>
+    <string name="browse_move_here">ここに移動</string>
+    <string name="browse_move_up">..（親フォルダ）</string>
+    <string name="browse_move_ok">移動しました: %1$s</string>
+    <string name="browse_move_failed">移動に失敗しました</string>
+    <string name="browse_rmdir_title">フォルダを削除</string>
+    <string name="browse_rmdir_msg">フォルダ \"%1$s\" を削除しますか？空のフォルダのみ削除できます。</string>
+    <string name="browse_rmdir_ok">フォルダを削除しました: %1$s</string>
+    <string name="browse_rmdir_failed">削除に失敗しました（フォルダが空ではない可能性があります）</string>
+    <string name="browse_op_unsupported">このファイルシステムではまだその操作に対応していません</string>
+    <string name="browse_action_more">その他</string>
+    <string name="favorites_rename">名前の変更</string>
+    <string name="favorites_pin">先頭に固定</string>
+    <string name="favorites_rename_title">お気に入りの名前を変更</string>
+    <string name="favorites_rename_hint">表示名</string>
+    <string name="settings_default_mount_writable">既定で読み書きマウント</string>
+    <string name="settings_default_prf">既定の PRF</string>
+    <string name="settings_ntfs_exp">NTFS を有効化（実験的）</string>
+    <string name="settings_ntfs_exp_desc">NTFS の読み書きはデバイス上で未検証です。使い捨てのコンテナのみで使用してください。オフ = NTFS コンテナはマウントを拒否します。</string>
+    <!-- 块设备解锁（F2）-->
+    <string name="block_device_unlock">ロック解除</string>
+    <string name="block_device_unlocking">ロック解除中…</string>
+    <string name="block_device_unlock_failed">ロック解除失敗: %1$s</string>
+    <string name="block_device_unlocked">ロック解除しました: %1$s</string>
+    <!-- 系统挂载暴露（F3）-->
+    <string name="expose_title">システムに公開</string>
+    <string name="expose_warning">コンテナの内容を復号し、すべてのアプリがアクセス可能なディレクトリに公開します。重大なセキュリティリスクです — 信頼できる環境でのみ使用してください。</string>
+    <string name="expose_dir_hint">対象ディレクトリ（例: /data/local/tmp/sealchest）</string>
+    <string name="expose_start">公開を開始</string>
+    <string name="expose_cleanup">クリーンアップ</string>
+    <string name="expose_progress">同期中: %1$s</string>
+    <string name="expose_done">%1$d 個のファイルを公開しました</string>
+    <string name="expose_failed">公開失敗: %1$s</string>
+</resources>

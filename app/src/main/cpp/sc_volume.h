@@ -111,6 +111,21 @@ int sc_volume_rekey_headers(const sc_volume* v,
                             const uint8_t* new_password, int password_len,
                             uint8_t* out_primary, uint8_t* out_backup);
 
+/* --- X17 卷扩展（仅增大不缩小）---
+ * 复用旧卷主密钥 + 原密码 + 原 PRF/PIM，只把 VolumeSize/EncryptedAreaLength
+ * 改为 new_volume_size，调 CreateVolumeHeaderInMemory 重加密主头 + 备份头。
+ *   v：已成功开卷的句柄（不可为 NULL）。
+ *   new_volume_size：新数据区字节数（不含头组），须 > 当前 VolumeSize 且 512 对齐。
+ *   password / password_len：keyfile 混入后的有效密码（UTF-8，可空长度 0）。
+ *   out_primary / out_backup：各收 512B 重加密后的头（调用方保证 ≥512B）。
+ * 成功返回 0（ERR_SUCCESS），失败返回 VeraCrypt ERR_* 码。
+ * 调用前须先 sc_random_seed 灌足熵。 */
+int sc_volume_expand_headers(const sc_volume* v,
+                             uint64_t new_volume_size,
+                             const uint8_t* password, int password_len,
+                             uint8_t* out_primary, uint8_t* out_backup);
+
+
 /* --- 只读信息 getter（开卷后卷头解析出的字段）--- */
 int      sc_volume_ea(const sc_volume* v);            /* 加密算法 ID（AES=1…KUZNYECHIK=5，级联另计）*/
 int      sc_volume_prf(const sc_volume* v);           /* 命中的 PRF ID */

@@ -1,0 +1,316 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Home -->
+    <string name="app_name">Sealchest</string>
+    <string name="home_title">Sealchest</string>
+    <string name="home_subtitle">افتح حاويات VeraCrypt بدون صلاحيات الجذر</string>
+    <string name="home_pick_container">اختر ملف حاوية</string>
+    <string name="home_no_container">لم يتم فتح أي حاوية بعد</string>
+    <string name="home_recent">المفتوحة مؤخراً</string>
+
+    <!-- Unlock -->
+    <string name="unlock_title">فتح الحاوية</string>
+    <string name="unlock_password">كلمة المرور</string>
+    <string name="unlock_pim">PIM (اختياري، اتركه فارغاً للقيمة الافتراضية)</string>
+    <string name="unlock_prf">خوارزمية التجزئة (PRF)</string>
+    <string name="unlock_prf_auto">كشف تلقائي</string>
+    <string name="unlock_submit">فتح</string>
+    <string name="unlock_unlocking">اشتقاق المفتاح…</string>
+    <string name="unlock_wrong">كلمة مرور أو PIM أو PRF خاطئة؛ تعذر الفتح</string>
+
+    <!-- PRF options -->
+    <string name="prf_auto">كشف تلقائي</string>
+    <string name="prf_sha512">SHA-512</string>
+    <string name="prf_whirlpool">Whirlpool</string>
+    <string name="prf_sha256">SHA-256</string>
+    <string name="prf_blake2s">BLAKE2s</string>
+    <string name="prf_streebog">Streebog</string>
+
+    <!-- Mount / writable -->
+    <string name="mount_writable_on">تحميل قابل للكتابة (تُكتب التغييرات مرة أخرى إلى الحاوية)</string>
+    <string name="mount_writable_off">تحميل قابل للكتابة (هذا المصدر غير قابل للكتابة)</string>
+    <string name="mount_default_container">حاوية</string>
+
+    <!-- Mounted panel -->
+    <string name="mounted_no_label">(بدون عنوان)</string>
+    <string name="mounted_filesystem">نظام الملفات: %1$s</string>
+    <string name="mounted_label">العنوان: %1$s</string>
+
+    <!-- Self-test -->
+    <string name="selftest_running">  جارٍ تشغيل اختبار التشفير الذاتي…</string>
+    <string name="selftest_button">اختبار التشفير الذاتي</string>
+    <string name="selftest_title">اختبار التشفير الذاتي</string>
+    <string name="selftest_ok_button">حسناً</string>
+    <string name="selftest_unavailable">تعذر تشغيل الاختبار الذاتي (غير محمّل أو خطأ في النواة).</string>
+    <string name="selftest_roundtrip1">%1$s رحلة ذهاب وإياب 1  encrypt(decrypt(C0)) == C0</string>
+    <string name="selftest_encchanges">%1$s التشفير يغيّر البيانات فعلياً</string>
+    <string name="selftest_roundtrip2">%1$s رحلة ذهاب وإياب 2  decrypt(encrypt(X)) == X</string>
+    <string name="selftest_pass">نجح الكل: مسار التشفير هو النقيض الدقيق لفك التشفير؛ بعد إعادة الكتابة، يمكن لـ VeraCrypt المكتبي فتح الحاوية.</string>
+    <string name="selftest_fail">فشلت بعض الفحوصات: مسار التشفير معطل ولا يمكن استخدامه للكتابة.</string>
+
+    <!-- Browse -->
+    <string name="browse_title">محتويات الحاوية</string>
+    <string name="browse_empty">هذا المجلد فارغ</string>
+    <string name="browse_lock">قفل وإغلاق</string>
+    <string name="browse_root">الجذر</string>
+    <string name="browse_back">رجوع</string>
+    <string name="browse_exported">تم التصدير %1$s</string>
+    <string name="browse_export_failed">فشل التصدير</string>
+    <string name="browse_no_preview">تعذر معاينة هذا النوع من الملفات</string>
+    <string name="browse_action_preview">معاينة (صورة / نص)</string>
+    <string name="browse_action_export">تصدير إلى الهاتف</string>
+    <string name="browse_action_open_with">فتح بتطبيق آخر</string>
+    <string name="browse_image_decode_failed">فشل فك ترميز الصورة</string>
+    <string name="browse_export_open_failed">فشل التصدير، تعذر الفتح</string>
+    <string name="browse_no_app_for_type">لا يوجد تطبيق يمكنه فتح هذا النوع</string>
+    <string name="browse_action_overwrite">استبدال بملف من الهاتف</string>
+    <string name="browse_action_delete">حذف</string>
+    <string name="browse_import_file">استيراد ملف إلى الحاوية</string>
+    <string name="browse_delete_confirm_title">حذف الملف</string>
+    <string name="browse_delete_confirm_msg">حذف \"%1$s\" من هذه الحاوية؟ لا يمكن التراجع عن هذا.</string>
+    <string name="browse_delete_confirm_yes">حذف</string>
+    <string name="browse_write_ok">تمت الكتابة: %1$s</string>
+    <string name="browse_write_failed">فشلت الكتابة</string>
+    <string name="browse_overwrite_ok">تم الاستبدال: %1$s</string>
+    <string name="browse_overwrite_failed">فشل الاستبدال</string>
+    <string name="browse_delete_ok">تم الحذف: %1$s</string>
+    <string name="browse_delete_failed">فشل الحذف</string>
+
+    <!-- Common -->
+    <string name="cancel">إلغاء</string>
+    <string name="ok">حسناً</string>
+    <string name="error_generic">حدث خطأ ما</string>
+    <string name="native_unavailable">فشل تحميل نواة التشفير؛ تعذر فك تشفير الحاويات</string>
+
+    <!-- Self-test placeholder screen (first version) -->
+    <string name="app_tagline">افتح حاويات VeraCrypt بدون صلاحيات الجذر</string>
+    <string name="native_ready">نواة التشفير جاهزة</string>
+    <string name="native_missing">فشل تحميل نواة التشفير</string>
+    <string name="native_version">إصدار النواة: %1$s</string>
+
+    <!-- About -->
+    <string name="about_title">حول</string>
+    <string name="about_button">حول</string>
+    <string name="about_app_desc">أداة لفتح حاويات VeraCrypt المشفّرة على أندرويد بدون صلاحيات الجذر، في مساحة المستخدم بالكامل.</string>
+    <string name="about_author_label">المؤلف</string>
+    <string name="about_author">Henglie / EternalBlaze</string>
+    <string name="about_project_label">المشروع</string>
+    <string name="about_version_label">الإصدار</string>
+    <string name="about_upstream_label">نواة VeraCrypt</string>
+    <string name="about_upstream_commit_label">الالتزام المُثبَّت</string>
+    <string name="about_toolchain_label">سلسلة أدوات البناء</string>
+    <string name="about_abis_label">ABIs</string>
+    <string name="about_supplychain_note">يجمّع هذا التطبيق نواة تشفير VeraCrypt بلغة C الموجودة في المصدر الرئيسي، المثبّتة على الالتزام المذكور أعلاه. يمكنك تدقيق المصدر المبني بالضبط على github.com/veracrypt/VeraCrypt.</string>
+    <string name="about_credit">نواة التشفير منقولة من VeraCrypt (Apache-2.0 + ترخيص TrueCrypt 3.0). Sealchest منتج مستقل ولا يتبع ولا ينتحل مشاريع VeraCrypt أو TrueCrypt.</string>
+    <string name="unlock_keyfiles_none">ملفات المفاتيح (اختياري)</string>
+    <string name="unlock_keyfiles_selected">ملفات المفاتيح: %1$d محدد</string>
+    <string name="unlock_keyfiles_clear">مسح ملفات المفاتيح</string>
+    <!-- Volume header tool (A2: backup / rescue) -->
+    <string name="header_tool_entry">أدوات رأس الحجم (نسخ احتياطي / إنقاذ)</string>
+    <string name="header_tool_title">أدوات رأس الحجم</string>
+    <string name="header_tool_desc">يحتفظ حجم VeraCrypt بنسخة احتياطية من الرأس في نهاية الحاوية. إذا تلف الرأس الأساسي ولم يفتح الحجم، فاستعده من النسخة الاحتياطية المضمّنة. قم بعمل نسخة احتياطية للرأس بانتظام أثناء كون الحجم سليماً.</string>
+    <string name="header_tool_close">إغلاق</string>
+    <string name="header_export_button">نسخ احتياطي للرأس الأساسي إلى ملف</string>
+    <string name="header_export_ok">تم عمل نسخة احتياطية من الرأس.</string>
+    <string name="header_export_failed">فشل النسخ الاحتياطي للرأس.</string>
+    <string name="header_rescue_warn">الكتابة الإنقاذية تستبدل الرأس الأساسي برأس النسخة الاحتياطية المضمّنة. تتحقق أولاً من أن النسخة الاحتياطية تفتح بكلمة المرور/ملفات المفاتيح الخاصة بك وتحفظ الرأس الحالي في ملف إنقاذ، لكن هذا لا يزال يكتب الحاوية — تأكد من أن الحجم غير محمّل في مكان آخر.</string>
+    <string name="header_rescue_button">إنقاذ من رأس النسخة الاحتياطية المضمّن</string>
+    <string name="header_rescue_need_write">يتطلب الإنقاذ إذن الكتابة (أعد اختيار الحاوية مع منح إذن الكتابة)</string>
+    <string name="header_restore_ok">تمت استعادة الرأس الأساسي من النسخة الاحتياطية. حاول الفتح الآن.</string>
+    <string name="header_restore_failed">فشلت الاستعادة. لم يتم تعديل الحاوية.</string>
+
+    <!-- Create volume wizard (B2) -->
+    <string name="create_entry">إنشاء حاوية جديدة</string>
+    <string name="create_title">إنشاء حاوية</string>
+    <string name="create_algorithm">خوارزمية التشفير</string>
+    <string name="create_algo_aes">AES</string>
+    <string name="create_algo_serpent">Serpent</string>
+    <string name="create_algo_twofish">Twofish</string>
+    <string name="create_algo_camellia">Camellia</string>
+    <string name="create_algo_kuznyechik">Kuznyechik</string>
+    <string name="create_prf">خوارزمية التجزئة (PRF)</string>
+    <string name="create_size_mb">الحجم (ميجابايت)</string>
+    <string name="create_size_hint">حجم منطقة بيانات الحاوية بالميجابايت. الحد الأدنى 1 ميجابايت؛ الأكبر يسع ملفات أكثر.</string>
+    <string name="create_password">كلمة المرور</string>
+    <string name="create_password_confirm">تأكيد كلمة المرور</string>
+    <string name="create_password_mismatch">كلمتا المرور غير متطابقتين</string>
+    <string name="create_pim">PIM (اختياري، اتركه فارغاً للقيمة الافتراضية)</string>
+    <string name="create_pim_hint">مُضاعِف التكرار الشخصي. اتركه فارغاً لاستخدام عدد التكرار الافتراضي.</string>
+    <string name="create_cancel">إلغاء</string>
+    <string name="create_submit">إنشاء</string>
+    <string name="create_ok">تم إنشاء الحاوية</string>
+    <string name="create_failed">فشل إنشاء الحاوية</string>
+    <string name="create_in_progress">جارٍ إنشاء الحاوية…</string>
+    <string name="create_entropy_title">جمع العشوائية</string>
+    <string name="create_entropy_hint">مرر إصبعك حول المربع أدناه. حركاتك غير المتوقعة تضيف إنتروبيا إلى المفتاح الرئيسي (مثل تحريك الماوس في VeraCrypt المكتبي).</string>
+    <string name="create_entropy_progress">استمر في التمرير… %1$d%%</string>
+    <string name="create_entropy_done">تم جمع عشوائية كافية</string>
+    <string name="create_next">التالي</string>
+    <string name="create_entropy_fullscreen_hint">مرر إصبعك على الشاشة بأكملها، ورجّ الهاتف إذا كان يحتوي على مستشعر حركة. حركاتك غير المتوقعة تغذّي مجموعة عشوائية المفتاح الرئيسي (مثل تحريك الماوس في VeraCrypt المكتبي). استمر حتى تمتلئ المجموعة.</string>
+    <string name="create_entropy_sensor_on">مستشعر الحركة نشط — الرج يضيف عشوائية أيضاً</string>
+    <string name="create_entropy_sensor_none">لا يوجد مستشعر حركة — تمرير فقط</string>
+    <string name="create_entropy_pool_label">مجموعة العشوائية</string>
+    <string name="create_entropy_swipe_here">مرر في أي مكان هنا</string>
+
+    <!-- File system / cluster size / dynamic volume (X2) -->
+    <string name="create_fs_type">نظام الملفات</string>
+    <string name="create_fs_fat">FAT</string>
+    <string name="create_fs_exfat">exFAT</string>
+    <string name="create_fs_ntfs">NTFS</string>
+    <string name="create_fs_coming_soon">(قريباً)</string>
+    <string name="create_cluster_size">حجم العنقود</string>
+    <string name="create_cluster_default">افتراضي</string>
+    <string name="create_cluster_512">512 بايت</string>
+    <string name="create_cluster_1024">1024 بايت</string>
+    <string name="create_cluster_2048">2048 بايت</string>
+    <string name="create_cluster_4096">4096 بايت</string>
+    <string name="create_cluster_8192">8192 بايت</string>
+    <string name="create_cluster_16384">16384 بايت</string>
+    <string name="create_cluster_32768">32768 بايت</string>
+    <string name="create_dynamic">حجم ديناميكي (متفرق)</string>
+    <string name="create_dynamic_hint">يخصص المساحة عند الطلب. الواجهة جاهزة؛ الواجهة الخلفية تعامله كحجم عادي حالياً.</string>
+    <string name="create_random_fill">تعبئة عشوائية</string>
+    <string name="create_random_fill_hint">يملأ الحجم بأكمله ببيانات عشوائية لأقصى قابلية للإنكار المعقول (أكثر أماناً). الحاويات الكبيرة تستغرق وقتاً أطول في الإنشاء.</string>
+
+    <!-- Change password / PIM / PRF / keyfiles (B1) -->
+    <string name="change_pwd_entry">تغيير كلمة المرور / PIM / ملفات المفاتيح</string>
+    <string name="change_pwd_title">تغيير كلمة المرور</string>
+    <string name="change_pwd_desc">أدخل كلمة المرور / PIM / PRF / ملفات المفاتيح الحالية أعلاه (مثل الفتح)، ثم عيّن الجديدة هنا. تتم إعادة تشفير الرأس فقط — المفتاح الرئيسي وبياناتك لا تتغير أبداً. يتم حفظ نسخة إنقاذ من الرأس الحالي قبل الكتابة، في حالة حدوث خطأ.</string>
+    <string name="change_pwd_new_password">كلمة المرور الجديدة</string>
+    <string name="change_pwd_new_pim">PIM جديد (اختياري)</string>
+    <string name="change_pwd_new_prf">PRF جديد (0 = الاحتفاظ بالحالي)</string>
+    <string name="change_pwd_new_keyfiles_none">ملفات مفاتيح جديدة (اختياري)</string>
+    <string name="change_pwd_new_keyfiles_selected">ملفات المفاتيح الجديدة: %1$d محدد</string>
+    <string name="change_pwd_working">إعادة تشفير الرأس…</string>
+    <string name="change_pwd_submit">تغيير كلمة المرور</string>
+    <string name="change_pwd_dismiss">إلغاء</string>
+    <string name="change_pwd_ok">تم تغيير كلمة المرور. افتح بكلمة المرور الجديدة من الآن فصاعداً.</string>
+    <string name="change_pwd_failed">فشل تغيير كلمة المرور</string>
+
+    <!-- Create hidden volume (C2) -->
+    <string name="create_hidden_entry">إنشاء حجم مخفي</string>
+    <string name="create_hidden_title">إنشاء حجم مخفي</string>
+    <string name="create_hidden_desc">يعيش الحجم المخفي في المساحة الحرة الخلفية لهذه الحاوية (الخارجية). يتم فتح الحاوية الخارجية بالبيانات المُدخلة أعلاه، وتُقرأ FAT لتحديد المساحة الحرة بحيث لا تُستبدل الملفات الموجودة، ثم يُنشأ الحجم المخفي بكلمة مروره الخاصة أدناه.</string>
+    <string name="create_hidden_password">كلمة مرور الحجم المخفي</string>
+    <string name="create_hidden_size_mb">حجم الحجم المخفي (ميجابايت)</string>
+    <string name="create_hidden_pim">PIM مخفي (اختياري)</string>
+    <string name="create_hidden_working">جارٍ إنشاء الحجم المخفي…</string>
+    <string name="create_hidden_submit">إنشاء حجم مخفي</string>
+    <string name="create_hidden_cancel">إلغاء</string>
+    <string name="create_hidden_ok">تم إنشاء الحجم المخفي. افتح بكلمة المرور المخفية لاستخدامه.</string>
+    <string name="create_hidden_failed">فشل إنشاء الحجم المخفي</string>
+    <string name="rescue_entry">مدير ملفات الإنقاذ</string>
+    <string name="rescue_mgr_title">ملفات الإنقاذ</string>
+    <string name="rescue_mgr_warn">هذه نسخ احتياطية من مجموعة الرؤوس القديمة. يمكن لأي شخص لديه كلمة المرور القديمة فتح الحجم باستخدامها. احذفها بمجرد التأكد من أن كلمة المرور الجديدة تعمل.</string>
+    <string name="rescue_mgr_empty">لا توجد ملفات إنقاذ محفوظة تلقائياً.</string>
+    <string name="rescue_mgr_delete">حذف</string>
+    <string name="rescue_mgr_clear_all">حذف الكل</string>
+    <string name="close">إغلاق</string>
+    <string name="settings_title">الإعدادات</string>
+    <string name="settings_close">إغلاق</string>
+    <string name="settings_entry">الإعدادات</string>
+    <string name="settings_autolock">قفل تلقائي</string>
+    <string name="settings_autolock_desc">إتلاف المفاتيح في الذاكرة تلقائياً لحماية الحاوية</string>
+    <string name="settings_timeout">مهلة الخمول</string>
+    <string name="settings_lock_bg">قفل عند الانتقال للخلفية</string>
+    <string name="settings_lock_bg_desc">قفل فوري عند انتقال التطبيق إلى الخلفية</string>
+    <string name="settings_lock_screen">قفل عند إطفاء الشاشة</string>
+    <string name="settings_lock_screen_desc">قفل فوري عند إطفاء الشاشة</string>
+    <string name="settings_autolock_enable">قفل تلقائي</string>
+    <string name="settings_autolock_timeout">مهلة الخمول</string>
+    <string name="settings_lock_background">قفل عند انتقال التطبيق إلى الخلفية</string>
+    <string name="settings_lock_screen_off">قفل عند إطفاء الشاشة</string>
+    <string name="favorites_title">الحاويات المحفوظة</string>
+    <string name="favorites_remove">إزالة</string>
+    <!-- Hidden volume keyfile (C2 enhancement, align with desktop VC) -->
+    <string name="create_hidden_keyfiles_none">ملفات مفاتيح مخفية (اختياري)</string>
+    <string name="create_hidden_keyfiles_selected">ملفات المفاتيح المخفية: %1$d محدد</string>
+
+    <!-- Volume expansion (X17) -->
+    <string name="expand_volume_entry">توسيع الحجم</string>
+    <string name="expand_volume_title">توسيع الحجم</string>
+    <string name="expand_volume_desc">تكبير هذه الحاوية دون إعادة تشفير البيانات. يبقى المفتاح الرئيسي كما هو؛ يتغير الرأس وحجم الملف فقط. أدخل الحجم الإجمالي الجديد أدناه. التكبير فقط مدعوم. يتم حفظ نسخة احتياطية إنقاذ للرأس الحالي أولاً.</string>
+    <string name="expand_volume_current_size">الحجم الحالي: %1$s</string>
+    <string name="expand_volume_new_size_mb">الحجم الإجمالي الجديد (ميجابايت)</string>
+    <string name="expand_volume_working">جارٍ توسيع الحجم…</string>
+    <string name="expand_volume_submit">توسيع</string>
+    <string name="expand_volume_cancel">إلغاء</string>
+    <string name="expand_volume_ok">تم توسيع الحجم إلى %1$s.</string>
+    <string name="expand_volume_failed">فشل توسيع الحجم</string>
+    <string name="expand_volume_too_small">يجب أن يكون الحجم الجديد أكبر من الحجم الحالي</string>
+
+    <!-- Partition encryption probe (X2/X3, experimental, root-gated) -->
+    <string name="block_device_entry">تشفير الأقسام (تجريبي)</string>
+    <string name="block_device_title">الأقسام (فحص للقراءة فقط)</string>
+    <string name="block_device_desc">تجريبي. يسرد أجهزة الكتل للقراءة فقط. لا يتم تنفيذ أي تشفير. يتطلب صلاحيات الجذر.</string>
+    <string name="block_device_loading">جارٍ التعداد…</string>
+    <string name="block_device_empty">لم يتم العثور على أجهزة كتل.</string>
+    <string name="block_device_no_root">لم يتم منح صلاحيات الجذر. تعذر تعداد أجهزة الكتل.</string>
+    <string name="block_device_request_root">منح صلاحيات الجذر</string>
+    <string name="block_device_close">إغلاق</string>
+    <string name="block_device_size">الحجم: %1$s</string>
+    <string name="block_device_removable">قابل للإزالة</string>
+
+    <!-- Container info panel (X10) -->
+    <string name="info_entry">معلومات الحاوية</string>
+    <string name="info_title">معلومات الحاوية</string>
+    <string name="info_algorithm">التشفير</string>
+    <string name="info_prf">اشتقاق المفتاح (PRF)</string>
+    <string name="info_data_size">حجم منطقة البيانات</string>
+    <string name="info_sector_size">حجم القطاع</string>
+    <string name="info_fs_type">نظام الملفات</string>
+    <string name="info_label">عنوان الحجم</string>
+    <string name="info_hidden">حجم مخفي</string>
+    <string name="info_writable">محمّل قابل للكتابة</string>
+    <string name="info_yes">نعم</string>
+    <string name="info_no">لا</string>
+    <string name="info_close">إغلاق</string>
+    <string name="info_bytes_fmt">%1$s (%2$d بايت)</string>
+    <string name="info_cascade">تتابع</string>
+    <string name="browse_write_full">الحاوية ممتلئة — لا توجد مساحة حرة كافية</string>
+    <!-- W16 目录操作 rename/mkdir/move/rmdir -->
+    <string name="browse_new_folder">مجلد جديد</string>
+    <string name="browse_new_folder_hint">اسم المجلد</string>
+    <string name="browse_new_folder_ok">تم إنشاء المجلد: %1$s</string>
+    <string name="browse_new_folder_failed">تعذر إنشاء المجلد</string>
+    <string name="browse_action_rename">إعادة تسمية</string>
+    <string name="browse_action_move">نقل إلى…</string>
+    <string name="browse_action_delete_folder">حذف المجلد</string>
+    <string name="browse_rename_title">إعادة تسمية</string>
+    <string name="browse_rename_hint">الاسم الجديد</string>
+    <string name="browse_rename_ok">تمت إعادة التسمية إلى %1$s</string>
+    <string name="browse_rename_failed">فشلت إعادة التسمية</string>
+    <string name="browse_move_title">نقل \"%1$s\" إلى</string>
+    <string name="browse_move_here">نقل هنا</string>
+    <string name="browse_move_up">.. (الأصل)</string>
+    <string name="browse_move_ok">تم النقل: %1$s</string>
+    <string name="browse_move_failed">فشل النقل</string>
+    <string name="browse_rmdir_title">حذف المجلد</string>
+    <string name="browse_rmdir_msg">حذف المجلد \"%1$s\"؟ يمكن حذف المجلدات الفارغة فقط.</string>
+    <string name="browse_rmdir_ok">تم حذف المجلد: %1$s</string>
+    <string name="browse_rmdir_failed">فشل الحذف (قد لا يكون المجلد فارغاً)</string>
+    <string name="browse_op_unsupported">نظام الملفات هذا لا يدعم تلك العملية بعد</string>
+    <string name="browse_action_more">المزيد</string>
+    <string name="favorites_rename">إعادة تسمية</string>
+    <string name="favorites_pin">تثبيت في الأعلى</string>
+    <string name="favorites_rename_title">إعادة تسمية المفضّل</string>
+    <string name="favorites_rename_hint">اسم العرض</string>
+    <string name="settings_default_mount_writable">تحميل قراءة-كتابة افتراضي</string>
+    <string name="settings_default_prf">PRF افتراضي</string>
+    <string name="settings_ntfs_exp">تفعيل NTFS (تجريبي)</string>
+    <string name="settings_ntfs_exp_desc">القراءة/الكتابة NTFS غير موثّقة على الجهاز. استخدم حاويات مؤقتة فقط. إيقاف = حاويات NTFS ترفض التحميل.</string>
+    <!-- 块设备解锁（F2）-->
+    <string name="block_device_unlock">فتح</string>
+    <string name="block_device_unlocking">جارٍ الفتح…</string>
+    <string name="block_device_unlock_failed">فشل الفتح: %1$s</string>
+    <string name="block_device_unlocked">تم الفتح: %1$s</string>
+    <!-- 系统挂载暴露（F3）-->
+    <string name="expose_title">تعريض للنظام</string>
+    <string name="expose_warning">هذا يفك تشفير محتويات الحاوية إلى دليل يمكن لجميع التطبيقات الوصول إليه. خطر أمني كبير — للبيئات الموثوقة فقط.</string>
+    <string name="expose_dir_hint">الدليل الهدف (مثلاً /data/local/tmp/sealchest)</string>
+    <string name="expose_start">بدء التعريض</string>
+    <string name="expose_cleanup">تنظيف</string>
+    <string name="expose_progress">جارٍ المزامنة: %1$s</string>
+    <string name="expose_done">تم تعريض %1$d ملف</string>
+    <string name="expose_failed">فشل التعريض: %1$s</string>
+</resources>

@@ -1,0 +1,320 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Default locale = English. Chinese lives in values-zh. This makes any
+         non-Chinese system language fall back to English (product requirement:
+         Chinese system -> Chinese, everything else -> English). -->
+    <string name="app_name">Sealchest</string>
+
+    <!-- Home -->
+    <string name="home_title">Sealchest</string>
+    <string name="home_subtitle">Open VeraCrypt-containers zonder root</string>
+    <string name="home_pick_container">Kies een containerbestand</string>
+    <string name="home_no_container">Nog geen container geopend</string>
+    <string name="home_recent">Recent geopend</string>
+
+    <!-- Unlock -->
+    <string name="unlock_title">Container ontgrendelen</string>
+    <string name="unlock_password">Wachtwoord</string>
+    <string name="unlock_pim">PIM (optioneel, leeg laten voor standaardwaarde)</string>
+    <string name="unlock_prf">Hash-algoritme (PRF)</string>
+    <string name="unlock_prf_auto">Automatisch detecteren</string>
+    <string name="unlock_submit">Ontgrendelen</string>
+    <string name="unlock_unlocking">Sleutel afleiden…</string>
+    <string name="unlock_wrong">Onjuist wachtwoord, PIM of PRF; kan niet ontgrendelen</string>
+
+    <!-- PRF options -->
+    <string name="prf_auto">Automatisch detecteren</string>
+    <string name="prf_sha512">SHA-512</string>
+    <string name="prf_whirlpool">Whirlpool</string>
+    <string name="prf_sha256">SHA-256</string>
+    <string name="prf_blake2s">BLAKE2s</string>
+    <string name="prf_streebog">Streebog</string>
+
+    <!-- Mount / writable -->
+    <string name="mount_writable_on">Beschrijfbare koppeling (wijzigingen worden teruggestuurd naar de container)</string>
+    <string name="mount_writable_off">Beschrijfbare koppeling (deze bron is niet beschrijfbaar)</string>
+    <string name="mount_default_container">Container</string>
+
+    <!-- Mounted panel -->
+    <string name="mounted_no_label">(geen label)</string>
+    <string name="mounted_filesystem">Bestandssysteem: %1$s</string>
+    <string name="mounted_label">Label: %1$s</string>
+
+    <!-- Self-test -->
+    <string name="selftest_running">  Cryptografische selftest draait…</string>
+    <string name="selftest_button">Cryptografische selftest</string>
+    <string name="selftest_title">Cryptografische selftest</string>
+    <string name="selftest_ok_button">OK</string>
+    <string name="selftest_unavailable">Selftest kon niet worden uitgevoerd (niet gekoppeld of kernfout).</string>
+    <string name="selftest_roundtrip1">%1$s Heen-en-weer 1  encrypt(decrypt(C0)) == C0</string>
+    <string name="selftest_encchanges">%1$s Versleuteling wijzigt de gegevens daadwerkelijk</string>
+    <string name="selftest_roundtrip2">%1$s Heen-en-weer 2  decrypt(encrypt(X)) == X</string>
+    <string name="selftest_pass">Alle geslaagd: het versleutelpad is de exacte omkering van ontsleutelen; na terugschrijven kan desktop-VeraCrypt de container nog steeds openen.</string>
+    <string name="selftest_fail">Sommige controles mislukt: het versleutelpad is defect en kan niet voor schrijven worden gebruikt.</string>
+
+    <!-- Browse -->
+    <string name="browse_title">Containerinhoud</string>
+    <string name="browse_empty">Deze map is leeg</string>
+    <string name="browse_lock">Vergrendelen en sluiten</string>
+    <string name="browse_root">Root</string>
+    <string name="browse_back">Terug</string>
+    <string name="browse_exported">Geëxporteerd %1$s</string>
+    <string name="browse_export_failed">Exporteren mislukt</string>
+    <string name="browse_no_preview">Kan dit bestandstype niet voorvertonen</string>
+    <string name="browse_action_preview">Voorvertoning (afbeelding / tekst)</string>
+    <string name="browse_action_export">Exporteren naar telefoon</string>
+    <string name="browse_action_open_with">Openen met andere app</string>
+    <string name="browse_image_decode_failed">Afbeelding decoderen mislukt</string>
+    <string name="browse_export_open_failed">Exporteren mislukt, kan niet openen</string>
+    <string name="browse_no_app_for_type">Geen app kan dit type openen</string>
+    <string name="browse_action_overwrite">Overschrijven met telefoonbestand</string>
+    <string name="browse_action_delete">Verwijderen</string>
+    <string name="browse_import_file">Bestand in container importeren</string>
+    <string name="browse_delete_confirm_title">Bestand verwijderen</string>
+    <string name="browse_delete_confirm_msg">\"%1$s\" uit deze container verwijderen? Dit kan niet ongedaan worden gemaakt.</string>
+    <string name="browse_delete_confirm_yes">Verwijderen</string>
+    <string name="browse_write_ok">Geschreven: %1$s</string>
+    <string name="browse_write_failed">Schrijven mislukt</string>
+    <string name="browse_overwrite_ok">Overschreven: %1$s</string>
+    <string name="browse_overwrite_failed">Overschrijven mislukt</string>
+    <string name="browse_delete_ok">Verwijderd: %1$s</string>
+    <string name="browse_delete_failed">Verwijderen mislukt</string>
+
+    <!-- Common -->
+    <string name="cancel">Annuleren</string>
+    <string name="ok">OK</string>
+    <string name="error_generic">Er is iets misgegaan</string>
+    <string name="native_unavailable">De cryptografische kern kon niet laden; kan containers niet ontsleutelen</string>
+
+    <!-- Self-test placeholder screen (first version) -->
+    <string name="app_tagline">Open VeraCrypt-containers zonder root</string>
+    <string name="native_ready">De cryptografische kern is klaar</string>
+    <string name="native_missing">De cryptografische kern kon niet laden</string>
+    <string name="native_version">Kernversie: %1$s</string>
+
+    <!-- About -->
+    <string name="about_title">Over</string>
+    <string name="about_button">Over</string>
+    <string name="about_app_desc">Een hulpmiddel om VeraCrypt-versleutelde containers op Android te openen zonder root, volledig in gebruikersruimte.</string>
+    <string name="about_author_label">Auteur</string>
+    <string name="about_author">Henglie / EternalBlaze</string>
+    <string name="about_project_label">Project</string>
+    <string name="about_version_label">Versie</string>
+    <string name="about_upstream_label">VeraCrypt-kern</string>
+    <string name="about_upstream_commit_label">Vastgepinde commit</string>
+    <string name="about_toolchain_label">Build-toolchain</string>
+    <string name="about_abis_label">ABI\'s</string>
+    <string name="about_supplychain_note">Deze app compileert de upstream C-cryptografische kern van VeraCrypt, vastgepind op de commit hierboven. U kunt precies auditeren welke broncode wordt gebouwd op github.com/veracrypt/VeraCrypt.</string>
+    <string name="about_credit">De cryptografische kern is overgenomen van VeraCrypt (Apache-2.0 + TrueCrypt License 3.0). Sealchest is een onafhankelijk product en is niet gelieerd aan, noch doet het zich voor als, de VeraCrypt- of TrueCrypt-projecten.</string>
+    <string name="unlock_keyfiles_none">Sleutelbestanden (optioneel)</string>
+    <string name="unlock_keyfiles_selected">Sleutelbestanden: %1$d geselecteerd</string>
+    <string name="unlock_keyfiles_clear">Sleutelbestanden wissen</string>
+    <!-- Volume header tool (A2: backup / rescue) -->
+    <string name="header_tool_entry">Volumekop-tools (backup / herstel)</string>
+    <string name="header_tool_title">Volumekop-tools</string>
+    <string name="header_tool_desc">Een VeraCrypt-volume bewaart een backup-kop aan het einde van de container. Als de primaire kop beschadigd is en het volume niet opent, herstel deze dan vanuit de ingebouwde backup. Maak regelmatig een backup van de kop zolang het volume gezond is.</string>
+    <string name="header_tool_close">Sluiten</string>
+    <string name="header_export_button">Back-up van primaire kop naar bestand</string>
+    <string name="header_export_ok">Back-up van kop gemaakt.</string>
+    <string name="header_export_failed">Back-up van kop mislukt.</string>
+    <string name="header_rescue_warn">Herstel overschrijft de primaire kop met de ingebouwde backup-kop. Het verifieert eerst dat de backup opent met uw wachtwoord/sleutelbestanden en slaat de huidige kop op in een herstelbestand, maar dit schrijft alsnog naar de container — zorg dat het volume nergens anders is gekoppeld.</string>
+    <string name="header_rescue_button">Herstellen vanuit ingebouwde backup-kop</string>
+    <string name="header_rescue_need_write">Herstel vereist schrijfrechten (kies de container opnieuw en verleen schrijftoegang)</string>
+    <string name="header_restore_ok">Primaire kop hersteld vanuit back-up. Probeer nu te ontgrendelen.</string>
+    <string name="header_restore_failed">Herstellen mislukt. De container is niet gewijzigd.</string>
+
+    <!-- Create volume wizard (B2) -->
+    <string name="create_entry">Nieuwe container maken</string>
+    <string name="create_title">Container maken</string>
+    <string name="create_algorithm">Versleutelingsalgoritme</string>
+    <string name="create_algo_aes">AES</string>
+    <string name="create_algo_serpent">Serpent</string>
+    <string name="create_algo_twofish">Twofish</string>
+    <string name="create_algo_camellia">Camellia</string>
+    <string name="create_algo_kuznyechik">Kuznyechik</string>
+    <string name="create_prf">Hash-algoritme (PRF)</string>
+    <string name="create_size_mb">Grootte (MB)</string>
+    <string name="create_size_hint">Grootte van het gegevensgebied van de container in MB. Minimum 1 MB; groter houdt meer bestanden.</string>
+    <string name="create_password">Wachtwoord</string>
+    <string name="create_password_confirm">Wachtwoord bevestigen</string>
+    <string name="create_password_mismatch">De twee wachtwoorden komen niet overeen</string>
+    <string name="create_pim">PIM (optioneel, leeg laten voor standaardwaarde)</string>
+    <string name="create_pim_hint">Persoonlijke iteratievermenigvuldiger. Leeg laten om het standaardaantal iteraties te gebruiken.</string>
+    <string name="create_cancel">Annuleren</string>
+    <string name="create_submit">Maken</string>
+    <string name="create_ok">Container gemaakt</string>
+    <string name="create_failed">Container maken mislukt</string>
+    <string name="create_in_progress">Container maken…</string>
+    <string name="create_entropy_title">Willekeur verzamelen</string>
+    <string name="create_entropy_hint">Veeg met uw vinger rond in het onderstaande vak. Uw onvoorspelbare bewegingen voegen entropie toe aan de mastersleutel (zoals de muis bewegen in desktop-VeraCrypt).</string>
+    <string name="create_entropy_progress">Blijf vegen… %1$d%%</string>
+    <string name="create_entropy_done">Voldoende willekeur verzameld</string>
+    <string name="create_next">Volgende</string>
+    <string name="create_entropy_fullscreen_hint">Veeg met uw vinger over het hele scherm en schud de telefoon als deze een bewegingssensor heeft. Uw onvoorspelbare bewegingen voeden de willekeurige pool van de mastersleutel (zoals de muis bewegen in desktop-VeraCrypt). Ga door tot de pool vol is.</string>
+    <string name="create_entropy_sensor_on">Bewegingssensor actief — schudden voegt ook willekeur toe</string>
+    <string name="create_entropy_sensor_none">Geen bewegingssensor — alleen vegen</string>
+    <string name="create_entropy_pool_label">Willekeurige pool</string>
+    <string name="create_entropy_swipe_here">Veeg hier waar dan ook</string>
+
+    <!-- File system / cluster size / dynamic volume (X2) -->
+    <string name="create_fs_type">Bestandssysteem</string>
+    <string name="create_fs_fat">FAT</string>
+    <string name="create_fs_exfat">exFAT</string>
+    <string name="create_fs_ntfs">NTFS</string>
+    <string name="create_fs_coming_soon">(binnenkort)</string>
+    <string name="create_cluster_size">Clustergrootte</string>
+    <string name="create_cluster_default">Standaard</string>
+    <string name="create_cluster_512">512 bytes</string>
+    <string name="create_cluster_1024">1024 bytes</string>
+    <string name="create_cluster_2048">2048 bytes</string>
+    <string name="create_cluster_4096">4096 bytes</string>
+    <string name="create_cluster_8192">8192 bytes</string>
+    <string name="create_cluster_16384">16384 bytes</string>
+    <string name="create_cluster_32768">32768 bytes</string>
+    <string name="create_dynamic">Dynamisch volume (sparse)</string>
+    <string name="create_dynamic_hint">Wijst ruimte toe op verzoek. De UI is klaar; de backend behandelt het vooralsnog als een normaal volume.</string>
+    <string name="create_random_fill">Willekeurige vulling</string>
+    <string name="create_random_fill_hint">Vult het hele volume met willekeurige gegevens voor maximale plausibele ontkenbaarheid (veiliger). Grote containers duren langer om te maken.</string>
+
+    <!-- Change password / PIM / PRF / keyfiles (B1) -->
+    <string name="change_pwd_entry">Wachtwoord / PIM / sleutelbestanden wijzigen</string>
+    <string name="change_pwd_title">Wachtwoord wijzigen</string>
+    <string name="change_pwd_desc">Voer hierboven het huidige wachtwoord / PIM / PRF / sleutelbestanden in (hetzelfde als bij ontgrendelen), en stel hier de nieuwe in. Alleen de kop wordt opnieuw versleuteld — de mastersleutel en uw gegevens veranderen nooit. Voor het schrijven wordt eerst een herstelkopie van de huidige kop opgeslagen, voor het geval er iets misgaat.</string>
+    <string name="change_pwd_new_password">Nieuw wachtwoord</string>
+    <string name="change_pwd_new_pim">Nieuwe PIM (optioneel)</string>
+    <string name="change_pwd_new_prf">Nieuwe PRF (0 = huidige behouden)</string>
+    <string name="change_pwd_new_keyfiles_none">Nieuwe sleutelbestanden (optioneel)</string>
+    <string name="change_pwd_new_keyfiles_selected">Nieuwe sleutelbestanden: %1$d geselecteerd</string>
+    <string name="change_pwd_working">Kop opnieuw versleutelen…</string>
+    <string name="change_pwd_submit">Wachtwoord wijzigen</string>
+    <string name="change_pwd_dismiss">Annuleren</string>
+    <string name="change_pwd_ok">Wachtwoord gewijzigd. Gebruik vanaf nu het nieuwe wachtwoord om te ontgrendelen.</string>
+    <string name="change_pwd_failed">Wachtwoord wijzigen mislukt</string>
+
+    <!-- Create hidden volume (C2) -->
+    <string name="create_hidden_entry">Verborgen volume maken</string>
+    <string name="create_hidden_title">Verborgen volume maken</string>
+    <string name="create_hidden_desc">Een verborgen volume bevindt zich in de vrije ruimte aan het einde van deze (buitenste) container. Het buitenste volume wordt ontgrendeld met de hierboven ingevoerde inloggegevens, de FAT wordt gelezen om vrije ruimte te vinden zodat bestaande bestanden niet worden overschreven, en daarna wordt het verborgen volume gemaakt met een eigen wachtwoord hieronder.</string>
+    <string name="create_hidden_password">Wachtwoord verborgen volume</string>
+    <string name="create_hidden_size_mb">Grootte verborgen volume (MB)</string>
+    <string name="create_hidden_pim">Verborgen PIM (optioneel)</string>
+    <string name="create_hidden_working">Verborgen volume maken…</string>
+    <string name="create_hidden_submit">Verborgen volume maken</string>
+    <string name="create_hidden_cancel">Annuleren</string>
+    <string name="create_hidden_ok">Verborgen volume gemaakt. Ontgrendel met het verborgen wachtwoord om het te gebruiken.</string>
+    <string name="create_hidden_failed">Verborgen volume maken mislukt</string>
+    <string name="rescue_entry">Herstelbestandsbeheer</string>
+    <string name="rescue_mgr_title">Herstelbestanden</string>
+    <string name="rescue_mgr_warn">Dit zijn back-ups van de OUDE kopgroep. Iedereen met het OUDE wachtwoord kan het volume nog steeds openen met deze bestanden. Verwijder ze zodra u hebt bevestigd dat het nieuwe wachtwoord werkt.</string>
+    <string name="rescue_mgr_empty">Geen automatisch opgeslagen herstelbestanden.</string>
+    <string name="rescue_mgr_delete">Verwijderen</string>
+    <string name="rescue_mgr_clear_all">Alles verwijderen</string>
+    <string name="close">Sluiten</string>
+    <string name="settings_title">Instellingen</string>
+    <string name="settings_close">Sluiten</string>
+    <string name="settings_entry">Instellingen</string>
+    <string name="settings_autolock">Automatisch vergrendelen</string>
+    <string name="settings_autolock_desc">Vernietig sleutels in het geheugen automatisch om de container te beschermen</string>
+    <string name="settings_timeout">Inactiviteitstime-out</string>
+    <string name="settings_lock_bg">Vergrendelen bij achtergrond</string>
+    <string name="settings_lock_bg_desc">Onmiddellijk vergrendelen wanneer de app naar de achtergrond gaat</string>
+    <string name="settings_lock_screen">Vergrendelen bij scherm uit</string>
+    <string name="settings_lock_screen_desc">Onmiddellijk vergrendelen wanneer het scherm uitgaat</string>
+    <string name="settings_autolock_enable">Automatisch vergrendelen</string>
+    <string name="settings_autolock_timeout">Inactiviteitstime-out</string>
+    <string name="settings_lock_background">Vergrendelen wanneer app naar achtergrond gaat</string>
+    <string name="settings_lock_screen_off">Vergrendelen wanneer scherm uitgaat</string>
+    <string name="favorites_title">Opgeslagen containers</string>
+    <string name="favorites_remove">Verwijderen</string>
+    <!-- Hidden volume keyfile (C2 enhancement, align with desktop VC) -->
+    <string name="create_hidden_keyfiles_none">Verborgen sleutelbestanden (optioneel)</string>
+    <string name="create_hidden_keyfiles_selected">Verborgen sleutelbestanden: %1$d geselecteerd</string>
+
+    <!-- Volume expansion (X17) -->
+    <string name="expand_volume_entry">Volume uitbreiden</string>
+    <string name="expand_volume_title">Volume uitbreiden</string>
+    <string name="expand_volume_desc">Vergroot deze container zonder gegevens opnieuw te versleutelen. De mastersleutel blijft dezelfde; alleen de koppen en de bestandsgrootte veranderen. Voer hieronder de nieuwe totale grootte in. Alleen vergroten wordt ondersteund. Eerst wordt een herstelback-up van de huidige kop opgeslagen.</string>
+    <string name="expand_volume_current_size">Huidige grootte: %1$s</string>
+    <string name="expand_volume_new_size_mb">Nieuwe totale grootte (MB)</string>
+    <string name="expand_volume_working">Volume uitbreiden…</string>
+    <string name="expand_volume_submit">Uitbreiden</string>
+    <string name="expand_volume_cancel">Annuleren</string>
+    <string name="expand_volume_ok">Volume uitgebreid naar %1$s.</string>
+    <string name="expand_volume_failed">Volume uitbreiden mislukt</string>
+    <string name="expand_volume_too_small">De nieuwe grootte moet groter zijn dan de huidige grootte</string>
+
+    <!-- Partition encryption probe (X2/X3, experimental, root-gated) -->
+    <string name="block_device_entry">Partitieversleuteling (experimenteel)</string>
+    <string name="block_device_title">Partities (alleen-lezen sonde)</string>
+    <string name="block_device_desc">Experimenteel. Somt blokapparaten alleen-lezen op. Er wordt geen versleuteling uitgevoerd. Vereist root.</string>
+    <string name="block_device_loading">Aan het opsommen…</string>
+    <string name="block_device_empty">Geen blokapparaten gevonden.</string>
+    <string name="block_device_no_root">Root niet verleend. Kan blokapparaten niet opsommen.</string>
+    <string name="block_device_request_root">Root verlenen</string>
+    <string name="block_device_close">Sluiten</string>
+    <string name="block_device_size">Grootte: %1$s</string>
+    <string name="block_device_removable">Verwijderbaar</string>
+
+    <!-- Container info panel (X10) -->
+    <string name="info_entry">Containerinformatie</string>
+    <string name="info_title">Containerinformatie</string>
+    <string name="info_algorithm">Versleuteling</string>
+    <string name="info_prf">Sleutelafleiding (PRF)</string>
+    <string name="info_data_size">Grootte gegevensgebied</string>
+    <string name="info_sector_size">Sectorgrootte</string>
+    <string name="info_fs_type">Bestandssysteem</string>
+    <string name="info_label">Volumelabel</string>
+    <string name="info_hidden">Verborgen volume</string>
+    <string name="info_writable">Beschrijfbaar gekoppeld</string>
+    <string name="info_yes">Ja</string>
+    <string name="info_no">Nee</string>
+    <string name="info_close">Sluiten</string>
+    <string name="info_bytes_fmt">%1$s (%2$d bytes)</string>
+    <string name="info_cascade">Cascade</string>
+    <string name="browse_write_full">De container is vol — onvoldoende vrije ruimte</string>
+    <!-- W16 目录操作 rename/mkdir/move/rmdir -->
+    <string name="browse_new_folder">Nieuwe map</string>
+    <string name="browse_new_folder_hint">Mapnaam</string>
+    <string name="browse_new_folder_ok">Map gemaakt: %1$s</string>
+    <string name="browse_new_folder_failed">Kon map niet maken</string>
+    <string name="browse_action_rename">Naam wijzigen</string>
+    <string name="browse_action_move">Verplaatsen naar…</string>
+    <string name="browse_action_delete_folder">Map verwijderen</string>
+    <string name="browse_rename_title">Naam wijzigen</string>
+    <string name="browse_rename_hint">Nieuwe naam</string>
+    <string name="browse_rename_ok">Hernoemd naar %1$s</string>
+    <string name="browse_rename_failed">Naam wijzigen mislukt</string>
+    <string name="browse_move_title">\"%1$s\" verplaatsen naar</string>
+    <string name="browse_move_here">Hierheen verplaatsen</string>
+    <string name="browse_move_up">.. (bovenliggend)</string>
+    <string name="browse_move_ok">Verplaatst: %1$s</string>
+    <string name="browse_move_failed">Verplaatsen mislukt</string>
+    <string name="browse_rmdir_title">Map verwijderen</string>
+    <string name="browse_rmdir_msg">Map \"%1$s\" verwijderen? Alleen lege mappen kunnen worden verwijderd.</string>
+    <string name="browse_rmdir_ok">Map verwijderd: %1$s</string>
+    <string name="browse_rmdir_failed">Verwijderen mislukt (map is mogelijk niet leeg)</string>
+    <string name="browse_op_unsupported">Dit bestandssysteem ondersteunt die bewerking nog niet</string>
+    <string name="browse_action_more">Meer</string>
+    <string name="favorites_rename">Naam wijzigen</string>
+    <string name="favorites_pin">Bovenaan vastpinnen</string>
+    <string name="favorites_rename_title">Favoriet hernoemen</string>
+    <string name="favorites_rename_hint">Weergavenaam</string>
+    <string name="settings_default_mount_writable">Standaard lezen-schrijven-koppeling</string>
+    <string name="settings_default_prf">Standaard-PRF</string>
+    <string name="settings_ntfs_exp">NTFS inschakelen (experimenteel)</string>
+    <string name="settings_ntfs_exp_desc">NTFS lezen/schrijven is niet geverifieerd op het apparaat. Gebruik alleen wegwerpcontainers. Uit = NTFS-containers weigeren te koppelen.</string>
+    <!-- 块设备解锁（F2）-->
+    <string name="block_device_unlock">Ontgrendelen</string>
+    <string name="block_device_unlocking">Ontgrendelen…</string>
+    <string name="block_device_unlock_failed">Ontgrendelen mislukt: %1$s</string>
+    <string name="block_device_unlocked">Ontgrendeld: %1$s</string>
+    <!-- 系统挂载暴露（F3）-->
+    <string name="expose_title">Aan systeem blootstellen</string>
+    <string name="expose_warning">Dit ontsleutelt containerinhoud naar een map die toegankelijk is voor alle apps. Groot beveiligingsrisico — alleen voor vertrouwde omgevingen.</string>
+    <string name="expose_dir_hint">Doelmap (bijv. /data/local/tmp/sealchest)</string>
+    <string name="expose_start">Blootstellen starten</string>
+    <string name="expose_cleanup">Opschonen</string>
+    <string name="expose_progress">Synchroniseren: %1$s</string>
+    <string name="expose_done">%1$d bestanden blootgesteld</string>
+    <string name="expose_failed">Blootstellen mislukt: %1$s</string>
+</resources>

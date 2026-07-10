@@ -32,6 +32,9 @@ third_party/
 多Agent协作.md
 _commit_msg.txt
 
+# 竞品参考代码（仅本地分析用，不入仓库）
+参考/
+
 # 临时补丁脚本 / 日志
 .tmp/
 .tmp_*

@@ -64,6 +64,7 @@ object VolumeCreator {
         fsType: Int = 0,
         clusterSize: Int = 0,
         dynamic: Boolean = false,
+        randomFill: Boolean = false,
     ): Result<Unit> {
         // ---------- 1. 参数校验 ----------
         if (!NativeBridge.isAvailable) {
@@ -82,10 +83,10 @@ object VolumeCreator {
         if (pim < 0) {
             return Result.failure(IllegalArgumentException("PIM 不能为负：$pim"))
         }
-        // 文件系统后端：FAT(0)、exFAT(1) 已就绪；NTFS(2) 造盘器待接（最高危单件），暂拦。
-        if (fsType != 0 && fsType != 1) {
+        // 文件系统后端：FAT(0)、exFAT(1)、NTFS(2) 均已就绪。非法值交由下方 when 兜底。
+        if (fsType != 0 && fsType != 1 && fsType != 2) {
             return Result.failure(
-                IllegalArgumentException("暂不支持该文件系统创建：fsType=$fsType（目前 FAT / exFAT）")
+                IllegalArgumentException("不支持的文件系统类型：fsType=$fsType（合法 0=FAT / 1=exFAT / 2=NTFS）")
             )
         }
         // X2：dynamic（稀疏卷）UI 已备，后端稀疏实现待接，暂当普通卷处理。
@@ -157,6 +158,7 @@ object VolumeCreator {
                 clusterSize = clusterSize,
                 fsType = fsType,
                 volumeLabel = "",
+                randomFill = randomFill,
             )
         } catch (t: Throwable) {
             return Result.failure(t)
@@ -184,6 +186,7 @@ object VolumeCreator {
         clusterSize: Int = 0,
         fsType: Int = 0,
         volumeLabel: String = "",
+        randomFill: Boolean = false,
     ): Result<Unit> {
         // 可写打开：SAF 要求 URI 已被授予 FLAG_GRANT_WRITE。
         val pfd = resolver.openFileDescriptor(containerUri, "rw")
@@ -235,12 +238,38 @@ object VolumeCreator {
             // TODO(增强): 后续版本加「创建时全区随机填充」开关：分块（如 1MB）生成随机
             //             明文 → reader.write 铺满数据区 → 再覆盖写 FAT 结构。可加进度回调。
 
+            // ---------- 7.5 全区随机填充（X14：可选开关）----------
+            // 开启时：在写 FAT 结构前，分块 1MB 生成随机明文 → reader.write 铺满整个数据区。
+            //   效果：未用扇区也是高熵密文，明文不可与随机区分 → 「整卷不可区分」强隐私。
+            //   代价：GB 级容器创建慢（每个 512B 单元 read-modify-write），用户已被告知。
+            //   关闭（默认）：只写 FAT 结构，未写扇区是加密后的全零（功能正常，泄漏使用量元信息）。
+            if (randomFill) {
+                val chunkSize = 1 shl 20  // 1 MB
+                val chunk = ByteArray(chunkSize)
+                val rng = java.security.SecureRandom()
+                var filled = 0L
+                while (filled < volumeSizeBytes) {
+                    val n = Math.min(chunkSize.toLong(), volumeSizeBytes - filled).toInt()
+                    if (n < chunkSize) {
+                        // 末块：用独立小数组，避免写多余字节
+                        val tail = ByteArray(n)
+                        rng.nextBytes(tail)
+                        reader.write(filled, tail, 0, n)
+                    } else {
+                        rng.nextBytes(chunk)
+                        reader.write(filled, chunk, 0, n)
+                    }
+                    filled += n
+                }
+            }
+
             // ---------- 8. 写空文件系统结构 ----------
             //   Formatter 返回 FatImage(bytesPerSector, sectors: List<Pair<卷内逻辑偏移, 字节段>>)，
             //   逻辑偏移 0 = 数据区首字节。这里只消费逻辑偏移与字节段，逐段 reader.write。
-            //   fsType 分发：0=FAT（FatFormatter），1=exFAT（ExFatFormatter）。NTFS(2) 在 create 层已挡。
+            //   fsType 分发：0=FAT（FatFormatter），1=exFAT（ExFatFormatter），2=NTFS（NtfsFormatter）。
             val img = when (fsType) {
                 1 -> ExFatFormatter.buildEmpty(volumeSizeBytes, clusterSize, volumeLabel)
+                2 -> NtfsFormatter.buildEmpty(volumeSizeBytes, clusterSize, volumeLabel)
                 else -> FatFormatter.buildEmptyFat(volumeSizeBytes, clusterSize)
             }
             for ((logicalOffset, bytes) in img.sectors) {

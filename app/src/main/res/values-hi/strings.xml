@@ -1,0 +1,316 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Home -->
+    <string name="app_name">Sealchest</string>
+    <string name="home_title">Sealchest</string>
+    <string name="home_subtitle">बिना रूट के VeraCrypt कंटेनर खोलें</string>
+    <string name="home_pick_container">एक कंटेनर फ़ाइल चुनें</string>
+    <string name="home_no_container">अभी तक कोई कंटेनर नहीं खोला गया</string>
+    <string name="home_recent">हाल ही में खोले गए</string>
+
+    <!-- Unlock -->
+    <string name="unlock_title">कंटेनर अनलॉक करें</string>
+    <string name="unlock_password">पासवर्ड</string>
+    <string name="unlock_pim">PIM (वैकल्पिक, डिफ़ॉल्ट के लिए खाली छोड़ें)</string>
+    <string name="unlock_prf">हैश एल्गोरिदम (PRF)</string>
+    <string name="unlock_prf_auto">स्वतः पहचानें</string>
+    <string name="unlock_submit">अनलॉक करें</string>
+    <string name="unlock_unlocking">कुंजी व्युत्पन्न कर रहे हैं…</string>
+    <string name="unlock_wrong">गलत पासवर्ड, PIM या PRF; अनलॉक नहीं किया जा सकता</string>
+
+    <!-- PRF options -->
+    <string name="prf_auto">स्वतः पहचानें</string>
+    <string name="prf_sha512">SHA-512</string>
+    <string name="prf_whirlpool">Whirlpool</string>
+    <string name="prf_sha256">SHA-256</string>
+    <string name="prf_blake2s">BLAKE2s</string>
+    <string name="prf_streebog">Streebog</string>
+
+    <!-- Mount / writable -->
+    <string name="mount_writable_on">लेखन योग्य माउंट (परिवर्तन कंटेनर में वापस लिखे जाते हैं)</string>
+    <string name="mount_writable_off">लेखन योग्य माउंट (यह स्रोत लेखन योग्य नहीं है)</string>
+    <string name="mount_default_container">कंटेनर</string>
+
+    <!-- Mounted panel -->
+    <string name="mounted_no_label">(कोई लेबल नहीं)</string>
+    <string name="mounted_filesystem">फ़ाइल सिस्टम: %1$s</string>
+    <string name="mounted_label">लेबल: %1$s</string>
+
+    <!-- Self-test -->
+    <string name="selftest_running">  क्रिप्टो स्व-परीक्षण चल रहा है…</string>
+    <string name="selftest_button">क्रिप्टो स्व-परीक्षण</string>
+    <string name="selftest_title">क्रिप्टो स्व-परीक्षण</string>
+    <string name="selftest_ok_button">ठीक है</string>
+    <string name="selftest_unavailable">स्व-परीक्षण नहीं चल सका (माउंट नहीं है या कोर त्रुटि)।</string>
+    <string name="selftest_roundtrip1">%1$s राउंड-ट्रिप 1  encrypt(decrypt(C0)) == C0</string>
+    <string name="selftest_encchanges">%1$s एन्क्रिप्शन वास्तव में डेटा बदलता है</string>
+    <string name="selftest_roundtrip2">%1$s राउंड-ट्रिप 2  decrypt(encrypt(X)) == X</string>
+    <string name="selftest_pass">सभी उत्तीर्ण: एन्क्रिप्ट पथ डिक्रिप्ट का सटीक विलोम है; वापस लिखने के बाद, डेस्कटॉप VeraCrypt अभी भी कंटेनर खोल सकता है।</string>
+    <string name="selftest_fail">कुछ जाँच विफल हुईं: एन्क्रिप्ट पथ टूटा हुआ है और लेखन के लिए उपयोग नहीं किया जा सकता।</string>
+
+    <!-- Browse -->
+    <string name="browse_title">कंटेनर सामग्री</string>
+    <string name="browse_empty">यह फ़ोल्डर खाली है</string>
+    <string name="browse_lock">लॉक करें और बंद करें</string>
+    <string name="browse_root">रूट</string>
+    <string name="browse_back">वापस</string>
+    <string name="browse_exported">निर्यात किया गया %1$s</string>
+    <string name="browse_export_failed">निर्यात विफल</string>
+    <string name="browse_no_preview">इस फ़ाइल प्रकार का पूर्वावलोकन नहीं किया जा सकता</string>
+    <string name="browse_action_preview">पूर्वावलोकन (छवि / पाठ)</string>
+    <string name="browse_action_export">फ़ोन पर निर्यात करें</string>
+    <string name="browse_action_open_with">किसी अन्य ऐप से खोलें</string>
+    <string name="browse_image_decode_failed">छवि डिकोड करने में विफल</string>
+    <string name="browse_export_open_failed">निर्यात विफल, खोल नहीं सकते</string>
+    <string name="browse_no_app_for_type">कोई ऐप इस प्रकार को नहीं खोल सकता</string>
+    <string name="browse_action_overwrite">फ़ोन फ़ाइल से अधिलेखित करें</string>
+    <string name="browse_action_delete">हटाएँ</string>
+    <string name="browse_import_file">कंटेनर में फ़ाइल आयात करें</string>
+    <string name="browse_delete_confirm_title">फ़ाइल हटाएँ</string>
+    <string name="browse_delete_confirm_msg">इस कंटेनर से \"%1$s\" हटाएँ? इसे पूर्ववत नहीं किया जा सकता।</string>
+    <string name="browse_delete_confirm_yes">हटाएँ</string>
+    <string name="browse_write_ok">लिखा गया: %1$s</string>
+    <string name="browse_write_failed">लेखन विफल</string>
+    <string name="browse_overwrite_ok">अधिलेखित: %1$s</string>
+    <string name="browse_overwrite_failed">अधिलेखन विफल</string>
+    <string name="browse_delete_ok">हटाया गया: %1$s</string>
+    <string name="browse_delete_failed">हटाना विफल</string>
+
+    <!-- Common -->
+    <string name="cancel">रद्द करें</string>
+    <string name="ok">ठीक है</string>
+    <string name="error_generic">कुछ गलत हो गया</string>
+    <string name="native_unavailable">क्रिप्टो कोर लोड करने में विफल; कंटेनर डिक्रिप्ट नहीं कर सकता</string>
+
+    <!-- Self-test placeholder screen (first version) -->
+    <string name="app_tagline">बिना रूट के VeraCrypt कंटेनर खोलें</string>
+    <string name="native_ready">क्रिप्टो कोर तैयार है</string>
+    <string name="native_missing">क्रिप्टो कोर लोड करने में विफल</string>
+    <string name="native_version">कोर संस्करण: %1$s</string>
+
+    <!-- About -->
+    <string name="about_title">के बारे में</string>
+    <string name="about_button">के बारे में</string>
+    <string name="about_app_desc">बिना रूट के, पूर्ण उपयोगकर्ता स्थान में, Android पर VeraCrypt एन्क्रिप्टेड कंटेनर खोलने का एक उपकरण।</string>
+    <string name="about_author_label">लेखक</string>
+    <string name="about_author">Henglie / EternalBlaze</string>
+    <string name="about_project_label">प्रोजेक्ट</string>
+    <string name="about_version_label">संस्करण</string>
+    <string name="about_upstream_label">VeraCrypt कोर</string>
+    <string name="about_upstream_commit_label">पिन किया गया कमिट</string>
+    <string name="about_toolchain_label">बिल्ड टूलचेन</string>
+    <string name="about_abis_label">ABIs</string>
+    <string name="about_supplychain_note">यह ऐप VeraCrypt के अपस्ट्रीम C क्रिप्टो कोर को संकलित करता है, जो ऊपर दिए गए कमिट पर पिन है। आप github.com/veracrypt/VeraCrypt पर सटीक रूप से देख सकते हैं कि कौन सा स्रोत बनाया गया है।</string>
+    <string name="about_credit">क्रिप्टो कोर VeraCrypt (Apache-2.0 + TrueCrypt लाइसेंस 3.0) से पोर्ट किया गया है। Sealchest एक स्वतंत्र उत्पाद है और VeraCrypt या TrueCrypt प्रोजेक्ट्स से संबद्ध नहीं है, न ही इनका प्रतिरूप करता है।</string>
+    <string name="unlock_keyfiles_none">कीफ़ाइलें (वैकल्पिक)</string>
+    <string name="unlock_keyfiles_selected">कीफ़ाइलें: %1$d चयनित</string>
+    <string name="unlock_keyfiles_clear">कीफ़ाइलें साफ़ करें</string>
+    <!-- Volume header tool (A2: backup / rescue) -->
+    <string name="header_tool_entry">वॉल्यूम हेडर उपकरण (बैकअप / रेस्क्यू)</string>
+    <string name="header_tool_title">वॉल्यूम हेडर उपकरण</string>
+    <string name="header_tool_desc">एक VeraCrypt वॉल्यूम कंटेनर के अंत में एक बैकअप हेडर रखता है। यदि प्राथमिक हेडर क्षतिग्रस्त है और वॉल्यूम नहीं खुलता है, तो इसे एम्बेडेड बैकअप से पुनर्स्थापित करें। वॉल्यूम स्वस्थ होने पर नियमित रूप से हेडर का बैकअप लें।</string>
+    <string name="header_tool_close">बंद करें</string>
+    <string name="header_export_button">प्राथमिक हेडर को फ़ाइल में बैकअप करें</string>
+    <string name="header_export_ok">हेडर बैकअप हो गया।</string>
+    <string name="header_export_failed">हेडर बैकअप विफल।</string>
+    <string name="header_rescue_warn">रेस्क्यू एम्बेडेड बैकअप हेडर के साथ प्राथमिक हेडर को अधिलेखित करता है। यह पहले सत्यापित करता है कि बैकअप आपके पासवर्ड/कीफ़ाइलों से खुलता है और वर्तमान हेडर को रेस्क्यू फ़ाइल में सहेजता है, लेकिन यह अभी भी कंटेनर को लिखता है — सुनिश्चित करें कि वॉल्यूम कहीं और माउंट नहीं है।</string>
+    <string name="header_rescue_button">एम्बेडेड बैकअप हेडर से रेस्क्यू करें</string>
+    <string name="header_rescue_need_write">रेस्क्यू को लेखन अनुमति चाहिए (कंटेनर को पुनः चुनें और लेखन पहुँच प्रदान करें)</string>
+    <string name="header_restore_ok">प्राथमिक हेडर बैकअप से पुनर्स्थापित हो गया। अब अनलॉक करने का प्रयास करें।</string>
+    <string name="header_restore_failed">पुनर्स्थापना विफल। कंटेनर को संशोधित नहीं किया गया।</string>
+
+    <!-- Create volume wizard (B2) -->
+    <string name="create_entry">नया कंटेनर बनाएँ</string>
+    <string name="create_title">कंटेनर बनाएँ</string>
+    <string name="create_algorithm">एन्क्रिप्शन एल्गोरिदम</string>
+    <string name="create_algo_aes">AES</string>
+    <string name="create_algo_serpent">Serpent</string>
+    <string name="create_algo_twofish">Twofish</string>
+    <string name="create_algo_camellia">Camellia</string>
+    <string name="create_algo_kuznyechik">Kuznyechik</string>
+    <string name="create_prf">हैश एल्गोरिदम (PRF)</string>
+    <string name="create_size_mb">आकार (MB)</string>
+    <string name="create_size_hint">MB में कंटेनर डेटा क्षेत्र का आकार। न्यूनतम 1 MB; बड़ा अधिक फ़ाइलें रखता है।</string>
+    <string name="create_password">पासवर्ड</string>
+    <string name="create_password_confirm">पासवर्ड की पुष्टि करें</string>
+    <string name="create_password_mismatch">दोनों पासवर्ड मेल नहीं खाते</string>
+    <string name="create_pim">PIM (वैकल्पिक, डिफ़ॉल्ट के लिए खाली छोड़ें)</string>
+    <string name="create_pim_hint">व्यक्तिगत पुनरावृत्ति गुणक। डिफ़ॉल्ट पुनरावृत्ति संख्या का उपयोग करने के लिए खाली छोड़ें।</string>
+    <string name="create_cancel">रद्द करें</string>
+    <string name="create_submit">बनाएँ</string>
+    <string name="create_ok">कंटेनर बनाया गया</string>
+    <string name="create_failed">कंटेनर बनाने में विफल</string>
+    <string name="create_in_progress">कंटेनर बना रहे हैं…</string>
+    <string name="create_entropy_title">यादृच्छिकता एकत्र करें</string>
+    <string name="create_entropy_hint">नीचे दिए गए बॉक्स के चारों ओर अपनी उँगली स्वाइप करें। आपकी अप्रत्याशित गतिविधियाँ मास्टर कुंजी में एन्ट्रॉपी जोड़ती हैं (जैसे डेस्कटॉप VeraCrypt में माउस घुमाना)।</string>
+    <string name="create_entropy_progress">स्वाइप करते रहें… %1$d%%</string>
+    <string name="create_entropy_done">पर्याप्त यादृच्छिकता एकत्रित</string>
+    <string name="create_next">अगला</string>
+    <string name="create_entropy_fullscreen_hint">पूरी स्क्रीन पर अपनी उँगली स्वाइप करें, और यदि फ़ोन में मोशन सेंसर है तो इसे हिलाएँ। आपकी अप्रत्याशित गतिविधियाँ मास्टर कुंजी के यादृच्छिकता पूल को भरती हैं (जैसे डेस्कटॉप VeraCrypt में माउस घुमाना)। पूल भरने तक जारी रखें।</string>
+    <string name="create_entropy_sensor_on">मोशन सेंसर सक्रिय — हिलाना भी यादृच्छिकता जोड़ता है</string>
+    <string name="create_entropy_sensor_none">कोई मोशन सेंसर नहीं — केवल स्वाइप</string>
+    <string name="create_entropy_pool_label">यादृच्छिकता पूल</string>
+    <string name="create_entropy_swipe_here">यहाँ कहीं भी स्वाइप करें</string>
+
+    <!-- File system / cluster size / dynamic volume (X2) -->
+    <string name="create_fs_type">फ़ाइल सिस्टम</string>
+    <string name="create_fs_fat">FAT</string>
+    <string name="create_fs_exfat">exFAT</string>
+    <string name="create_fs_ntfs">NTFS</string>
+    <string name="create_fs_coming_soon">(जल्द आ रहा है)</string>
+    <string name="create_cluster_size">क्लस्टर आकार</string>
+    <string name="create_cluster_default">डिफ़ॉल्ट</string>
+    <string name="create_cluster_512">512 बाइट्स</string>
+    <string name="create_cluster_1024">1024 बाइट्स</string>
+    <string name="create_cluster_2048">2048 बाइट्स</string>
+    <string name="create_cluster_4096">4096 बाइट्स</string>
+    <string name="create_cluster_8192">8192 बाइट्स</string>
+    <string name="create_cluster_16384">16384 बाइट्स</string>
+    <string name="create_cluster_32768">32768 बाइट्स</string>
+    <string name="create_dynamic">गतिशील वॉल्यूम (स्पार्स)</string>
+    <string name="create_dynamic_hint">माँग पर स्थान आवंटित करता है। UI तैयार है; बैकएंड अभी इसे नियमित वॉल्यूम मानता है।</string>
+    <string name="create_random_fill">यादृच्छिक भराव</string>
+    <string name="create_random_fill_hint">अधिकतम विश्वसनीय-अस्वीकृति के लिए पूरे वॉल्यूम को यादृच्छिक डेटा से भरता है (अधिक सुरक्षित)। बड़े कंटेनर बनाने में अधिक समय लगता है।</string>
+
+    <!-- Change password / PIM / PRF / keyfiles (B1) -->
+    <string name="change_pwd_entry">पासवर्ड / PIM / कीफ़ाइलें बदलें</string>
+    <string name="change_pwd_title">पासवर्ड बदलें</string>
+    <string name="change_pwd_desc">ऊपर वर्तमान पासवर्ड / PIM / PRF / कीफ़ाइलें दर्ज करें (अनलॉक करने के समान), फिर यहाँ नई सेट करें। केवल हेडर पुनः एन्क्रिप्ट होता है — मास्टर कुंजी और आपका डेटा कभी नहीं बदलते। लेखन से पहले वर्तमान हेडर की एक रेस्क्यू प्रति सहेजी जाती है, यदि कुछ गलत हो जाए।</string>
+    <string name="change_pwd_new_password">नया पासवर्ड</string>
+    <string name="change_pwd_new_pim">नया PIM (वैकल्पिक)</string>
+    <string name="change_pwd_new_prf">नया PRF (0 = वर्तमान रखें)</string>
+    <string name="change_pwd_new_keyfiles_none">नई कीफ़ाइलें (वैकल्पिक)</string>
+    <string name="change_pwd_new_keyfiles_selected">नई कीफ़ाइलें: %1$d चयनित</string>
+    <string name="change_pwd_working">हेडर पुनः एन्क्रिप्ट कर रहे हैं…</string>
+    <string name="change_pwd_submit">पासवर्ड बदलें</string>
+    <string name="change_pwd_dismiss">रद्द करें</string>
+    <string name="change_pwd_ok">पासवर्ड बदल गया। अब से नए पासवर्ड से अनलॉक करें।</string>
+    <string name="change_pwd_failed">पासवर्ड बदलने में विफल</string>
+
+    <!-- Create hidden volume (C2) -->
+    <string name="create_hidden_entry">छिपा हुआ वॉल्यूम बनाएँ</string>
+    <string name="create_hidden_title">छिपा हुआ वॉल्यूम बनाएँ</string>
+    <string name="create_hidden_desc">एक छिपा हुआ वॉल्यूम इस (बाहरी) कंटेनर के अंतिम खाली स्थान में रहता है। बाहरी वॉल्यूम को ऊपर दर्ज क्रेडेंशियल से अनलॉक किया जाता है, मौजूदा फ़ाइलों के अधिलेखित न होने के लिए खाली स्थान खोजने हेतु इसकी FAT पढ़ी जाती है, फिर नीचे छिपा हुआ वॉल्यूम अपने पासवर्ड से बनाया जाता है।</string>
+    <string name="create_hidden_password">छिपे हुए वॉल्यूम का पासवर्ड</string>
+    <string name="create_hidden_size_mb">छिपे हुए वॉल्यूम का आकार (MB)</string>
+    <string name="create_hidden_pim">छिपा हुआ PIM (वैकल्पिक)</string>
+    <string name="create_hidden_working">छिपा हुआ वॉल्यूम बना रहे हैं…</string>
+    <string name="create_hidden_submit">छिपा हुआ वॉल्यूम बनाएँ</string>
+    <string name="create_hidden_cancel">रद्द करें</string>
+    <string name="create_hidden_ok">छिपा हुआ वॉल्यूम बनाया गया। इसका उपयोग करने के लिए छिपे हुए पासवर्ड से अनलॉक करें।</string>
+    <string name="create_hidden_failed">छिपा हुआ वॉल्यूम बनाने में विफल</string>
+    <string name="rescue_entry">रेस्क्यू फ़ाइल प्रबंधक</string>
+    <string name="rescue_mgr_title">रेस्क्यू फ़ाइलें</string>
+    <string name="rescue_mgr_warn">ये पुराने हेडर समूह के बैकअप हैं। पुराने पासवर्ड वाला कोई भी व्यक्ति अभी भी इनका उपयोग करके वॉल्यूम खोल सकता है। नए पासवर्ड के काम करने की पुष्टि होने पर हटा दें।</string>
+    <string name="rescue_mgr_empty">कोई स्वतः सहेजी गई रेस्क्यू फ़ाइलें नहीं।</string>
+    <string name="rescue_mgr_delete">हटाएँ</string>
+    <string name="rescue_mgr_clear_all">सभी हटाएँ</string>
+    <string name="close">बंद करें</string>
+    <string name="settings_title">सेटिंग्स</string>
+    <string name="settings_close">बंद करें</string>
+    <string name="settings_entry">सेटिंग्स</string>
+    <string name="settings_autolock">स्वतः-लॉक</string>
+    <string name="settings_autolock_desc">कंटेनर की रक्षा के लिए मेमोरी में कुंजियों को स्वतः नष्ट करें</string>
+    <string name="settings_timeout">निष्क्रिय समय समाप्ति</string>
+    <string name="settings_lock_bg">बैकग्राउंड में जाने पर लॉक करें</string>
+    <string name="settings_lock_bg_desc">ऐप बैकग्राउंड में जाने पर तुरंत लॉक करें</string>
+    <string name="settings_lock_screen">स्क्रीन बंद होने पर लॉक करें</string>
+    <string name="settings_lock_screen_desc">स्क्रीन बंद होने पर तुरंत लॉक करें</string>
+    <string name="settings_autolock_enable">स्वतः-लॉक</string>
+    <string name="settings_autolock_timeout">निष्क्रिय समय समाप्ति</string>
+    <string name="settings_lock_background">ऐप बैकग्राउंड में जाने पर लॉक करें</string>
+    <string name="settings_lock_screen_off">स्क्रीन बंद होने पर लॉक करें</string>
+    <string name="favorites_title">सहेजे गए कंटेनर</string>
+    <string name="favorites_remove">हटाएँ</string>
+    <!-- Hidden volume keyfile (C2 enhancement, align with desktop VC) -->
+    <string name="create_hidden_keyfiles_none">छिपी हुई कीफ़ाइलें (वैकल्पिक)</string>
+    <string name="create_hidden_keyfiles_selected">छिपी हुई कीफ़ाइलें: %1$d चयनित</string>
+
+    <!-- Volume expansion (X17) -->
+    <string name="expand_volume_entry">वॉल्यूम का विस्तार करें</string>
+    <string name="expand_volume_title">वॉल्यूम का विस्तार करें</string>
+    <string name="expand_volume_desc">डेटा को पुनः एन्क्रिप्ट किए बिना इस कंटेनर को बड़ा करें। मास्टर कुंजी वही रहती है; केवल हेडर और फ़ाइल आकार बदलते हैं। नीचे नया कुल आकार दर्ज करें। केवल विस्तार समर्थित है। वर्तमान हेडर का रेस्क्यू बैकअप पहले सहेजा जाता है।</string>
+    <string name="expand_volume_current_size">वर्तमान आकार: %1$s</string>
+    <string name="expand_volume_new_size_mb">नया कुल आकार (MB)</string>
+    <string name="expand_volume_working">वॉल्यूम का विस्तार कर रहे हैं…</string>
+    <string name="expand_volume_submit">विस्तार करें</string>
+    <string name="expand_volume_cancel">रद्द करें</string>
+    <string name="expand_volume_ok">वॉल्यूम %1$s तक विस्तारित हो गया।</string>
+    <string name="expand_volume_failed">वॉल्यूम विस्तार में विफल</string>
+    <string name="expand_volume_too_small">नया आकार वर्तमान आकार से बड़ा होना चाहिए</string>
+
+    <!-- Partition encryption probe (X2/X3, experimental, root-gated) -->
+    <string name="block_device_entry">पार्टीशन एन्क्रिप्शन (प्रायोगिक)</string>
+    <string name="block_device_title">पार्टीशन (केवल-पढ़ने योग्य जाँच)</string>
+    <string name="block_device_desc">प्रायोगिक। केवल-पढ़ने मोड में ब्लॉक डिवाइस सूचीबद्ध करता है। कोई एन्क्रिप्शन नहीं किया जाता। रूट चाहिए।</string>
+    <string name="block_device_loading">गणना कर रहे हैं…</string>
+    <string name="block_device_empty">कोई ब्लॉक डिवाइस नहीं मिला।</string>
+    <string name="block_device_no_root">रूट अनुमति नहीं। ब्लॉक डिवाइस की गणना नहीं कर सकते।</string>
+    <string name="block_device_request_root">रूट प्रदान करें</string>
+    <string name="block_device_close">बंद करें</string>
+    <string name="block_device_size">आकार: %1$s</string>
+    <string name="block_device_removable">हटाने योग्य</string>
+
+    <!-- Container info panel (X10) -->
+    <string name="info_entry">कंटेनर जानकारी</string>
+    <string name="info_title">कंटेनर जानकारी</string>
+    <string name="info_algorithm">एन्क्रिप्शन</string>
+    <string name="info_prf">कुंजी व्युत्पत्ति (PRF)</string>
+    <string name="info_data_size">डेटा क्षेत्र आकार</string>
+    <string name="info_sector_size">सेक्टर आकार</string>
+    <string name="info_fs_type">फ़ाइल सिस्टम</string>
+    <string name="info_label">वॉल्यूम लेबल</string>
+    <string name="info_hidden">छिपा हुआ वॉल्यूम</string>
+    <string name="info_writable">लेखन योग्य माउंट किया गया</string>
+    <string name="info_yes">हाँ</string>
+    <string name="info_no">नहीं</string>
+    <string name="info_close">बंद करें</string>
+    <string name="info_bytes_fmt">%1$s (%2$d बाइट्स)</string>
+    <string name="info_cascade">कैस्केड</string>
+    <string name="browse_write_full">कंटेनर भर गया — पर्याप्त खाली स्थान नहीं</string>
+    <!-- W16 目录操作 rename/mkdir/move/rmdir -->
+    <string name="browse_new_folder">नया फ़ोल्डर</string>
+    <string name="browse_new_folder_hint">फ़ोल्डर का नाम</string>
+    <string name="browse_new_folder_ok">फ़ोल्डर बनाया गया: %1$s</string>
+    <string name="browse_new_folder_failed">फ़ोल्डर नहीं बना सका</string>
+    <string name="browse_action_rename">नाम बदलें</string>
+    <string name="browse_action_move">यहाँ ले जाएँ…</string>
+    <string name="browse_action_delete_folder">फ़ोल्डर हटाएँ</string>
+    <string name="browse_rename_title">नाम बदलें</string>
+    <string name="browse_rename_hint">नया नाम</string>
+    <string name="browse_rename_ok">नाम बदलकर %1$s कर दिया गया</string>
+    <string name="browse_rename_failed">नाम बदलना विफल</string>
+    <string name="browse_move_title">\"%1$s\" को यहाँ ले जाएँ</string>
+    <string name="browse_move_here">यहाँ ले जाएँ</string>
+    <string name="browse_move_up">.. (मूल)</string>
+    <string name="browse_move_ok">ले जाया गया: %1$s</string>
+    <string name="browse_move_failed">ले जाना विफल</string>
+    <string name="browse_rmdir_title">फ़ोल्डर हटाएँ</string>
+    <string name="browse_rmdir_msg">फ़ोल्डर \"%1$s\" हटाएँ? केवल खाली फ़ोल्डर हटाए जा सकते हैं।</string>
+    <string name="browse_rmdir_ok">फ़ोल्डर हटाया गया: %1$s</string>
+    <string name="browse_rmdir_failed">हटाना विफल (फ़ोल्डर खाली नहीं हो सकता)</string>
+    <string name="browse_op_unsupported">यह फ़ाइल सिस्टम अभी उस संक्रिया का समर्थन नहीं करता</string>
+    <string name="browse_action_more">अधिक</string>
+    <string name="favorites_rename">नाम बदलें</string>
+    <string name="favorites_pin">शीर्ष पर पिन करें</string>
+    <string name="favorites_rename_title">पसंदीदा का नाम बदलें</string>
+    <string name="favorites_rename_hint">प्रदर्शन नाम</string>
+    <string name="settings_default_mount_writable">डिफ़ॉल्ट पढ़ें-लिखें माउंट</string>
+    <string name="settings_default_prf">डिफ़ॉल्ट PRF</string>
+    <string name="settings_ntfs_exp">NTFS सक्षम करें (प्रायोगिक)</string>
+    <string name="settings_ntfs_exp_desc">डिवाइस पर NTFS पढ़ना/लिखना असत्यापित है। केवल उपयोग-के-बाद-हटाने वाले कंटेनर का उपयोग करें। बंद = NTFS कंटेनर माउंट होने से इनकार करते हैं।</string>
+    <!-- 块设备解锁（F2）-->
+    <string name="block_device_unlock">अनलॉक करें</string>
+    <string name="block_device_unlocking">अनलॉक कर रहे हैं…</string>
+    <string name="block_device_unlock_failed">अनलॉक विफल: %1$s</string>
+    <string name="block_device_unlocked">अनलॉक किया गया: %1$s</string>
+    <!-- 系统挂载暴露（F3）-->
+    <string name="expose_title">सिस्टम पर प्रकट करें</string>
+    <string name="expose_warning">यह कंटेनर सामग्री को एक ऐसी निर्देशिका में डिक्रिप्ट करता है जिस तक सभी ऐप्स पहुँच सकते हैं। बड़ा सुरक्षा जोखिम — केवल विश्वसनीय वातावरण के लिए।</string>
+    <string name="expose_dir_hint">लक्ष्य निर्देशिका (जैसे /data/local/tmp/sealchest)</string>
+    <string name="expose_start">प्रकट करना शुरू करें</string>
+    <string name="expose_cleanup">सफ़ाई करें</string>
+    <string name="expose_progress">सिंक कर रहे हैं: %1$s</string>
+    <string name="expose_done">%1$d फ़ाइलें प्रकट की गईं</string>
+    <string name="expose_failed">प्रकट करना विफल: %1$s</string>
+</resources>

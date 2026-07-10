@@ -170,6 +170,8 @@
     <string name="create_cluster_32768">32768 字节</string>
     <string name="create_dynamic">动态卷（稀疏）</string>
     <string name="create_dynamic_hint">按需分配空间。UI 已备，后端暂当普通卷处理。</string>
+    <string name="create_random_fill">全区随机填充</string>
+    <string name="create_random_fill_hint">用随机数据铺满整个容器，使整卷不可区分（更安全）。大容器创建会变慢。</string>
 
     <!-- 创建隐藏卷（C2） -->
     <string name="create_hidden_entry">创建隐藏卷</string>
@@ -221,4 +223,95 @@
     <string name="settings_lock_screen_off">息屏时立即锁定</string>
     <string name="favorites_title">收藏的容器</string>
     <string name="favorites_remove">移除</string>
+    <!-- 隐藏卷 keyfile（C2 增强，对齐桌面 VC） -->
+    <string name="create_hidden_keyfiles_none">隐藏卷密钥文件（可选）</string>
+    <string name="create_hidden_keyfiles_selected">隐藏卷密钥文件：已选 %1$d 个</string>
+
+    <!-- 卷扩展（X17） -->
+    <string name="expand_volume_entry">扩展卷</string>
+    <string name="expand_volume_title">扩展卷</string>
+    <string name="expand_volume_desc">扩大此容器而不重新加密数据。主密钥不变，只改卷头和文件大小。在下方输入新的总大小。仅支持扩大，不能缩小。写入前会先存一份当前卷头的救援备份。</string>
+    <string name="expand_volume_current_size">当前大小：%1$s</string>
+    <string name="expand_volume_new_size_mb">新总大小（MB）</string>
+    <string name="expand_volume_working">正在扩展卷…</string>
+    <string name="expand_volume_submit">扩展</string>
+    <string name="expand_volume_cancel">取消</string>
+    <string name="expand_volume_ok">卷已扩展到 %1$s。</string>
+    <string name="expand_volume_failed">扩展卷失败</string>
+    <string name="expand_volume_too_small">新大小必须大于当前大小</string>
+
+    <!-- 分区加密探针（X2/X3，实验性，需 root） -->
+    <string name="block_device_entry">分区加密（实验性）</string>
+    <string name="block_device_title">分区（只读探查）</string>
+    <string name="block_device_desc">实验性功能。只读列出块设备，不执行任何加密。需要 root。</string>
+    <string name="block_device_loading">正在枚举…</string>
+    <string name="block_device_empty">未找到块设备。</string>
+    <string name="block_device_no_root">未授予 root，无法枚举块设备。</string>
+    <string name="block_device_request_root">授予 root</string>
+    <string name="block_device_close">关闭</string>
+    <string name="block_device_size">大小：%1$s</string>
+    <string name="block_device_removable">可移动</string>
+
+    <!-- 容器信息面板（X10） -->
+    <string name="info_entry">容器信息</string>
+    <string name="info_title">容器信息</string>
+    <string name="info_algorithm">加密算法</string>
+    <string name="info_prf">密钥派生（PRF）</string>
+    <string name="info_data_size">数据区大小</string>
+    <string name="info_sector_size">扇区大小</string>
+    <string name="info_fs_type">文件系统</string>
+    <string name="info_label">卷标</string>
+    <string name="info_hidden">隐藏卷</string>
+    <string name="info_writable">可写挂载</string>
+    <string name="info_yes">是</string>
+    <string name="info_no">否</string>
+    <string name="info_close">关闭</string>
+    <string name="info_bytes_fmt">%1$s（%2$d 字节）</string>
+    <string name="info_cascade">级联</string>
+    <string name="browse_write_full">容器空间不足</string>
+    <!-- W16 目录操作 rename/mkdir/move/rmdir -->
+    <string name="browse_new_folder">新建文件夹</string>
+    <string name="browse_new_folder_hint">文件夹名</string>
+    <string name="browse_new_folder_ok">已创建文件夹：%1$s</string>
+    <string name="browse_new_folder_failed">无法创建文件夹</string>
+    <string name="browse_action_rename">重命名</string>
+    <string name="browse_action_move">移动到…</string>
+    <string name="browse_action_delete_folder">删除文件夹</string>
+    <string name="browse_rename_title">重命名</string>
+    <string name="browse_rename_hint">新名称</string>
+    <string name="browse_rename_ok">已重命名为 %1$s</string>
+    <string name="browse_rename_failed">重命名失败</string>
+    <string name="browse_move_title">移动 \"%1$s\" 到</string>
+    <string name="browse_move_here">移动到此处</string>
+    <string name="browse_move_up">.. (上级)</string>
+    <string name="browse_move_ok">已移动：%1$s</string>
+    <string name="browse_move_failed">移动失败</string>
+    <string name="browse_rmdir_title">删除文件夹</string>
+    <string name="browse_rmdir_msg">删除文件夹 \"%1$s\"？只能删除空文件夹。</string>
+    <string name="browse_rmdir_ok">已删除文件夹：%1$s</string>
+    <string name="browse_rmdir_failed">删除失败（文件夹可能非空）</string>
+    <string name="browse_op_unsupported">该文件系统暂不支持此操作</string>
+    <string name="browse_action_more">更多</string>
+    <string name="favorites_rename">重命名</string>
+    <string name="favorites_pin">置顶</string>
+    <string name="favorites_rename_title">重命名收藏</string>
+    <string name="favorites_rename_hint">显示名</string>
+    <string name="settings_default_mount_writable">默认读写挂载</string>
+    <string name="settings_default_prf">默认 PRF</string>
+    <string name="settings_ntfs_exp">启用 NTFS（实验）</string>
+    <string name="settings_ntfs_exp_desc">NTFS 读写未经真机验证，只用废容器测试。关闭时 NTFS 容器一律拒绝挂载。</string>
+    <!-- 块设备解锁（F2）-->
+    <string name="block_device_unlock">解锁</string>
+    <string name="block_device_unlocking">解锁中…</string>
+    <string name="block_device_unlock_failed">解锁失败：%1$s</string>
+    <string name="block_device_unlocked">已解锁：%1$s</string>
+    <!-- 系统挂载暴露（F3）-->
+    <string name="expose_title">暴露到系统</string>
+    <string name="expose_warning">此操作会把容器内容解密到所有 app 可访问的目录。安全风险极大，仅在可信环境使用。</string>
+    <string name="expose_dir_hint">目标目录（如 /data/local/tmp/sealchest）</string>
+    <string name="expose_start">开始暴露</string>
+    <string name="expose_cleanup">清理</string>
+    <string name="expose_progress">同步中：%1$s</string>
+    <string name="expose_done">已暴露 %1$d 个文件</string>
+    <string name="expose_failed">暴露失败：%1$s</string>
 </resources>

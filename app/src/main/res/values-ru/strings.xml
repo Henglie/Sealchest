@@ -1,0 +1,320 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Default locale = English. Chinese lives in values-zh. This makes any
+         non-Chinese system language fall back to English (product requirement:
+         Chinese system -> Chinese, everything else -> English). -->
+    <string name="app_name">Sealchest</string>
+
+    <!-- Home -->
+    <string name="home_title">Sealchest</string>
+    <string name="home_subtitle">Открывайте контейнеры VeraCrypt без root</string>
+    <string name="home_pick_container">Выберите файл контейнера</string>
+    <string name="home_no_container">Контейнер ещё не открыт</string>
+    <string name="home_recent">Недавно открытые</string>
+
+    <!-- Unlock -->
+    <string name="unlock_title">Разблокировать контейнер</string>
+    <string name="unlock_password">Пароль</string>
+    <string name="unlock_pim">PIM (необязательно, оставьте пустым для значения по умолчанию)</string>
+    <string name="unlock_prf">Алгоритм хеширования (PRF)</string>
+    <string name="unlock_prf_auto">Автоопределение</string>
+    <string name="unlock_submit">Разблокировать</string>
+    <string name="unlock_unlocking">Создание ключа…</string>
+    <string name="unlock_wrong">Неверный пароль, PIM или PRF; разблокировка невозможна</string>
+
+    <!-- PRF options -->
+    <string name="prf_auto">Автоопределение</string>
+    <string name="prf_sha512">SHA-512</string>
+    <string name="prf_whirlpool">Whirlpool</string>
+    <string name="prf_sha256">SHA-256</string>
+    <string name="prf_blake2s">BLAKE2s</string>
+    <string name="prf_streebog">Streebog</string>
+
+    <!-- Mount / writable -->
+    <string name="mount_writable_on">Монтирование с правом записи (изменения записываются обратно в контейнер)</string>
+    <string name="mount_writable_off">Монтирование с правом записи (этот источник недоступен для записи)</string>
+    <string name="mount_default_container">Контейнер</string>
+
+    <!-- Mounted panel -->
+    <string name="mounted_no_label">(без метки)</string>
+    <string name="mounted_filesystem">Файловая система: %1$s</string>
+    <string name="mounted_label">Метка: %1$s</string>
+
+    <!-- Self-test -->
+    <string name="selftest_running">  Выполняется самопроверка криптографии…</string>
+    <string name="selftest_button">Самопроверка криптографии</string>
+    <string name="selftest_title">Самопроверка криптографии</string>
+    <string name="selftest_ok_button">OK</string>
+    <string name="selftest_unavailable">Самопроверку не удалось запустить (не смонтировано или ошибка ядра).</string>
+    <string name="selftest_roundtrip1">%1$s Круговой цикл 1  encrypt(decrypt(C0)) == C0</string>
+    <string name="selftest_encchanges">%1$s Шифрование действительно изменяет данные</string>
+    <string name="selftest_roundtrip2">%1$s Круговой цикл 2  decrypt(encrypt(X)) == X</string>
+    <string name="selftest_pass">Все проверки пройдены: путь шифрования является строгим обратным к дешифрованию; после обратной записи десктопный VeraCrypt по-прежнему может открыть контейнер.</string>
+    <string name="selftest_fail">Некоторые проверки не пройдены: путь шифрования нарушен и не может использоваться для записи.</string>
+
+    <!-- Browse -->
+    <string name="browse_title">Содержимое контейнера</string>
+    <string name="browse_empty">Эта папка пуста</string>
+    <string name="browse_lock">Заблокировать и закрыть</string>
+    <string name="browse_root">Корень</string>
+    <string name="browse_back">Назад</string>
+    <string name="browse_exported">Экспортировано: %1$s</string>
+    <string name="browse_export_failed">Ошибка экспорта</string>
+    <string name="browse_no_preview">Предпросмотр этого типа файлов невозможен</string>
+    <string name="browse_action_preview">Предпросмотр (изображение / текст)</string>
+    <string name="browse_action_export">Экспорт на телефон</string>
+    <string name="browse_action_open_with">Открыть в другом приложении</string>
+    <string name="browse_image_decode_failed">Не удалось декодировать изображение</string>
+    <string name="browse_export_open_failed">Ошибка экспорта, невозможно открыть</string>
+    <string name="browse_no_app_for_type">Нет приложения для этого типа</string>
+    <string name="browse_action_overwrite">Перезаписать файлом с телефона</string>
+    <string name="browse_action_delete">Удалить</string>
+    <string name="browse_import_file">Импортировать файл в контейнер</string>
+    <string name="browse_delete_confirm_title">Удалить файл</string>
+    <string name="browse_delete_confirm_msg">Удалить \"%1$s\" из этого контейнера? Это действие необратимо.</string>
+    <string name="browse_delete_confirm_yes">Удалить</string>
+    <string name="browse_write_ok">Записано: %1$s</string>
+    <string name="browse_write_failed">Ошибка записи</string>
+    <string name="browse_overwrite_ok">Перезаписано: %1$s</string>
+    <string name="browse_overwrite_failed">Ошибка перезаписи</string>
+    <string name="browse_delete_ok">Удалено: %1$s</string>
+    <string name="browse_delete_failed">Ошибка удаления</string>
+
+    <!-- Common -->
+    <string name="cancel">Отмена</string>
+    <string name="ok">OK</string>
+    <string name="error_generic">Что-то пошло не так</string>
+    <string name="native_unavailable">Не удалось загрузить крипто-ядро; невозможно расшифровать контейнеры</string>
+
+    <!-- Self-test placeholder screen (first version) -->
+    <string name="app_tagline">Открывайте контейнеры VeraCrypt без root</string>
+    <string name="native_ready">Крипто-ядро готово</string>
+    <string name="native_missing">Не удалось загрузить крипто-ядро</string>
+    <string name="native_version">Версия ядра: %1$s</string>
+
+    <!-- About -->
+    <string name="about_title">О приложении</string>
+    <string name="about_button">О приложении</string>
+    <string name="about_app_desc">Инструмент для открытия зашифрованных контейнеров VeraCrypt на Android без root, в чистом пользовательском пространстве.</string>
+    <string name="about_author_label">Автор</string>
+    <string name="about_author">Henglie / EternalBlaze</string>
+    <string name="about_project_label">Проект</string>
+    <string name="about_version_label">Версия</string>
+    <string name="about_upstream_label">Ядро VeraCrypt</string>
+    <string name="about_upstream_commit_label">Зафиксированный коммит</string>
+    <string name="about_toolchain_label">Инструмент сборки</string>
+    <string name="about_abis_label">ABIs</string>
+    <string name="about_supplychain_note">Это приложение компилирует крипто-ядро на C из апстрима VeraCrypt, зафиксированное на указанном выше коммите. Вы можете точно проверить, какой исходный код собирается, на github.com/veracrypt/VeraCrypt.</string>
+    <string name="about_credit">Крипто-ядро портировано из VeraCrypt (Apache-2.0 + TrueCrypt License 3.0). Sealchest — независимый продукт, не связанный с проектами VeraCrypt или TrueCrypt и не выдающий себя за них.</string>
+    <string name="unlock_keyfiles_none">Файлы ключей (необязательно)</string>
+    <string name="unlock_keyfiles_selected">Файлы ключей: выбрано %1$d</string>
+    <string name="unlock_keyfiles_clear">Очистить файлы ключей</string>
+    <!-- Volume header tool (A2: backup / rescue) -->
+    <string name="header_tool_entry">Инструменты заголовка тома (резервная копия / восстановление)</string>
+    <string name="header_tool_title">Инструменты заголовка тома</string>
+    <string name="header_tool_desc">Том VeraCrypt хранит резервную копию заголовка в конце контейнера. Если основной заголовок повреждён и том не открывается, восстановите его из встроенной резервной копии. Регулярно создавайте резервные копии заголовка, пока том исправен.</string>
+    <string name="header_tool_close">Закрыть</string>
+    <string name="header_export_button">Сохранить основной заголовок в файл</string>
+    <string name="header_export_ok">Резервная копия заголовка создана.</string>
+    <string name="header_export_failed">Ошибка создания резервной копии заголовка.</string>
+    <string name="header_rescue_warn">Восстановление перезаписывает основной заголовок встроенной резервной копией. Сначала проверяется, что резервная копия открывается вашим паролем/файлами ключей, а текущий заголовок сохраняется в файл восстановления, но при этом всё равно производится запись в контейнер — убедитесь, что том не смонтирован где-либо ещё.</string>
+    <string name="header_rescue_button">Восстановить из встроенной резервной копии заголовка</string>
+    <string name="header_rescue_need_write">Для восстановления требуется право на запись (выберите контейнер заново, предоставив доступ на запись)</string>
+    <string name="header_restore_ok">Основной заголовок восстановлен из резервной копии. Попробуйте разблокировать сейчас.</string>
+    <string name="header_restore_failed">Ошибка восстановления. Контейнер не был изменён.</string>
+
+    <!-- Create volume wizard (B2) -->
+    <string name="create_entry">Создать новый контейнер</string>
+    <string name="create_title">Создать контейнер</string>
+    <string name="create_algorithm">Алгоритм шифрования</string>
+    <string name="create_algo_aes">AES</string>
+    <string name="create_algo_serpent">Serpent</string>
+    <string name="create_algo_twofish">Twofish</string>
+    <string name="create_algo_camellia">Camellia</string>
+    <string name="create_algo_kuznyechik">Kuznyechik</string>
+    <string name="create_prf">Алгоритм хеширования (PRF)</string>
+    <string name="create_size_mb">Размер (МБ)</string>
+    <string name="create_size_hint">Размер области данных контейнера в МБ. Минимум 1 МБ; чем больше, тем больше файлов можно хранить.</string>
+    <string name="create_password">Пароль</string>
+    <string name="create_password_confirm">Подтвердите пароль</string>
+    <string name="create_password_mismatch">Два пароля не совпадают</string>
+    <string name="create_pim">PIM (необязательно, оставьте пустым для значения по умолчанию)</string>
+    <string name="create_pim_hint">Personal Iterations Multiplier (множитель итераций). Оставьте пустым, чтобы использовать число итераций по умолчанию.</string>
+    <string name="create_cancel">Отмена</string>
+    <string name="create_submit">Создать</string>
+    <string name="create_ok">Контейнер создан</string>
+    <string name="create_failed">Не удалось создать контейнер</string>
+    <string name="create_in_progress">Создание контейнера…</string>
+    <string name="create_entropy_title">Сбор случайности</string>
+    <string name="create_entropy_hint">Водите пальцем по полю ниже. Ваши непредсказуемые движения добавляют энтропию в мастер-ключ (как перемещение мыши в десктопном VeraCrypt).</string>
+    <string name="create_entropy_progress">Продолжайте водить… %1$d%%</string>
+    <string name="create_entropy_done">Достаточно случайности собрано</string>
+    <string name="create_next">Далее</string>
+    <string name="create_entropy_fullscreen_hint">Водите пальцем по всему экрану и потрясите телефон, если в нём есть датчик движения. Ваши непредсказуемые движения питают пул случайности мастер-ключа (как перемещение мыши в десктопном VeraCrypt). Продолжайте, пока пул не заполнится.</string>
+    <string name="create_entropy_sensor_on">Датчик движения активен — тряска тоже добавляет случайность</string>
+    <string name="create_entropy_sensor_none">Нет датчика движения — только свайпы</string>
+    <string name="create_entropy_pool_label">Пул случайности</string>
+    <string name="create_entropy_swipe_here">Водите здесь в любом месте</string>
+
+    <!-- File system / cluster size / dynamic volume (X2) -->
+    <string name="create_fs_type">Файловая система</string>
+    <string name="create_fs_fat">FAT</string>
+    <string name="create_fs_exfat">exFAT</string>
+    <string name="create_fs_ntfs">NTFS</string>
+    <string name="create_fs_coming_soon">(скоро)</string>
+    <string name="create_cluster_size">Размер кластера</string>
+    <string name="create_cluster_default">По умолчанию</string>
+    <string name="create_cluster_512">512 байт</string>
+    <string name="create_cluster_1024">1024 байта</string>
+    <string name="create_cluster_2048">2048 байт</string>
+    <string name="create_cluster_4096">4096 байт</string>
+    <string name="create_cluster_8192">8192 байт</string>
+    <string name="create_cluster_16384">16384 байта</string>
+    <string name="create_cluster_32768">32768 байт</string>
+    <string name="create_dynamic">Динамический том (разрежённый)</string>
+    <string name="create_dynamic_hint">Выделяет место по требованию. UI готов; пока бэкенд обрабатывает его как обычный том.</string>
+    <string name="create_random_fill">Случайное заполнение</string>
+    <string name="create_random_fill_hint">Заполняет весь том случайными данными для максимальной правдоподобной отрицаемости (надёжнее). Создание больших контейнеров занимает больше времени.</string>
+
+    <!-- Change password / PIM / PRF / keyfiles (B1) -->
+    <string name="change_pwd_entry">Изменить пароль / PIM / файлы ключей</string>
+    <string name="change_pwd_title">Изменить пароль</string>
+    <string name="change_pwd_desc">Выше введите текущий пароль / PIM / PRF / файлы ключей (как при разблокировке), затем задайте новые здесь. Перешифровывается только заголовок — мастер-ключ и ваши данные не меняются. Перед записью сохраняется резервная копия текущего заголовка на случай непредвиденных обстоятельств.</string>
+    <string name="change_pwd_new_password">Новый пароль</string>
+    <string name="change_pwd_new_pim">Новый PIM (необязательно)</string>
+    <string name="change_pwd_new_prf">Новый PRF (0 = сохранить текущий)</string>
+    <string name="change_pwd_new_keyfiles_none">Новые файлы ключей (необязательно)</string>
+    <string name="change_pwd_new_keyfiles_selected">Новые файлы ключей: выбрано %1$d</string>
+    <string name="change_pwd_working">Перешифрование заголовка…</string>
+    <string name="change_pwd_submit">Изменить пароль</string>
+    <string name="change_pwd_dismiss">Отмена</string>
+    <string name="change_pwd_ok">Пароль изменён. С этого момента разблокируйте новым паролем.</string>
+    <string name="change_pwd_failed">Не удалось изменить пароль</string>
+
+    <!-- Create hidden volume (C2) -->
+    <string name="create_hidden_entry">Создать скрытый том</string>
+    <string name="create_hidden_title">Создать скрытый том</string>
+    <string name="create_hidden_desc">Скрытый том находится в свободном пространстве в конце этого (внешнего) контейнера. Внешний том разблокируется указанными выше учётными данными, его FAT считывается для определения свободного места, чтобы не перезаписать существующие файлы, затем скрытый том создаётся с собственным паролем ниже.</string>
+    <string name="create_hidden_password">Пароль скрытого тома</string>
+    <string name="create_hidden_size_mb">Размер скрытого тома (МБ)</string>
+    <string name="create_hidden_pim">Скрытый PIM (необязательно)</string>
+    <string name="create_hidden_working">Создание скрытого тома…</string>
+    <string name="create_hidden_submit">Создать скрытый том</string>
+    <string name="create_hidden_cancel">Отмена</string>
+    <string name="create_hidden_ok">Скрытый том создан. Для использования разблокируйте его скрытым паролем.</string>
+    <string name="create_hidden_failed">Не удалось создать скрытый том</string>
+    <string name="rescue_entry">Менеджер файлов восстановления</string>
+    <string name="rescue_mgr_title">Файлы восстановления</string>
+    <string name="rescue_mgr_warn">Это резервные копии СТАРОЙ группы заголовков. Любой со СТАРЫМ паролем по-прежнему может открыть том с их помощью. Удалите их после подтверждения, что новый пароль работает.</string>
+    <string name="rescue_mgr_empty">Нет автоматически сохранённых файлов восстановления.</string>
+    <string name="rescue_mgr_delete">Удалить</string>
+    <string name="rescue_mgr_clear_all">Удалить все</string>
+    <string name="close">Закрыть</string>
+    <string name="settings_title">Настройки</string>
+    <string name="settings_close">Закрыть</string>
+    <string name="settings_entry">Настройки</string>
+    <string name="settings_autolock">Автоблокировка</string>
+    <string name="settings_autolock_desc">Автоматически уничтожать ключи в памяти для защиты контейнера</string>
+    <string name="settings_timeout">Тайм-аут бездействия</string>
+    <string name="settings_lock_bg">Блокировка при сворачивании</string>
+    <string name="settings_lock_bg_desc">Немедленно блокировать при переходе приложения в фон</string>
+    <string name="settings_lock_screen">Блокировка при выключении экрана</string>
+    <string name="settings_lock_screen_desc">Немедленно блокировать при выключении экрана</string>
+    <string name="settings_autolock_enable">Автоблокировка</string>
+    <string name="settings_autolock_timeout">Тайм-аут бездействия</string>
+    <string name="settings_lock_background">Блокировать при переходе приложения в фон</string>
+    <string name="settings_lock_screen_off">Блокировать при выключении экрана</string>
+    <string name="favorites_title">Сохранённые контейнеры</string>
+    <string name="favorites_remove">Удалить</string>
+    <!-- Hidden volume keyfile (C2 enhancement, align with desktop VC) -->
+    <string name="create_hidden_keyfiles_none">Скрытые файлы ключей (необязательно)</string>
+    <string name="create_hidden_keyfiles_selected">Скрытые файлы ключей: выбрано %1$d</string>
+
+    <!-- Volume expansion (X17) -->
+    <string name="expand_volume_entry">Расширить том</string>
+    <string name="expand_volume_title">Расширить том</string>
+    <string name="expand_volume_desc">Увеличьте этот контейнер без перешифрования данных. Мастер-ключ остаётся прежним; меняются только заголовки и размер файла. Укажите новый общий размер ниже. Поддерживается только увеличение. Сначала сохраняется резервная копия текущего заголовка.</string>
+    <string name="expand_volume_current_size">Текущий размер: %1$s</string>
+    <string name="expand_volume_new_size_mb">Новый общий размер (МБ)</string>
+    <string name="expand_volume_working">Расширение тома…</string>
+    <string name="expand_volume_submit">Расширить</string>
+    <string name="expand_volume_cancel">Отмена</string>
+    <string name="expand_volume_ok">Том расширен до %1$s.</string>
+    <string name="expand_volume_failed">Не удалось расширить том</string>
+    <string name="expand_volume_too_small">Новый размер должен быть больше текущего</string>
+
+    <!-- Partition encryption probe (X2/X3, experimental, root-gated) -->
+    <string name="block_device_entry">Шифрование разделов (экспериментальное)</string>
+    <string name="block_device_title">Разделы (только чтение)</string>
+    <string name="block_device_desc">Экспериментальная функция. Перечисляет блочные устройства только для чтения. Шифрование не выполняется. Требуется root.</string>
+    <string name="block_device_loading">Перечисление…</string>
+    <string name="block_device_empty">Блочные устройства не найдены.</string>
+    <string name="block_device_no_root">Root не предоставлен. Невозможно перечислить блочные устройства.</string>
+    <string name="block_device_request_root">Предоставить root</string>
+    <string name="block_device_close">Закрыть</string>
+    <string name="block_device_size">Размер: %1$s</string>
+    <string name="block_device_removable">Съёмный</string>
+
+    <!-- Container info panel (X10) -->
+    <string name="info_entry">Информация о контейнере</string>
+    <string name="info_title">Информация о контейнере</string>
+    <string name="info_algorithm">Шифрование</string>
+    <string name="info_prf">Формирование ключа (PRF)</string>
+    <string name="info_data_size">Размер области данных</string>
+    <string name="info_sector_size">Размер сектора</string>
+    <string name="info_fs_type">Файловая система</string>
+    <string name="info_label">Метка тома</string>
+    <string name="info_hidden">Скрытый том</string>
+    <string name="info_writable">Смонтирован с правом записи</string>
+    <string name="info_yes">Да</string>
+    <string name="info_no">Нет</string>
+    <string name="info_close">Закрыть</string>
+    <string name="info_bytes_fmt">%1$s (%2$d байт)</string>
+    <string name="info_cascade">Каскад</string>
+    <string name="browse_write_full">Контейнер заполнен — недостаточно свободного места</string>
+    <!-- W16 目录操作 rename/mkdir/move/rmdir -->
+    <string name="browse_new_folder">Новая папка</string>
+    <string name="browse_new_folder_hint">Имя папки</string>
+    <string name="browse_new_folder_ok">Папка создана: %1$s</string>
+    <string name="browse_new_folder_failed">Не удалось создать папку</string>
+    <string name="browse_action_rename">Переименовать</string>
+    <string name="browse_action_move">Переместить…</string>
+    <string name="browse_action_delete_folder">Удалить папку</string>
+    <string name="browse_rename_title">Переименовать</string>
+    <string name="browse_rename_hint">Новое имя</string>
+    <string name="browse_rename_ok">Переименовано в %1$s</string>
+    <string name="browse_rename_failed">Ошибка переименования</string>
+    <string name="browse_move_title">Переместить \"%1$s\" в</string>
+    <string name="browse_move_here">Переместить сюда</string>
+    <string name="browse_move_up">.. (родительский)</string>
+    <string name="browse_move_ok">Перемещено: %1$s</string>
+    <string name="browse_move_failed">Ошибка перемещения</string>
+    <string name="browse_rmdir_title">Удалить папку</string>
+    <string name="browse_rmdir_msg">Удалить папку \"%1$s\"? Можно удалять только пустые папки.</string>
+    <string name="browse_rmdir_ok">Папка удалена: %1$s</string>
+    <string name="browse_rmdir_failed">Ошибка удаления (папка может быть не пуста)</string>
+    <string name="browse_op_unsupported">Эта файловая система пока не поддерживает эту операцию</string>
+    <string name="browse_action_more">Ещё</string>
+    <string name="favorites_rename">Переименовать</string>
+    <string name="favorites_pin">Закрепить сверху</string>
+    <string name="favorites_rename_title">Переименовать избранное</string>
+    <string name="favorites_rename_hint">Отображаемое имя</string>
+    <string name="settings_default_mount_writable">Монтирование с чтением-записью по умолчанию</string>
+    <string name="settings_default_prf">PRF по умолчанию</string>
+    <string name="settings_ntfs_exp">Включить NTFS (экспериментально)</string>
+    <string name="settings_ntfs_exp_desc">Чтение/запись NTFS на устройстве не проверена. Используйте только с одноразовыми контейнерами. Выкл = контейнеры NTFS отказываются монтироваться.</string>
+    <!-- 块设备解锁（F2）-->
+    <string name="block_device_unlock">Разблокировать</string>
+    <string name="block_device_unlocking">Разблокировка…</string>
+    <string name="block_device_unlock_failed">Ошибка разблокировки: %1$s</string>
+    <string name="block_device_unlocked">Разблокировано: %1$s</string>
+    <!-- 系统挂载暴露（F3）-->
+    <string name="expose_title">Предоставить системе</string>
+    <string name="expose_warning">Это расшифровывает содержимое контейнера в каталог, доступный всем приложениям. Серьёзный риск для безопасности — только для доверенных сред.</string>
+    <string name="expose_dir_hint">Целевой каталог (например, /data/local/tmp/sealchest)</string>
+    <string name="expose_start">Начать предоставление</string>
+    <string name="expose_cleanup">Очистка</string>
+    <string name="expose_progress">Синхронизация: %1$s</string>
+    <string name="expose_done">Предоставлено файлов: %1$d</string>
+    <string name="expose_failed">Ошибка предоставления: %1$s</string>
+</resources>

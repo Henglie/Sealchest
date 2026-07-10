@@ -78,8 +78,15 @@ class SealchestDocumentsProvider : DocumentsProvider() {
         val mount = MountManager.currentMount() ?: return cursor  // 未挂载：无根，SAF 里看不见
         cursor.newRow().apply {
             add(Root.COLUMN_ROOT_ID, ROOT_ID)
-            // 只读、支持递归搜索关掉（第一版不做 search）。
-            add(Root.COLUMN_FLAGS, 0)
+            // Root flags 按真实能力声明（老 DocumentsUI 对 flag 敏感，只报实现了的）：
+            //  · FLAG_LOCAL_ONLY：解密卷全在本进程本地、无网络。设置后本根在 local-only
+            //    选择场景（EXTRA_LOCAL_ONLY）下不会被隐藏，反而更可见——这是老 DocumentsUI
+            //    的兼容正解，且诚实（内容确实本地）。
+            //  · FLAG_SUPPORTS_IS_CHILD：本类已 override isChildDocument，故声明它，允许系统
+            //    做父子关系判定（老 DocumentsUI 的树导航 / move 保护会用）。API 21+，目标机型全支持。
+            // 不声明 SUPPORTS_CREATE / SEARCH / RECENTS：无对应回调（createDocument /
+            //    querySearchDocuments / queryRecentDocuments 均未实现），虚报会让老 DocumentsUI 调用即崩。
+            add(Root.COLUMN_FLAGS, Root.FLAG_LOCAL_ONLY or Root.FLAG_SUPPORTS_IS_CHILD)
             add(Root.COLUMN_TITLE, mount.displayName)
             add(Root.COLUMN_DOCUMENT_ID, ROOT_DOC_ID)
             add(Root.COLUMN_ICON, com.henglie.sealchest.R.mipmap.ic_launcher)

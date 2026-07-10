@@ -96,6 +96,16 @@ object NativeBridge {
         handle: Long, newPrf: Int, newPim: Int, newPassword: ByteArray,
         outPrimary: ByteArray, outBackup: ByteArray,
     ): Int
+    /**
+     * X17 卷扩展：复用主密钥 + 原密码 + 原 PRF/PIM，只改 VolumeSize/EncAreaLength。
+     * outPrimary / outBackup 各须 ≥512B。newVolumeSize 须 > 当前 volumeSize 且 512 对齐。
+     * 返回 0 = 成功，非 0 = VeraCrypt ERR_*。
+     */
+    private external fun nativeExpandHeaders(
+        handle: Long, newVolumeSize: Long, password: ByteArray,
+        outPrimary: ByteArray, outBackup: ByteArray,
+    ): Int
+
 
     /**
      * C2 生成隐藏卷头（隐藏主头 + 隐藏备份头，独立新随机主密钥）。
@@ -197,6 +207,8 @@ object NativeBridge {
         }
         return primary to backup
     }
+
+
 
     /**
      * C2 生成隐藏卷头（隐藏主头 + 隐藏备份头，独立新随机主密钥、各用独立随机盐）。
@@ -306,6 +318,33 @@ object NativeBridge {
             val primary = ByteArray(512)
             val backup = ByteArray(512)
             val err = nativeRekeyHeaders(handle, newPrf, newPim, newPassword, primary, backup)
+            if (err != 0) {
+                primary.fill(0); backup.fill(0)
+                return null
+            }
+            return primary to backup
+        }
+
+        /**
+         * X17 卷扩展头重加密：复用本卷主密钥，用原密码 + 原 PRF/PIM 重加密头，
+         * 只把 VolumeSize/EncryptedAreaLength 改为 [newVolumeSize]。
+         *
+         * **调用前须先 [seedRandom] 灌足熵**（内部取新盐）。
+         *
+         * @param newVolumeSize 新数据区字节数（不含头组），须 > 当前 [volumeSize] 且 512 对齐。
+         * @param password keyfile 混入后的有效密码 UTF-8 字节（可空长度 0）。
+         *        调用后 native 侧副本已抹，调用方仍应自行 fill(0)。
+         * @return Pair(新主头 512B, 新备份头 512B)，失败返回 null。
+         */
+        fun expandHeaders(
+            newVolumeSize: Long, password: ByteArray,
+        ): Pair<ByteArray, ByteArray>? {
+            check(handle != 0L) { "卷已关闭" }
+            require(newVolumeSize > volumeSize) { "新大小须大于当前：$newVolumeSize <= $volumeSize" }
+            require(newVolumeSize % 512L == 0L) { "新大小须 512 对齐：$newVolumeSize" }
+            val primary = ByteArray(512)
+            val backup = ByteArray(512)
+            val err = nativeExpandHeaders(handle, newVolumeSize, password, primary, backup)
             if (err != 0) {
                 primary.fill(0); backup.fill(0)
                 return null

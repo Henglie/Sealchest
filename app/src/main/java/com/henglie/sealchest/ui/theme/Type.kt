@@ -9,6 +9,14 @@ import androidx.compose.ui.unit.sp
 // M3 默认排版即可满足工具类应用。这里只显式声明常用几级，其余沿用 M3 默认。
 // 字体用系统默认（SansSerif），中英混排稳定，无需打包字体文件。
 val Typography = Typography(
+    // displaySmall：主界面品牌大标题用。无衬线 + 轻字重 + 收紧字距，工具应用的克制感。
+    displaySmall = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Light,
+        fontSize = 40.sp,
+        lineHeight = 48.sp,
+        letterSpacing = 0.sp,
+    ),
     headlineMedium = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Normal,

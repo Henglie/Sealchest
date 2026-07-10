@@ -1,0 +1,320 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Default locale = English. Chinese lives in values-zh. This makes any
+         non-Chinese system language fall back to English (product requirement:
+         Chinese system -> Chinese, everything else -> English). -->
+    <string name="app_name">Sealchest</string>
+
+    <!-- Home -->
+    <string name="home_title">Sealchest</string>
+    <string name="home_subtitle">Mở container VeraCrypt không cần root</string>
+    <string name="home_pick_container">Chọn tệp container</string>
+    <string name="home_no_container">Chưa mở container nào</string>
+    <string name="home_recent">Đã mở gần đây</string>
+
+    <!-- Unlock -->
+    <string name="unlock_title">Mở khóa container</string>
+    <string name="unlock_password">Mật khẩu</string>
+    <string name="unlock_pim">PIM (tùy chọn, để trống cho giá trị mặc định)</string>
+    <string name="unlock_prf">Thuật toán băm (PRF)</string>
+    <string name="unlock_prf_auto">Tự động phát hiện</string>
+    <string name="unlock_submit">Mở khóa</string>
+    <string name="unlock_unlocking">Đang suy xuất khóa…</string>
+    <string name="unlock_wrong">Sai mật khẩu, PIM hoặc PRF; không thể mở khóa</string>
+
+    <!-- PRF options -->
+    <string name="prf_auto">Tự động phát hiện</string>
+    <string name="prf_sha512">SHA-512</string>
+    <string name="prf_whirlpool">Whirlpool</string>
+    <string name="prf_sha256">SHA-256</string>
+    <string name="prf_blake2s">BLAKE2s</string>
+    <string name="prf_streebog">Streebog</string>
+
+    <!-- Mount / writable -->
+    <string name="mount_writable_on">Gắn có thể ghi (thay đổi được ghi ngược vào container)</string>
+    <string name="mount_writable_off">Gắn có thể ghi (nguồn này không thể ghi)</string>
+    <string name="mount_default_container">Container</string>
+
+    <!-- Mounted panel -->
+    <string name="mounted_no_label">(không nhãn)</string>
+    <string name="mounted_filesystem">Hệ thống tệp: %1$s</string>
+    <string name="mounted_label">Nhãn: %1$s</string>
+
+    <!-- Self-test -->
+    <string name="selftest_running">  Đang chạy tự kiểm tra mã hóa…</string>
+    <string name="selftest_button">Tự kiểm tra mã hóa</string>
+    <string name="selftest_title">Tự kiểm tra mã hóa</string>
+    <string name="selftest_ok_button">OK</string>
+    <string name="selftest_unavailable">Không thể chạy tự kiểm tra (chưa gắn hoặc lỗi lõi).</string>
+    <string name="selftest_roundtrip1">%1$s Khứ hồi 1  encrypt(decrypt(C0)) == C0</string>
+    <string name="selftest_encchanges">%1$s Mã hóa thực sự thay đổi dữ liệu</string>
+    <string name="selftest_roundtrip2">%1$s Khứ hồi 2  decrypt(encrypt(X)) == X</string>
+    <string name="selftest_pass">Tất cả đã đạt: đường mã hóa là nghịch đảo chính xác của giải mã; sau khi ghi ngược, VeraCrypt desktop vẫn có thể mở container.</string>
+    <string name="selftest_fail">Một số kiểm tra đã thất bại: đường mã hóa bị hỏng và không thể dùng để ghi.</string>
+
+    <!-- Browse -->
+    <string name="browse_title">Nội dung container</string>
+    <string name="browse_empty">Thư mục này trống</string>
+    <string name="browse_lock">Khóa và đóng</string>
+    <string name="browse_root">Gốc</string>
+    <string name="browse_back">Quay lại</string>
+    <string name="browse_exported">Đã xuất %1$s</string>
+    <string name="browse_export_failed">Xuất thất bại</string>
+    <string name="browse_no_preview">Không thể xem trước loại tệp này</string>
+    <string name="browse_action_preview">Xem trước (ảnh / văn bản)</string>
+    <string name="browse_action_export">Xuất ra điện thoại</string>
+    <string name="browse_action_open_with">Mở bằng ứng dụng khác</string>
+    <string name="browse_image_decode_failed">Không thể giải mã ảnh</string>
+    <string name="browse_export_open_failed">Xuất thất bại, không thể mở</string>
+    <string name="browse_no_app_for_type">Không có ứng dụng nào mở được loại này</string>
+    <string name="browse_action_overwrite">Ghi đè bằng tệp trên điện thoại</string>
+    <string name="browse_action_delete">Xóa</string>
+    <string name="browse_import_file">Nhập tệp vào container</string>
+    <string name="browse_delete_confirm_title">Xóa tệp</string>
+    <string name="browse_delete_confirm_msg">Xóa \"%1$s\" khỏi container này? Không thể hoàn tác.</string>
+    <string name="browse_delete_confirm_yes">Xóa</string>
+    <string name="browse_write_ok">Đã ghi: %1$s</string>
+    <string name="browse_write_failed">Ghi thất bại</string>
+    <string name="browse_overwrite_ok">Đã ghi đè: %1$s</string>
+    <string name="browse_overwrite_failed">Ghi đè thất bại</string>
+    <string name="browse_delete_ok">Đã xóa: %1$s</string>
+    <string name="browse_delete_failed">Xóa thất bại</string>
+
+    <!-- Common -->
+    <string name="cancel">Hủy</string>
+    <string name="ok">OK</string>
+    <string name="error_generic">Đã xảy ra lỗi</string>
+    <string name="native_unavailable">Lõi mã hóa không tải được; không thể giải mã container</string>
+
+    <!-- Self-test placeholder screen (first version) -->
+    <string name="app_tagline">Mở container VeraCrypt không cần root</string>
+    <string name="native_ready">Lõi mã hóa đã sẵn sàng</string>
+    <string name="native_missing">Lõi mã hóa không tải được</string>
+    <string name="native_version">Phiên bản lõi: %1$s</string>
+
+    <!-- About -->
+    <string name="about_title">Giới thiệu</string>
+    <string name="about_button">Giới thiệu</string>
+    <string name="about_app_desc">Công cụ mở container VeraCrypt đã mã hóa trên Android không cần root, hoàn toàn trong không gian người dùng.</string>
+    <string name="about_author_label">Tác giả</string>
+    <string name="about_author">Henglie / EternalBlaze</string>
+    <string name="about_project_label">Dự án</string>
+    <string name="about_version_label">Phiên bản</string>
+    <string name="about_upstream_label">Lõi VeraCrypt</string>
+    <string name="about_upstream_commit_label">Commit được ghim</string>
+    <string name="about_toolchain_label">Chuỗi công cụ build</string>
+    <string name="about_abis_label">ABI</string>
+    <string name="about_supplychain_note">Ứng dụng này biên dịch lõi mã hóa C nguồn VeraCrypt, được ghim vào commit ở trên. Bạn có thể kiểm toán chính xác mã nguồn nào được build tại github.com/veracrypt/VeraCrypt.</string>
+    <string name="about_credit">Lõi mã hóa được port từ VeraCrypt (Apache-2.0 + TrueCrypt License 3.0). Sealchest là một sản phẩm độc lập và không liên kết, cũng không mạo danh các dự án VeraCrypt hay TrueCrypt.</string>
+    <string name="unlock_keyfiles_none">Tệp khóa (tùy chọn)</string>
+    <string name="unlock_keyfiles_selected">Tệp khóa: đã chọn %1$d</string>
+    <string name="unlock_keyfiles_clear">Xóa tệp khóa</string>
+    <!-- Volume header tool (A2: backup / rescue) -->
+    <string name="header_tool_entry">Công cụ tiêu đề volume (sao lưu / cứu hộ)</string>
+    <string name="header_tool_title">Công cụ tiêu đề volume</string>
+    <string name="header_tool_desc">Một volume VeraCrypt lưu một tiêu đề sao lưu ở cuối container. Nếu tiêu đề chính bị hỏng và volume không mở được, hãy khôi phục từ bản sao lưu nhúng. Thường xuyên sao lưu tiêu đề khi volume còn khỏe.</string>
+    <string name="header_tool_close">Đóng</string>
+    <string name="header_export_button">Sao lưu tiêu đề chính ra tệp</string>
+    <string name="header_export_ok">Đã sao lưu tiêu đề.</string>
+    <string name="header_export_failed">Sao lưu tiêu đề thất bại.</string>
+    <string name="header_rescue_warn">Cứu hộ ghi đè tiêu đề chính bằng tiêu đề sao lưu nhúng. Trước tiên nó xác minh bản sao lưu mở được bằng mật khẩu/tệp khóa của bạn và lưu tiêu đề hiện tại vào tệp cứu hộ, nhưng vẫn ghi vào container — hãy đảm bảo volume không được gắn ở nơi khác.</string>
+    <string name="header_rescue_button">Cứu hộ từ tiêu đề sao lưu nhúng</string>
+    <string name="header_rescue_need_write">Cứu hộ cần quyền ghi (chọn lại container, cấp quyền ghi)</string>
+    <string name="header_restore_ok">Đã khôi phục tiêu đề chính từ bản sao lưu. Hãy thử mở khóa ngay.</string>
+    <string name="header_restore_failed">Khôi phục thất bại. Container không bị thay đổi.</string>
+
+    <!-- Create volume wizard (B2) -->
+    <string name="create_entry">Tạo container mới</string>
+    <string name="create_title">Tạo container</string>
+    <string name="create_algorithm">Thuật toán mã hóa</string>
+    <string name="create_algo_aes">AES</string>
+    <string name="create_algo_serpent">Serpent</string>
+    <string name="create_algo_twofish">Twofish</string>
+    <string name="create_algo_camellia">Camellia</string>
+    <string name="create_algo_kuznyechik">Kuznyechik</string>
+    <string name="create_prf">Thuật toán băm (PRF)</string>
+    <string name="create_size_mb">Kích thước (MB)</string>
+    <string name="create_size_hint">Kích thước vùng dữ liệu container tính bằng MB. Tối thiểu 1 MB; lớn hơn chứa được nhiều tệp hơn.</string>
+    <string name="create_password">Mật khẩu</string>
+    <string name="create_password_confirm">Xác nhận mật khẩu</string>
+    <string name="create_password_mismatch">Hai mật khẩu không khớp</string>
+    <string name="create_pim">PIM (tùy chọn, để trống cho giá trị mặc định)</string>
+    <string name="create_pim_hint">Personal Iterations Multiplier. Để trống để dùng số vòng lặp mặc định.</string>
+    <string name="create_cancel">Hủy</string>
+    <string name="create_submit">Tạo</string>
+    <string name="create_ok">Đã tạo container</string>
+    <string name="create_failed">Tạo container thất bại</string>
+    <string name="create_in_progress">Đang tạo container…</string>
+    <string name="create_entropy_title">Thu thập ngẫu nhiên</string>
+    <string name="create_entropy_hint">Trượt ngón tay quanh ô bên dưới. Các chuyển động khó đoán của bạn thêm entropy cho khóa chính (giống như di chuyển chuột trong VeraCrypt desktop).</string>
+    <string name="create_entropy_progress">Tiếp tục trượt… %1$d%%</string>
+    <string name="create_entropy_done">Đã thu thập đủ ngẫu nhiên</string>
+    <string name="create_next">Tiếp</string>
+    <string name="create_entropy_fullscreen_hint">Trượt ngón tay khắp màn hình, và lắc điện thoại nếu có cảm biến chuyển động. Các chuyển động khó đoán của bạn cung cấp cho bể ngẫu nhiên của khóa chính (như di chuyển chuột trong VeraCrypt desktop). Tiếp tục cho đến khi bể đầy.</string>
+    <string name="create_entropy_sensor_on">Cảm biến chuyển động hoạt động — lắc cũng thêm ngẫu nhiên</string>
+    <string name="create_entropy_sensor_none">Không có cảm biến chuyển động — chỉ trượt</string>
+    <string name="create_entropy_pool_label">Bể ngẫu nhiên</string>
+    <string name="create_entropy_swipe_here">Trượt bất kỳ đâu tại đây</string>
+
+    <!-- File system / cluster size / dynamic volume (X2) -->
+    <string name="create_fs_type">Hệ thống tệp</string>
+    <string name="create_fs_fat">FAT</string>
+    <string name="create_fs_exfat">exFAT</string>
+    <string name="create_fs_ntfs">NTFS</string>
+    <string name="create_fs_coming_soon">(sắp có)</string>
+    <string name="create_cluster_size">Kích thước cụm</string>
+    <string name="create_cluster_default">Mặc định</string>
+    <string name="create_cluster_512">512 byte</string>
+    <string name="create_cluster_1024">1024 byte</string>
+    <string name="create_cluster_2048">2048 byte</string>
+    <string name="create_cluster_4096">4096 byte</string>
+    <string name="create_cluster_8192">8192 byte</string>
+    <string name="create_cluster_16384">16384 byte</string>
+    <string name="create_cluster_32768">32768 byte</string>
+    <string name="create_dynamic">Volume động (sparse)</string>
+    <string name="create_dynamic_hint">Cấp phát không gian theo yêu cầu. Giao diện đã sẵn sàng; backend hiện coi nó như volume thường.</string>
+    <string name="create_random_fill">Tô ngẫu nhiên</string>
+    <string name="create_random_fill_hint">Tô toàn bộ volume bằng dữ liệu ngẫu nhiên để có tính phủ nhận hợp lý tối đa (an toàn hơn). Container lớn mất thời gian tạo lâu hơn.</string>
+
+    <!-- Change password / PIM / PRF / keyfiles (B1) -->
+    <string name="change_pwd_entry">Đổi mật khẩu / PIM / tệp khóa</string>
+    <string name="change_pwd_title">Đổi mật khẩu</string>
+    <string name="change_pwd_desc">Nhập mật khẩu / PIM / PRF / tệp khóa hiện tại ở trên (giống như mở khóa), rồi đặt cái mới ở đây. Chỉ tiêu đề được mã hóa lại — khóa chính và dữ liệu của bạn không bao giờ thay đổi. Bản sao lưu cứu hộ của tiêu đề hiện tại được lưu trước khi ghi, phòng khi có sự cố.</string>
+    <string name="change_pwd_new_password">Mật khẩu mới</string>
+    <string name="change_pwd_new_pim">PIM mới (tùy chọn)</string>
+    <string name="change_pwd_new_prf">PRF mới (0 = giữ hiện tại)</string>
+    <string name="change_pwd_new_keyfiles_none">Tệp khóa mới (tùy chọn)</string>
+    <string name="change_pwd_new_keyfiles_selected">Tệp khóa mới: đã chọn %1$d</string>
+    <string name="change_pwd_working">Đang mã hóa lại tiêu đề…</string>
+    <string name="change_pwd_submit">Đổi mật khẩu</string>
+    <string name="change_pwd_dismiss">Hủy</string>
+    <string name="change_pwd_ok">Đã đổi mật khẩu. Từ nay mở khóa bằng mật khẩu mới.</string>
+    <string name="change_pwd_failed">Đổi mật khẩu thất bại</string>
+
+    <!-- Create hidden volume (C2) -->
+    <string name="create_hidden_entry">Tạo volume ẩn</string>
+    <string name="create_hidden_title">Tạo volume ẩn</string>
+    <string name="create_hidden_desc">Volume ẩn nằm trong vùng trống đuôi của container (bên ngoài) này. Volume ngoài được mở khóa bằng thông tin đăng nhập đã nhập ở trên, FAT của nó được đọc để định vị vùng trống sao cho các tệp hiện có không bị ghi đè, sau đó volume ẩn được tạo bằng mật khẩu riêng bên dưới.</string>
+    <string name="create_hidden_password">Mật khẩu volume ẩn</string>
+    <string name="create_hidden_size_mb">Kích thước volume ẩn (MB)</string>
+    <string name="create_hidden_pim">PIM ẩn (tùy chọn)</string>
+    <string name="create_hidden_working">Đang tạo volume ẩn…</string>
+    <string name="create_hidden_submit">Tạo volume ẩn</string>
+    <string name="create_hidden_cancel">Hủy</string>
+    <string name="create_hidden_ok">Đã tạo volume ẩn. Mở khóa bằng mật khẩu ẩn để sử dụng.</string>
+    <string name="create_hidden_failed">Tạo volume ẩn thất bại</string>
+    <string name="rescue_entry">Quản lý tệp cứu hộ</string>
+    <string name="rescue_mgr_title">Tệp cứu hộ</string>
+    <string name="rescue_mgr_warn">Đây là bản sao lưu của NHÓM tiêu đề CŨ. Bất kỳ ai có mật khẩu CŨ vẫn có thể mở volume bằng chúng. Hãy xóa sau khi đã xác nhận mật khẩu mới hoạt động.</string>
+    <string name="rescue_mgr_empty">Không có tệp cứu hộ tự lưu.</string>
+    <string name="rescue_mgr_delete">Xóa</string>
+    <string name="rescue_mgr_clear_all">Xóa tất cả</string>
+    <string name="close">Đóng</string>
+    <string name="settings_title">Cài đặt</string>
+    <string name="settings_close">Đóng</string>
+    <string name="settings_entry">Cài đặt</string>
+    <string name="settings_autolock">Tự động khóa</string>
+    <string name="settings_autolock_desc">Tự động hủy khóa trong bộ nhớ để bảo vệ container</string>
+    <string name="settings_timeout">Thời gian chờ nhàn rỗi</string>
+    <string name="settings_lock_bg">Khóa khi chuyển xuống nền</string>
+    <string name="settings_lock_bg_desc">Khóa ngay khi ứng dụng chuyển xuống nền</string>
+    <string name="settings_lock_screen">Khóa khi tắt màn hình</string>
+    <string name="settings_lock_screen_desc">Khóa ngay khi màn hình tắt</string>
+    <string name="settings_autolock_enable">Tự động khóa</string>
+    <string name="settings_autolock_timeout">Thời gian chờ nhàn rỗi</string>
+    <string name="settings_lock_background">Khóa khi ứng dụng chuyển xuống nền</string>
+    <string name="settings_lock_screen_off">Khóa khi màn hình tắt</string>
+    <string name="favorites_title">Container đã lưu</string>
+    <string name="favorites_remove">Xóa</string>
+    <!-- Hidden volume keyfile (C2 enhancement, align with desktop VC) -->
+    <string name="create_hidden_keyfiles_none">Tệp khóa ẩn (tùy chọn)</string>
+    <string name="create_hidden_keyfiles_selected">Tệp khóa ẩn: đã chọn %1$d</string>
+
+    <!-- Volume expansion (X17) -->
+    <string name="expand_volume_entry">Mở rộng volume</string>
+    <string name="expand_volume_title">Mở rộng volume</string>
+    <string name="expand_volume_desc">Mở rộng container này mà không mã hóa lại dữ liệu. Khóa chính giữ nguyên; chỉ tiêu đề và kích thước tệp thay đổi. Nhập tổng kích thước mới bên dưới. Chỉ hỗ trợ mở rộng. Bản sao lưu cứu hộ của tiêu đề hiện tại được lưu trước.</string>
+    <string name="expand_volume_current_size">Kích thước hiện tại: %1$s</string>
+    <string name="expand_volume_new_size_mb">Tổng kích thước mới (MB)</string>
+    <string name="expand_volume_working">Đang mở rộng volume…</string>
+    <string name="expand_volume_submit">Mở rộng</string>
+    <string name="expand_volume_cancel">Hủy</string>
+    <string name="expand_volume_ok">Đã mở rộng volume lên %1$s.</string>
+    <string name="expand_volume_failed">Mở rộng volume thất bại</string>
+    <string name="expand_volume_too_small">Kích thước mới phải lớn hơn kích thước hiện tại</string>
+
+    <!-- Partition encryption probe (X2/X3, experimental, root-gated) -->
+    <string name="block_device_entry">Mã hóa phân vùng (thử nghiệm)</string>
+    <string name="block_device_title">Phân vùng (dò chỉ đọc)</string>
+    <string name="block_device_desc">Thử nghiệm. Liệt kê thiết bị khối chỉ đọc. Không thực hiện mã hóa. Yêu cầu root.</string>
+    <string name="block_device_loading">Đang liệt kê…</string>
+    <string name="block_device_empty">Không tìm thấy thiết bị khối.</string>
+    <string name="block_device_no_root">Chưa cấp root. Không thể liệt kê thiết bị khối.</string>
+    <string name="block_device_request_root">Cấp root</string>
+    <string name="block_device_close">Đóng</string>
+    <string name="block_device_size">Kích thước: %1$s</string>
+    <string name="block_device_removable">Có thể tháo rời</string>
+
+    <!-- Container info panel (X10) -->
+    <string name="info_entry">Thông tin container</string>
+    <string name="info_title">Thông tin container</string>
+    <string name="info_algorithm">Mã hóa</string>
+    <string name="info_prf">Suy xuất khóa (PRF)</string>
+    <string name="info_data_size">Kích thước vùng dữ liệu</string>
+    <string name="info_sector_size">Kích thước sector</string>
+    <string name="info_fs_type">Hệ thống tệp</string>
+    <string name="info_label">Nhãn volume</string>
+    <string name="info_hidden">Volume ẩn</string>
+    <string name="info_writable">Đã gắn cho phép ghi</string>
+    <string name="info_yes">Có</string>
+    <string name="info_no">Không</string>
+    <string name="info_close">Đóng</string>
+    <string name="info_bytes_fmt">%1$s (%2$d byte)</string>
+    <string name="info_cascade">Cascade</string>
+    <string name="browse_write_full">Container đã đầy — không đủ chỗ trống</string>
+    <!-- W16 目录操作 rename/mkdir/move/rmdir -->
+    <string name="browse_new_folder">Thư mục mới</string>
+    <string name="browse_new_folder_hint">Tên thư mục</string>
+    <string name="browse_new_folder_ok">Đã tạo thư mục: %1$s</string>
+    <string name="browse_new_folder_failed">Không thể tạo thư mục</string>
+    <string name="browse_action_rename">Đổi tên</string>
+    <string name="browse_action_move">Chuyển đến…</string>
+    <string name="browse_action_delete_folder">Xóa thư mục</string>
+    <string name="browse_rename_title">Đổi tên</string>
+    <string name="browse_rename_hint">Tên mới</string>
+    <string name="browse_rename_ok">Đã đổi tên thành %1$s</string>
+    <string name="browse_rename_failed">Đổi tên thất bại</string>
+    <string name="browse_move_title">Chuyển \"%1$s\" đến</string>
+    <string name="browse_move_here">Chuyển đến đây</string>
+    <string name="browse_move_up">.. (cha)</string>
+    <string name="browse_move_ok">Đã chuyển: %1$s</string>
+    <string name="browse_move_failed">Chuyển thất bại</string>
+    <string name="browse_rmdir_title">Xóa thư mục</string>
+    <string name="browse_rmdir_msg">Xóa thư mục \"%1$s\"? Chỉ thư mục trống mới có thể bị xóa.</string>
+    <string name="browse_rmdir_ok">Đã xóa thư mục: %1$s</string>
+    <string name="browse_rmdir_failed">Xóa thất bại (thư mục có thể không trống)</string>
+    <string name="browse_op_unsupported">Hệ thống tệp này chưa hỗ trợ thao tác đó</string>
+    <string name="browse_action_more">Thêm</string>
+    <string name="favorites_rename">Đổi tên</string>
+    <string name="favorites_pin">Ghim lên đầu</string>
+    <string name="favorites_rename_title">Đổi tên mục yêu thích</string>
+    <string name="favorites_rename_hint">Tên hiển thị</string>
+    <string name="settings_default_mount_writable">Gắn đọc-ghi mặc định</string>
+    <string name="settings_default_prf">PRF mặc định</string>
+    <string name="settings_ntfs_exp">Bật NTFS (thử nghiệm)</string>
+    <string name="settings_ntfs_exp_desc">Đọc/ghi NTFS chưa được xác minh trên thiết bị. Chỉ dùng container thử nghiệm. Tắt = container NTFS từ chối gắn.</string>
+    <!-- 块设备解锁（F2）-->
+    <string name="block_device_unlock">Mở khóa</string>
+    <string name="block_device_unlocking">Đang mở khóa…</string>
+    <string name="block_device_unlock_failed">Mở khóa thất bại: %1$s</string>
+    <string name="block_device_unlocked">Đã mở khóa: %1$s</string>
+    <!-- 系统挂载暴露（F3）-->
+    <string name="expose_title">Phơi bày ra hệ thống</string>
+    <string name="expose_warning">Thao tác này giải mã nội dung container ra một thư mục truy cập được bởi mọi ứng dụng. Rủi ro bảo mật lớn — chỉ dùng cho môi trường đáng tin cậy.</string>
+    <string name="expose_dir_hint">Thư mục đích (ví dụ /data/local/tmp/sealchest)</string>
+    <string name="expose_start">Bắt đầu phơi bày</string>
+    <string name="expose_cleanup">Dọn dẹp</string>
+    <string name="expose_progress">Đang đồng bộ: %1$s</string>
+    <string name="expose_done">Đã phơi bày %1$d tệp</string>
+    <string name="expose_failed">Phơi bày thất bại: %1$s</string>
+</resources>

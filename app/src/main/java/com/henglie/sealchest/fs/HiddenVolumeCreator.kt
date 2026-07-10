@@ -157,6 +157,17 @@ object HiddenVolumeCreator {
             val volume = NativeBridge.openVolume(header, outerEff, outerPim, outerPrf)
                 ?: throw SecurityException("外层卷口令 / PIM / PRF / keyfile 不正确，无法读外层 FAT 做写保护校验")
             try {
+                // 写保护只对 FAT 外层卷成立（usedDataAreaUpperBound 目前只有 FAT 实现能保守算出
+                // 已用上界）。exFAT / NTFS 外层的已用区分布在整个数据区、含尾部隐藏卷选址处，
+                // 若按 FAT 解析会把已用上界误算成数据区起点 → 写保护形同虚设 → 隐藏卷覆盖外层
+                // 真实文件（不可逆损毁）。故非 FAT 外层一律拒绝创建隐藏卷，绝不冒险。
+                val outerBoot = VolumeReader(channel, volume).read(0, 512)
+                if (ExFatBoot.isExFat(outerBoot)) {
+                    throw UnsupportedOperationException("外层是 exFAT 卷，暂不支持在其中创建隐藏卷（写保护尚未覆盖 exFAT）")
+                }
+                if (NtfsBoot.isNtfs(outerBoot)) {
+                    throw UnsupportedOperationException("外层是 NTFS 卷，暂不支持在其中创建隐藏卷（写保护尚未覆盖 NTFS）")
+                }
                 val fs = FatFileSystem.mount(VolumeReader(channel, volume))
                 val encStart = volume.encryptedAreaStart
                 // FatFileSystem 返回的是卷内逻辑偏移（0 = 外层数据区首字节）。

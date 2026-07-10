@@ -5,7 +5,7 @@ import android.net.Uri
 import java.io.File
 import android.os.Bundle
 import android.provider.DocumentsContract
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -28,6 +28,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
@@ -60,20 +61,23 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.henglie.sealchest.browse.BrowserScreen
 import com.henglie.sealchest.browse.FileExport
 import com.henglie.sealchest.crypto.NativeBridge
 import com.henglie.sealchest.fs.VolumeFs
 import com.henglie.sealchest.core.AutoLock
+import com.henglie.sealchest.core.PinManager
 import com.henglie.sealchest.core.Settings
 import com.henglie.sealchest.fs.MountManager
+import com.henglie.sealchest.ui.PinGateScreen
 import com.henglie.sealchest.ui.theme.SealchestTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     // 任何触摸/滑动都重置自动锁定计时（见 AutoLock）。挂载时才真正计时。
     override fun onUserInteraction() {
         super.onUserInteraction()
@@ -92,6 +96,8 @@ class MainActivity : ComponentActivity() {
                 var showCreate by remember { mutableStateOf(false) }
 
                 val ctx = LocalContext.current
+                // PIN 门禁：已设 PIN 则启动时先拦在 PinGateScreen，验证通过才进主界面。
+                var pinUnlocked by remember { mutableStateOf(!PinManager.isPinSet(ctx)) }
                 val createScope = rememberCoroutineScope()
                 // 建卷参数暂存：CreateVolumeScreen 采集后先存这里，再启 CreateDocument 建空文件，
                 // 拿到 URI 才真正 VolumeCreator.create。密码字节随 params，成功/失败后抹除。
@@ -136,6 +142,7 @@ class MainActivity : ComponentActivity() {
                                     fsType = params.fsType,
                                     clusterSize = params.clusterSize,
                                     dynamic = params.dynamic,
+                                    randomFill = params.randomFill,
                                 ).getOrThrow()
                             }
                         }
@@ -150,7 +157,16 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                if (showCreate) {
+                if (!pinUnlocked) {
+                    PinGateScreen(
+                        biometricEnabled = com.henglie.sealchest.core.Settings.biometricUnlockEnabled(ctx),
+                        onPinCorrect = { pinUnlocked = true },
+                        onClearPin = {
+                            PinManager.clearPin(ctx)
+                            pinUnlocked = true
+                        },
+                    )
+                } else if (showCreate) {
                     com.henglie.sealchest.create.CreateVolumeScreen(
                         busy = creating,
                         message = createMsg,
@@ -226,15 +242,18 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
 
     var password by remember { mutableStateOf("") }
     var pim by remember { mutableStateOf("") }
-    var prfIndex by remember { mutableStateOf(0) }
+    var prfIndex by remember { mutableStateOf(Settings.defaultPrfIndex(context)) }
 
     var unlocking by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     // 「关于」弹窗显隐。
     var showAbout by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    // 收藏项重命名（X9）：待重命名的 uri + 输入文本。null 表示对话框关闭。
+    var renameFavoriteUri by remember { mutableStateOf<String?>(null) }
+    var renameFavoriteText by remember { mutableStateOf("") }
     // 是否以可写方式挂载。选中容器若拿到写权限则默认开（读写），拿不到自动回落只读。
-    var mountWritable by remember { mutableStateOf(true) }
+    var mountWritable by remember { mutableStateOf(Settings.defaultMountWritable(context)) }
     // 选中的 URI 是否实际拿到了可持久化写权限（源 provider 未必授予）。
     var uriWritable by remember { mutableStateOf(false) }
     // 选中的 keyfile URI 列表（可多选，顺序无关）。空 = 仅密码解锁。keyfile 只读内容、
@@ -279,6 +298,34 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
     var hiddenPrfIndex by remember { mutableStateOf(0) }
     var hiddenPimText by remember { mutableStateOf("") }
 
+    // 隐藏卷 keyfile（C2 增强，对齐桌面 VC：隐藏卷可带 keyfile）
+    var hiddenKeyfileUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
+
+    // 卷扩展（X17）状态：原凭据复用解锁区已填的，这里只收新大小。
+    var showExpandVolume by remember { mutableStateOf(false) }
+    var expandBusy by remember { mutableStateOf(false) }
+    var expandMsg by remember { mutableStateOf<String?>(null) }
+    var expandSizeMb by remember { mutableStateOf("") }
+    var expandCurrentSize by remember { mutableStateOf<Long?>(null) }
+
+    // 分区加密探针（X2/X3，root-gated）：只读枚举块设备，不加密。
+    var showBlockDevice by remember { mutableStateOf(false) }
+    var blockDeviceBusy by remember { mutableStateOf(false) }
+    var blockDeviceList by remember { mutableStateOf<List<com.henglie.sealchest.core.BlockDeviceEnumerator.BlockDevice>>(emptyList()) }
+    var blockDeviceMsg by remember { mutableStateOf<String?>(null) }
+    var blockDeviceRootGranted by remember { mutableStateOf(false) }
+
+    // F2：块设备解锁流程状态。选设备→弹密码框→调 BlockDeviceUnlocker。
+    var blockDeviceUnlockTarget by remember { mutableStateOf<com.henglie.sealchest.core.BlockDeviceEnumerator.BlockDevice?>(null) }
+    var blockDeviceUnlockPwd by remember { mutableStateOf("") }
+    var blockDeviceUnlockWritable by remember { mutableStateOf(false) }
+
+    // F3：系统暴露流程状态。已挂载+root 时可把明文同步到目录。
+    var showExpose by remember { mutableStateOf(false) }
+    var exposeDir by remember { mutableStateOf("/data/local/tmp/sealchest") }
+    var exposeBusy by remember { mutableStateOf(false) }
+    var exposeMsg by remember { mutableStateOf<String?>(null) }
+
     val newKeyfilePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()
     ) { uris ->
@@ -288,7 +335,23 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
         }
     }
 
+    // F4：POST_NOTIFICATIONS 运行时权限（Android 13+）。解锁成功时请求，保活前台服务通知才显示。
+    val notifPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* 结果不关心：拒绝也能跑，只是没通知 */ }
+
     // 导出卷头备份：选保存位置 → 原始 128KB 主头组转储（只读容器，最安全）。
+
+    // 隐藏卷 keyfile 选择器（C2 增强）：多选，追加去重。隐藏卷凭据独立于外层。
+    val hiddenKeyfilePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            hiddenKeyfileUris = (hiddenKeyfileUris + uris).distinct()
+            createHiddenMsg = null
+        }
+    }
+
     val exportHeaderLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/octet-stream")
     ) { dest ->
@@ -400,6 +463,51 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
     // 创建隐藏卷（C2）：外层凭据取上方解锁区已填值，隐藏卷凭据取对话框。容器已存在、
     // 无需 CreateDocument，直接在 IO 线程跑 HiddenVolumeCreator（读外层 FAT 算安全区 →
     // 生成隐藏卷头 → 写隐藏主/备头 → 格式化隐藏 FAT）。
+    // 卷扩展（X17）：选救援文件后执行 VolumeExpander。主密钥不动，换头+扩文件。
+    // 新总大小 = 用户输入 MB → 数据区大小 = 总大小 - 2*128KB（主/备头组）。
+    val expandLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { rescueDest ->
+        val uri = pickedUri
+        if (rescueDest != null && uri != null) {
+            expandBusy = true
+            val pw = password.toByteArray(Charsets.UTF_8)
+            val pimVal = pim.toIntOrNull() ?: 0
+            val prfVal = PRF_OPTIONS[prfIndex].second
+            val kfUris = keyfileUris
+            val newTotalBytes = (expandSizeMb.toLongOrNull() ?: 0L) * 1024L * 1024L
+            val newDataAreaSize = newTotalBytes - 2L * 131072L
+            scope.launch {
+                val r = withContext(Dispatchers.IO) {
+                    runCatching {
+                        require(newDataAreaSize > 0) { context.getString(R.string.expand_volume_too_small) }
+                        val keyfiles = kfUris.mapNotNull { kfUri ->
+                            runCatching {
+                                context.contentResolver.openInputStream(kfUri)?.use { it.readBytes() }
+                            }.getOrNull()
+                        }
+                        com.henglie.sealchest.fs.VolumeExpander.expand(
+                            context.contentResolver, uri,
+                            pw, pimVal, prfVal, keyfiles,
+                            newDataAreaSize, rescueDest,
+                            autoRescueFile(context, uri),
+                        ).getOrThrow()
+                    }
+                }
+                pw.fill(0)
+                expandBusy = false
+                val newTotal = r.getOrNull()?.let { it.second + 2L * 131072L }
+                expandMsg = r.fold(
+                    { context.getString(R.string.expand_volume_ok, "%.1f MB".format(newTotal!! / 1024.0 / 1024.0)) },
+                    { it.message ?: context.getString(R.string.expand_volume_failed) },
+                )
+                if (r.isSuccess) {
+                    expandSizeMb = ""; expandCurrentSize = null
+                    showExpandVolume = false
+                }
+            }
+        }
+    }
     val runCreateHidden: () -> Unit = run@{
         val uri = pickedUri ?: return@run
         createHiddenBusy = true
@@ -421,6 +529,12 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
                             context.contentResolver.openInputStream(kfUri)?.use { it.readBytes() }
                         }.getOrNull()
                     }
+                    val hiddenKfUris = hiddenKeyfileUris
+                    val hiddenKeyfiles = hiddenKfUris.mapNotNull { kfUri ->
+                        runCatching {
+                            context.contentResolver.openInputStream(kfUri)?.use { it.readBytes() }
+                        }.getOrNull()
+                    }
                     com.henglie.sealchest.fs.HiddenVolumeCreator.create(
                         resolver = context.contentResolver,
                         containerUri = uri,
@@ -430,7 +544,7 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
                         outerKeyfiles = outerKeyfiles,
                         hiddenPassword = hiddenPw,
                         hiddenPim = hiddenPimVal,
-                        hiddenKeyfiles = emptyList(),
+                        hiddenKeyfiles = hiddenKeyfiles,
                         hiddenEa = eaVal,
                         hiddenPrf = prfVal,
                         hiddenVolumeBytes = hiddenBytes,
@@ -467,8 +581,8 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
                     uri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 )
             }.isSuccess
-            // 拿到写权限则默认读写打开，拿不到回落只读（换选容器时同步重置，不残留上次状态）。
-            mountWritable = uriWritable
+            // 拿到写权限且默认读写则可写打开，否则只读（X13：默认挂载模式偏好 + 实际权限双门控）。
+            mountWritable = uriWritable && Settings.defaultMountWritable(context)
             // 换选容器时清空 keyfile：不同容器 keyfile 组不同，残留会导致误开卷失败。
             keyfileUris = emptyList()
             pickedUri = uri
@@ -476,6 +590,12 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
                 ?: context.getString(R.string.mount_default_container)
             error = null
         }
+    }
+
+    // 「关于」整屏：showAbout 为真时渲染独立界面并 early-return，替代原弹窗。
+    if (showAbout) {
+        AboutScreen(onBack = { showAbout = false })
+        return
     }
 
     Scaffold(
@@ -496,6 +616,113 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
             )
         },
     ) { inner ->
+        val mnt = mount
+        if (NativeBridge.isAvailable && (mnt == null || mnt.closed) && pickedUri == null) {
+            // ================= 落地页：品牌大标题居中偏上，主按钮居中偏下 =================
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(inner)
+                    .padding(horizontal = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Spacer(Modifier.weight(1f))
+                Text(
+                    text = stringResource(R.string.home_title),
+                    style = MaterialTheme.typography.displaySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    text = stringResource(R.string.home_subtitle),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.weight(1.2f))
+                Button(
+                    onClick = { picker.launch(arrayOf("*/*")) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 52.dp),
+                ) {
+                    Text(stringResource(R.string.home_pick_container))
+                }
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(
+                    onClick = onCreateVolume,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 52.dp),
+                ) {
+                    Text(stringResource(R.string.create_entry))
+                }
+                val favs = remember(favTick) { Settings.favorites(context) }
+                if (favs.isNotEmpty()) {
+                    Spacer(Modifier.height(24.dp))
+                    Text(
+                        text = stringResource(R.string.favorites_title),
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    favs.forEach { fav ->
+                        Card(modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = fav.name,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable {
+                                            val u = Uri.parse(fav.uri)
+                                            uriWritable = runCatching {
+                                                context.contentResolver.takePersistableUriPermission(
+                                                    u, Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                                                )
+                                            }.isSuccess
+                                            runCatching {
+                                                context.contentResolver.takePersistableUriPermission(
+                                                    u, Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                                )
+                                            }
+            mountWritable = uriWritable && Settings.defaultMountWritable(context)
+                                            keyfileUris = emptyList()
+                                            pickedUri = u
+                                            pickedName = fav.name
+                                            error = null
+                                        },
+                                )
+                                TextButton(onClick = {
+                                    renameFavoriteUri = fav.uri
+                                    renameFavoriteText = fav.name
+                                }) {
+                                    Text(stringResource(R.string.favorites_rename))
+                                }
+                                TextButton(onClick = {
+                                    Settings.reorderFavorite(context, fav.uri, 0)
+                                    favTick++
+                                }) {
+                                    Text(stringResource(R.string.favorites_pin))
+                                }
+                                TextButton(onClick = {
+                                    Settings.removeFavorite(context, fav.uri)
+                                    favTick++
+                                }) {
+                                    Text(stringResource(R.string.favorites_remove))
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.weight(0.9f))
+            }
+        } else {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -522,6 +749,7 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
             if (m != null && !m.closed) {
                 // ---- 已挂载态 ----
                 MountedPanel(
+                    mount = m,
                     fs = m.fs,
                     displayName = m.displayName,
                     scope = scope,
@@ -589,13 +817,25 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
                                                         u, Intent.FLAG_GRANT_READ_URI_PERMISSION
                                                     )
                                                 }
-                                                mountWritable = uriWritable
+            mountWritable = uriWritable && Settings.defaultMountWritable(context)
                                                 keyfileUris = emptyList()
                                                 pickedUri = u
                                                 pickedName = fav.name
                                                 error = null
                                             },
                                     )
+                                    TextButton(onClick = {
+                                        renameFavoriteUri = fav.uri
+                                        renameFavoriteText = fav.name
+                                    }) {
+                                        Text(stringResource(R.string.favorites_rename))
+                                    }
+                                    TextButton(onClick = {
+                                        Settings.reorderFavorite(context, fav.uri, 0)
+                                        favTick++
+                                    }) {
+                                        Text(stringResource(R.string.favorites_pin))
+                                    }
                                     TextButton(onClick = {
                                         Settings.removeFavorite(context, fav.uri)
                                         favTick++
@@ -725,6 +965,10 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
                                     AutoLock.touch()
                                     Settings.addFavorite(context, uri.toString(), pickedName)
                                     favTick++
+                                    // F4：解锁成功请求通知权限，保活前台服务通知才能显示（Android 13+）。
+                                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                                        notifPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                                    }
                                 }.onFailure {
                                     error = it.message
                                         ?: context.getString(R.string.unlock_wrong)
@@ -769,6 +1013,27 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
                             Text(stringResource(R.string.create_hidden_entry))
                         }
 
+                        // 卷扩展入口（X17）：写操作，仅拿到写权限时可用。主密钥不动，换头+扩文件。
+                        TextButton(
+                            onClick = {
+                                expandMsg = null; expandSizeMb = ""
+                                val u = pickedUri
+                                if (u != null) {
+                                    scope.launch {
+                                        val sz = withContext(Dispatchers.IO) {
+                                            runCatching {
+                                                context.contentResolver.openFileDescriptor(u, "r")?.use { it.statSize }
+                                            }.getOrNull()
+                                        }
+                                        expandCurrentSize = sz
+                                        showExpandVolume = true
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(stringResource(R.string.expand_volume_entry))
+                        }
                         TextButton(
                             onClick = { showRescueManager = true },
                             modifier = Modifier.fillMaxWidth(),
@@ -784,13 +1049,70 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
                     ) {
                         Text(stringResource(R.string.header_tool_entry))
                     }
+                    // 分区加密探针入口（X2/X3，实验性）：root-gated 只读枚举块设备。
+                    TextButton(
+                        onClick = {
+                            blockDeviceMsg = null
+                            showBlockDevice = true
+                            scope.launch {
+                                blockDeviceBusy = true
+                                val granted = withContext(Dispatchers.IO) { com.henglie.sealchest.core.RootManager.isGranted() }
+                                blockDeviceRootGranted = granted
+                                if (granted) {
+                                    blockDeviceList = withContext(Dispatchers.IO) { com.henglie.sealchest.core.BlockDeviceEnumerator.list() }
+                                }
+                                blockDeviceBusy = false
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.block_device_entry))
+                    }
+                    // F3：暴露到系统入口。已挂载 + root 已授权时才显示。
+                    if (MountManager.isMounted && com.henglie.sealchest.core.RootManager.isGranted()) {
+                        TextButton(
+                            onClick = { showExpose = true; exposeMsg = null },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(stringResource(R.string.expose_title))
+                        }
+                    }
                 }
             }
         }
+        }
 
-        // 「关于」弹窗：TopAppBar 信息按钮触发。
-        if (showAbout) AboutDialog(onDismiss = { showAbout = false })
         if (showSettings) SettingsDialog(onDismiss = { showSettings = false })
+
+        // 收藏项重命名弹窗（X9）。
+        if (renameFavoriteUri != null) {
+            AlertDialog(
+                onDismissRequest = { renameFavoriteUri = null },
+                title = { Text(stringResource(R.string.favorites_rename_title)) },
+                text = {
+                    OutlinedTextField(
+                        value = renameFavoriteText,
+                        onValueChange = { renameFavoriteText = it },
+                        label = { Text(stringResource(R.string.favorites_rename_hint)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        val u = renameFavoriteUri
+                        if (u != null && renameFavoriteText.isNotBlank()) {
+                            Settings.renameFavorite(context, u, renameFavoriteText.trim())
+                            favTick++
+                        }
+                        renameFavoriteUri = null
+                    }) { Text(stringResource(R.string.ok)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { renameFavoriteUri = null }) { Text(stringResource(R.string.cancel)) }
+                },
+            )
+        }
 
         // 卷头工具弹窗（A2）：导出备份 + 从内嵌备份头救砖。
         if (showHeaderTool) {
@@ -837,6 +1159,232 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
             RescueManagerDialog(
                 context = context,
                 onDismiss = { showRescueManager = false },
+            )
+        }
+
+        // 创建隐藏卷弹窗（C2）：外层凭据取解锁区，隐藏卷凭据在此对话框收集。
+        if (showCreateHidden) {
+            CreateHiddenVolumeDialog(
+                busy = createHiddenBusy,
+                message = createHiddenMsg,
+                hiddenPassword = hiddenPassword,
+                onHiddenPasswordChange = { hiddenPassword = it; createHiddenMsg = null },
+                sizeMb = hiddenSizeMb,
+                onSizeChange = { hiddenSizeMb = it.filter(Char::isDigit); createHiddenMsg = null },
+                algoIndex = hiddenAlgoIndex,
+                onAlgoChange = { hiddenAlgoIndex = it },
+                prfIndex = hiddenPrfIndex,
+                onPrfChange = { hiddenPrfIndex = it },
+                pim = hiddenPimText,
+                onPimChange = { hiddenPimText = it.filter(Char::isDigit); createHiddenMsg = null },
+                hiddenKeyfileCount = hiddenKeyfileUris.size,
+                onPickHiddenKeyfiles = { hiddenKeyfilePicker.launch(arrayOf("*/*")) },
+                onClearHiddenKeyfiles = { hiddenKeyfileUris = emptyList() },
+                onConfirm = runCreateHidden,
+                onDismiss = {
+                    if (!createHiddenBusy) {
+                        showCreateHidden = false; createHiddenMsg = null
+                        hiddenPassword = ""; hiddenSizeMb = ""; hiddenPimText = ""
+                        hiddenKeyfileUris = emptyList()
+                    }
+                },
+            )
+        }
+        // 卷扩展弹窗（X17）：原凭据取解锁区，对话框只收新总大小。
+        if (showExpandVolume) {
+            ExpandVolumeDialog(
+                busy = expandBusy,
+                message = expandMsg,
+                currentSize = expandCurrentSize,
+                sizeMb = expandSizeMb,
+                onSizeChange = { expandSizeMb = it.filter(Char::isDigit); expandMsg = null },
+                onConfirm = { expandLauncher.launch("${pickedName}.expand.rescue.scheader") },
+                onDismiss = {
+                    if (!expandBusy) {
+                        showExpandVolume = false; expandMsg = null
+                        expandSizeMb = ""; expandCurrentSize = null
+                    }
+                },
+            )
+        }
+        // 分区加密探针弹窗（X2/X3，实验性）：root-gated 只读枚举块设备。
+        if (showBlockDevice) {
+            BlockDeviceDialog(
+                busy = blockDeviceBusy,
+                message = blockDeviceMsg,
+                devices = blockDeviceList,
+                rootGranted = blockDeviceRootGranted,
+                onRequestRoot = {
+                    scope.launch {
+                        blockDeviceBusy = true
+                        val ok = withContext(Dispatchers.IO) { com.henglie.sealchest.core.RootManager.requestRoot() }
+                        blockDeviceRootGranted = ok
+                        if (ok) {
+                            blockDeviceList = withContext(Dispatchers.IO) { com.henglie.sealchest.core.BlockDeviceEnumerator.list() }
+                        }
+                        blockDeviceBusy = false
+                    }
+                },
+                onDismiss = {
+                    if (!blockDeviceBusy) { showBlockDevice = false; blockDeviceMsg = null }
+                },
+                onUnlockDevice = { dev ->
+                    blockDeviceUnlockTarget = dev
+                    blockDeviceUnlockPwd = ""
+                },
+            )
+        }
+        // F2：块设备解锁密码输入框。确认后调 BlockDeviceUnlocker.unlock。
+        if (blockDeviceUnlockTarget != null) {
+            val target = blockDeviceUnlockTarget!!
+            AlertDialog(
+                onDismissRequest = {
+                    if (!blockDeviceBusy) { blockDeviceUnlockTarget = null; blockDeviceUnlockPwd = ""; blockDeviceUnlockWritable = false }
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = !blockDeviceBusy && blockDeviceUnlockPwd.isNotEmpty(),
+                        onClick = {
+                            scope.launch {
+                                blockDeviceBusy = true
+                                blockDeviceMsg = null
+                                try {
+                                    val pwd = blockDeviceUnlockPwd.toByteArray(Charsets.UTF_8)
+                                    val mount = withContext(Dispatchers.IO) {
+                                        com.henglie.sealchest.core.BlockDeviceUnlocker.unlock(
+                                            context = context,
+                                            devicePath = target.path,
+                                            password = pwd,
+                                            writable = blockDeviceUnlockWritable,
+                                        )
+                                    }
+                                    pwd.fill(0)
+                                    blockDeviceMsg = context.getString(R.string.block_device_unlocked, target.name)
+                                    // 解锁成功：这里只展示成功，不解密卷内容到 UI（F2 只做解锁，不接 UI 浏览）
+                                    runCatching { mount.close() }
+                                    blockDeviceUnlockTarget = null
+                                    blockDeviceUnlockPwd = ""
+                                } catch (t: Throwable) {
+                                    blockDeviceMsg = context.getString(R.string.block_device_unlock_failed, t.message ?: "?")
+                                } finally {
+                                    blockDeviceBusy = false
+                                }
+                            }
+                        },
+                    ) { Text(stringResource(R.string.block_device_unlock)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { blockDeviceUnlockTarget = null; blockDeviceUnlockPwd = "" }, enabled = !blockDeviceBusy) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                },
+                title = { Text(stringResource(R.string.block_device_unlock) + " · " + target.name) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(target.path, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (blockDeviceBusy) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(modifier = Modifier.height(20.dp), strokeWidth = 2.dp)
+                                Text("  " + stringResource(R.string.block_device_unlocking))
+                            }
+                        }
+                        OutlinedTextField(
+                            value = blockDeviceUnlockPwd,
+                            onValueChange = { blockDeviceUnlockPwd = it },
+                            label = { Text(stringResource(R.string.unlock_password)) },
+                            singleLine = true,
+                            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                            enabled = !blockDeviceBusy,
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            androidx.compose.material3.Checkbox(
+                                checked = blockDeviceUnlockWritable,
+                                onCheckedChange = { blockDeviceUnlockWritable = it },
+                                enabled = !blockDeviceBusy,
+                            )
+                            Text(stringResource(R.string.mount_writable_on))
+                        }
+                        if (blockDeviceMsg != null) {
+                            Text(blockDeviceMsg!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                },
+            )
+        }
+        // F3：暴露到系统弹窗。root-gated，把已挂载卷明文同步到目录。
+        if (showExpose) {
+            AlertDialog(
+                onDismissRequest = { if (!exposeBusy) { showExpose = false; exposeMsg = null } },
+                confirmButton = {
+                    TextButton(
+                        enabled = !exposeBusy && exposeDir.isNotEmpty(),
+                        onClick = {
+                            scope.launch {
+                                exposeBusy = true
+                                exposeMsg = null
+                                try {
+                                    val target = java.io.File(exposeDir)
+                                    val count = withContext(Dispatchers.IO) {
+                                        com.henglie.sealchest.core.SystemMounter.syncExpose(target) { path ->
+                                            exposeMsg = context.getString(R.string.expose_progress, path)
+                                        }
+                                    }
+                                    exposeMsg = context.getString(R.string.expose_done, count)
+                                } catch (t: Throwable) {
+                                    exposeMsg = context.getString(R.string.expose_failed, t.message ?: "?")
+                                } finally {
+                                    exposeBusy = false
+                                }
+                            }
+                        },
+                    ) { Text(stringResource(R.string.expose_start)) }
+                },
+                dismissButton = {
+                    Row {
+                        TextButton(
+                            onClick = {
+                                scope.launch {
+                                    exposeBusy = true
+                                    try {
+                                        withContext(Dispatchers.IO) { com.henglie.sealchest.core.SystemMounter.cleanupExpose(java.io.File(exposeDir)) }
+                                        exposeMsg = "cleaned"
+                                    } catch (t: Throwable) {
+                                        exposeMsg = context.getString(R.string.expose_failed, t.message ?: "?")
+                                    } finally { exposeBusy = false }
+                                }
+                            },
+                            enabled = !exposeBusy,
+                        ) { Text(stringResource(R.string.expose_cleanup)) }
+                        TextButton(onClick = { showExpose = false; exposeMsg = null }, enabled = !exposeBusy) {
+                            Text(stringResource(R.string.cancel))
+                        }
+                    }
+                },
+                title = { Text(stringResource(R.string.expose_title)) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            stringResource(R.string.expose_warning),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                        OutlinedTextField(
+                            value = exposeDir,
+                            onValueChange = { exposeDir = it },
+                            label = { Text(stringResource(R.string.expose_dir_hint)) },
+                            singleLine = true,
+                            enabled = !exposeBusy,
+                        )
+                        if (exposeBusy) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(modifier = Modifier.height(20.dp), strokeWidth = 2.dp)
+                            }
+                        }
+                        if (exposeMsg != null) {
+                            Text(exposeMsg!!, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                },
             )
         }
     }
@@ -1060,6 +1608,9 @@ private fun CreateHiddenVolumeDialog(
     onPrfChange: (Int) -> Unit,
     pim: String,
     onPimChange: (String) -> Unit,
+    hiddenKeyfileCount: Int,
+    onPickHiddenKeyfiles: () -> Unit,
+    onClearHiddenKeyfiles: () -> Unit,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -1135,6 +1686,22 @@ private fun CreateHiddenVolumeDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
 
+                // 隐藏卷 keyfile 选择行（C2 增强，对齐桌面 VC）
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    TextButton(onClick = onPickHiddenKeyfiles, enabled = !busy) {
+                        Text(if (hiddenKeyfileCount == 0) stringResource(R.string.create_hidden_keyfiles_none) else stringResource(R.string.create_hidden_keyfiles_selected, hiddenKeyfileCount))
+                    }
+                    if (hiddenKeyfileCount > 0) {
+                        TextButton(onClick = onClearHiddenKeyfiles, enabled = !busy) {
+                            Text(stringResource(R.string.unlock_keyfiles_clear))
+                        }
+                    }
+                }
+
                 if (message != null) {
                     Text(
                         message,
@@ -1163,89 +1730,310 @@ private fun CreateHiddenVolumeDialog(
     )
 }
 
+/**
+ * 分区加密探针对话框（X2/X3，实验性）。root-gated 只读枚举块设备，不加密不写。
+ * 未授权时显示「授予 root」按钮；已授权时列出设备卡片（名称/大小/可移动/路径）。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AboutDialog(onDismiss: () -> Unit) {
-    val uriHandler = LocalUriHandler.current
-    val projectUrl = "https://github.com/Henglie/Sealchest"
+private fun BlockDeviceDialog(
+    busy: Boolean,
+    message: String?,
+    devices: List<com.henglie.sealchest.core.BlockDeviceEnumerator.BlockDevice>,
+    rootGranted: Boolean,
+    onRequestRoot: () -> Unit,
+    onDismiss: () -> Unit,
+    onUnlockDevice: (com.henglie.sealchest.core.BlockDeviceEnumerator.BlockDevice) -> Unit = {},
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.selftest_ok_button)) }
+            TextButton(onClick = onDismiss, enabled = !busy) {
+                Text(stringResource(R.string.block_device_close))
+            }
         },
-        title = { Text(stringResource(R.string.about_title)) },
+        title = { Text(stringResource(R.string.block_device_title)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+            ) {
                 Text(
-                    stringResource(R.string.about_app_desc),
-                    style = MaterialTheme.typography.bodyMedium,
+                    stringResource(R.string.block_device_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Text(
-                    stringResource(R.string.about_author_label) + "：" +
-                        stringResource(R.string.about_author),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                Row {
-                    Text(
-                        stringResource(R.string.about_project_label) + "：",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    // 可点超链接：蓝色下划线，点后用系统浏览器打开。
-                    Text(
-                        projectUrl,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            color = MaterialTheme.colorScheme.primary,
-                            textDecoration = TextDecoration.Underline,
-                        ),
-                        modifier = Modifier.clickable { uriHandler.openUri(projectUrl) },
-                    )
+                if (busy) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.height(20.dp), strokeWidth = 2.dp)
+                        Text("  " + stringResource(R.string.block_device_loading))
+                    }
                 }
+                if (!rootGranted && !busy) {
+                    Text(
+                        stringResource(R.string.block_device_no_root),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    Button(onClick = onRequestRoot, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.block_device_request_root))
+                    }
+                }
+                if (rootGranted && devices.isEmpty() && !busy) {
+                    Text(stringResource(R.string.block_device_empty))
+                }
+                devices.forEach { dev ->
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(dev.name, style = MaterialTheme.typography.labelLarge)
+                            Text(
+                                stringResource(R.string.block_device_size, "%.1f MB".format(dev.sizeBytes / 1024.0 / 1024.0)),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            if (dev.isRemovable) {
+                                Text(stringResource(R.string.block_device_removable), style = MaterialTheme.typography.bodySmall)
+                            }
+                            Text(dev.path, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            // F2：解锁此块设备（root-gated，只读）。点击触发解锁流程。
+                            if (rootGranted && !busy) {
+                                Button(
+                                    onClick = { onUnlockDevice(dev) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Text(stringResource(R.string.block_device_unlock))
+                                }
+                            }
+                        }
+                    }
+                }
+                if (message != null) {
+                    Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        },
+    )
+}
+/**
+ * 卷扩展对话框（X17）。原凭据复用解锁区已填的（同改密码），这里只收新总大小。
+ * 确认后 [onConfirm] 选救援文件再执行 VolumeExpander：主密钥不动，换头+扩文件。
+ * 仅增大不缩小；新总大小须 > 当前总大小。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ExpandVolumeDialog(
+    busy: Boolean,
+    message: String?,
+    currentSize: Long?,
+    sizeMb: String,
+    onSizeChange: (String) -> Unit,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val cur = currentSize
+    val curText = if (cur != null && cur > 0) "%.1f MB".format(cur / 1024.0 / 1024.0) else "-"
+    val newBytes = (sizeMb.toLongOrNull() ?: 0L) * 1024L * 1024L
+    val canExpand = !busy && newBytes > 0 && (cur == null || newBytes > cur)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.expand_volume_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    stringResource(R.string.about_version_label) + "：" +
-                        BuildConfig.VERSION_NAME,
+                    stringResource(R.string.expand_volume_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    stringResource(R.string.expand_volume_current_size, curText),
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                // 供应链透明：编入的上游 VeraCrypt 版本、pinned commit、构建工具链、ABI。
-                // 数据源为 build.gradle.kts 的 buildConfigField，与实际编译绑定，非手写。
-                Text(
-                    stringResource(R.string.about_upstream_label) + "：VeraCrypt " +
-                        BuildConfig.VC_UPSTREAM_VERSION,
-                    style = MaterialTheme.typography.bodyMedium,
+                OutlinedTextField(
+                    value = sizeMb,
+                    onValueChange = onSizeChange,
+                    label = { Text(stringResource(R.string.expand_volume_new_size_mb)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
                 )
-                Text(
-                    stringResource(R.string.about_upstream_commit_label) + "：" +
-                        BuildConfig.VC_UPSTREAM_COMMIT,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    stringResource(R.string.about_toolchain_label) + "：" +
-                        BuildConfig.BUILD_TOOLCHAIN,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    stringResource(R.string.about_abis_label) + "：" +
-                        BuildConfig.BUILD_ABIS,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    stringResource(R.string.about_supplychain_note),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    stringResource(R.string.about_credit),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                if (busy) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.height(20.dp), strokeWidth = 2.dp)
+                        Text("  " + stringResource(R.string.expand_volume_working))
+                    }
+                }
+                if (message != null) {
+                    Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm, enabled = canExpand) {
+                Text(stringResource(R.string.expand_volume_submit))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !busy) {
+                Text(stringResource(R.string.expand_volume_cancel))
             }
         },
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AboutScreen(onBack: () -> Unit) {
+    val uriHandler = LocalUriHandler.current
+    val projectUrl = "https://github.com/Henglie/Sealchest"
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.about_title)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.browse_back),
+                        )
+                    }
+                },
+            )
+        },
+    ) { inner ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(inner)
+                .padding(horizontal = 20.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            // ---- 品牌头：无衬线大标题 + 副标题 + 一句话简介，居中 ----
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp, bottom = 4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = stringResource(R.string.home_title),
+                    style = MaterialTheme.typography.displaySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = stringResource(R.string.home_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    text = stringResource(R.string.about_app_desc),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                )
+            }
+
+            // ---- 基本信息卡：作者 / 项目地址 / 版本。全部竖排，窄屏不挤压 ----
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    AboutRow(
+                        label = stringResource(R.string.about_author_label),
+                        value = stringResource(R.string.about_author),
+                    )
+                    // 项目地址：标签在上，可点链接在下（蓝色下划线，点后系统浏览器打开）。
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = stringResource(R.string.about_project_label),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = projectUrl,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                color = MaterialTheme.colorScheme.primary,
+                                textDecoration = TextDecoration.Underline,
+                            ),
+                            modifier = Modifier.clickable { uriHandler.openUri(projectUrl) },
+                        )
+                    }
+                    AboutRow(
+                        label = stringResource(R.string.about_version_label),
+                        value = BuildConfig.VERSION_NAME,
+                    )
+                }
+            }
+
+            // ---- 供应链透明卡：上游版本 / commit / 工具链 / ABI + 说明 ----
+            // 数据源为 build.gradle.kts 的 buildConfigField，与实际编译绑定，非手写。
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    AboutRow(
+                        label = stringResource(R.string.about_upstream_label),
+                        value = "VeraCrypt " + BuildConfig.VC_UPSTREAM_VERSION,
+                    )
+                    AboutRow(
+                        label = stringResource(R.string.about_upstream_commit_label),
+                        value = BuildConfig.VC_UPSTREAM_COMMIT,
+                    )
+                    AboutRow(
+                        label = stringResource(R.string.about_toolchain_label),
+                        value = BuildConfig.BUILD_TOOLCHAIN,
+                    )
+                    AboutRow(
+                        label = stringResource(R.string.about_abis_label),
+                        value = BuildConfig.BUILD_ABIS,
+                    )
+                    Text(
+                        text = stringResource(R.string.about_supplychain_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            // ---- 致谢与声明 ----
+            Text(
+                text = stringResource(R.string.about_credit),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(8.dp))
+        }
+    }
+}
+
+/** 关于页信息行：标签在上（次要色小字），值在下——竖排，窄屏不挤压。 */
+@Composable
+private fun AboutRow(label: String, value: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    }
+}
+
 @Composable
 private fun MountedPanel(
+    mount: com.henglie.sealchest.fs.MountManager.Mount,
     fs: VolumeFs,
     displayName: String,
     scope: kotlinx.coroutines.CoroutineScope,
@@ -1259,6 +2047,7 @@ private fun MountedPanel(
         mutableStateOf<com.henglie.sealchest.fs.VolumeReader.SelfTestResult?>(null)
     }
     var showSelfTest by remember { mutableStateOf(false) }
+    var showInfo by remember { mutableStateOf(false) }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -1316,6 +2105,11 @@ private fun MountedPanel(
         }
     }
 
+    // 容器信息面板入口（X10）：只读展示算法/PRF/大小/文件系统/卷标等元信息。
+    OutlinedButton(onClick = { showInfo = true }, modifier = Modifier.fillMaxWidth()) {
+        Text(stringResource(R.string.info_entry))
+    }
+
     OutlinedButton(onClick = onLock, modifier = Modifier.fillMaxWidth()) {
         Icon(Icons.Filled.Lock, contentDescription = null)
         Text("  " + stringResource(R.string.browse_lock))
@@ -1325,6 +2119,14 @@ private fun MountedPanel(
         SelfTestDialog(
             result = selfTestResult,
             onDismiss = { showSelfTest = false },
+        )
+    }
+
+    // 容器信息弹窗（X10）：只读展示，dismiss 即关。
+    if (showInfo) {
+        ContainerInfoDialog(
+            mount = mount,
+            onDismiss = { showInfo = false },
         )
     }
 }
@@ -1363,6 +2165,66 @@ private fun SelfTestDialog(
                         )
                     }
                 }
+            }
+        },
+    )
+}
+
+/**
+ * 容器信息面板（X10）。只读展示挂载卷的加密算法 / PRF / 数据区大小 / 扇区大小 /
+ * 文件系统 / 卷标 / 隐藏卷 / 可写状态。全部取自 Mount 的只读快照，不触碰解密路径。
+ */
+@Composable
+private fun ContainerInfoDialog(
+    mount: com.henglie.sealchest.fs.MountManager.Mount,
+    onDismiss: () -> Unit,
+) {
+    // stringResource 是 composable 调用，须在 composable 作用域取值；局部函数保持纯计算。
+    val cascade = stringResource(R.string.info_cascade)
+    val yes = stringResource(R.string.info_yes)
+    val no = stringResource(R.string.info_no)
+    fun algoName(ea: Int): String = when (ea) {
+        1 -> "AES"
+        2 -> "Serpent"
+        3 -> "Twofish"
+        4 -> "Camellia"
+        5 -> "Kuznyechik"
+        else -> cascade + " (#$ea)"
+    }
+    fun prfName(p: Int): String = when (p) {
+        1 -> "SHA-512"
+        2 -> "Whirlpool"
+        3 -> "SHA-256"
+        4 -> "BLAKE2s"
+        5 -> "Streebog"
+        else -> "#$p"
+    }
+    fun humanSize(bytes: Long): String {
+        val mb = bytes / 1024.0 / 1024.0
+        return if (mb >= 1024) "%.2f GB".format(mb / 1024.0) else "%.1f MB".format(mb)
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.info_close)) }
+        },
+        title = { Text(stringResource(R.string.info_title)) },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+            ) {
+                AboutRow(stringResource(R.string.info_algorithm), algoName(mount.encryptionAlgorithm))
+                AboutRow(stringResource(R.string.info_prf), prfName(mount.prf))
+                AboutRow(stringResource(R.string.info_data_size), stringResource(R.string.info_bytes_fmt, humanSize(mount.dataSize), mount.dataSize))
+                AboutRow(stringResource(R.string.info_sector_size), "${mount.sectorSize}")
+                AboutRow(stringResource(R.string.info_fs_type), mount.fsType)
+                AboutRow(
+                    stringResource(R.string.info_label),
+                    mount.volumeLabel.ifBlank { stringResource(R.string.mounted_no_label) },
+                )
+                AboutRow(stringResource(R.string.info_hidden), if (mount.isHidden) yes else no)
+                AboutRow(stringResource(R.string.info_writable), if (mount.writable) yes else no)
             }
         },
     )

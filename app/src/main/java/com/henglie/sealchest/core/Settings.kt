@@ -49,11 +49,45 @@ object Settings {
     fun setLockOnScreenOff(context: Context, v: Boolean) =
         prefs(context).edit().putBoolean(KEY_LOCK_SCREEN, v).apply()
 
+    // ---- 生物识别解锁 PIN 门禁开关（X4）。仅在已设 PIN 时有意义。----
+    //   行为偏好，非敏感：存普通 SharedPreferences。开启后启动 app 可用指纹/面部
+    //   解锁门禁，免输 PIN。Panic PIN 不走生物识别（必须手动输，防误触擦除）。
+    private const val KEY_BIOMETRIC_UNLOCK = "biometric_unlock_enabled"
+    fun biometricUnlockEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_BIOMETRIC_UNLOCK, false)
+    fun setBiometricUnlockEnabled(context: Context, v: Boolean) =
+        prefs(context).edit().putBoolean(KEY_BIOMETRIC_UNLOCK, v).apply()
+
+    // ---- 默认偏好（X13）：默认挂载模式 / 默认 PRF。绝不存密钥。----
+    private const val KEY_DEFAULT_MOUNT_WRITABLE = "default_mount_writable"
+    private const val KEY_DEFAULT_PRF_INDEX = "default_prf_index"
+
+    /** 默认挂载模式：true=读写，false=只读。解锁时作初始值，用户可逐次覆盖。 */
+    fun defaultMountWritable(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_DEFAULT_MOUNT_WRITABLE, true)
+    fun setDefaultMountWritable(context: Context, v: Boolean) =
+        prefs(context).edit().putBoolean(KEY_DEFAULT_MOUNT_WRITABLE, v).apply()
+
+    /** 默认 PRF 选项索引（对齐 MainActivity.PRF_OPTIONS，0=自动）。 */
+    fun defaultPrfIndex(context: Context): Int =
+        prefs(context).getInt(KEY_DEFAULT_PRF_INDEX, 0)
+    fun setDefaultPrfIndex(context: Context, v: Int) =
+        prefs(context).edit().putInt(KEY_DEFAULT_PRF_INDEX, v.coerceIn(0, 5)).apply()
+
+    // ---- NTFS 实验开关（默认关）。开启才允许挂载 NTFS 容器（读写待真机 chkdsk 验收）。----
+    //   正常用户零影响：关闭时 NTFS 一律拒绝挂载（宁可打不开，绝不挂垃圾/误写）。
+    //   恒烈真机验收专用：先只读验证（挂只读零写风险），读通过再开可写验写。
+    private const val KEY_NTFS_EXPERIMENTAL = "ntfs_experimental"
+    fun ntfsExperimental(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_NTFS_EXPERIMENTAL, false)
+    fun setNtfsExperimental(context: Context, v: Boolean) =
+        prefs(context).edit().putBoolean(KEY_NTFS_EXPERIMENTAL, v).apply()
+
     // ---- 收藏容器（多容器快速切换，E 阶段）。仅存 URI+名字+时间，绝不存密码/密钥。----
     private const val KEY_FAVORITES = "favorite_containers"
 
     /** 一个收藏容器：持久化 URI 串 + 显示名 + 上次使用毫秒。 */
-    data class Favorite(val uri: String, val name: String, val lastUsed: Long)
+    data class Favorite(val uri: String, val name: String, val lastUsed: Long, val order: Int = 0)
 
     /** 读收藏列表，按上次使用倒序（最近在前）。 */
     fun favorites(context: Context): List<Favorite> {
@@ -63,9 +97,9 @@ object Settings {
             val out = ArrayList<Favorite>(arr.length())
             for (i in 0 until arr.length()) {
                 val o = arr.getJSONObject(i)
-                out.add(Favorite(o.getString("uri"), o.optString("name", ""), o.optLong("lastUsed", 0L)))
+                out.add(Favorite(o.getString("uri"), o.optString("name", ""), o.optLong("lastUsed", 0L), o.optInt("order", 0)))
             }
-            out.sortedByDescending { it.lastUsed }
+            out.sortedWith(compareBy<Favorite> { it.order }.thenByDescending { it.lastUsed })
         } catch (e: Exception) { emptyList() }
     }
 
@@ -80,11 +114,37 @@ object Settings {
         writeFavorites(context, favorites(context).filter { it.uri != uri })
     }
 
+    /** 清空所有收藏（Panic 紧急擦除用）。 */
+    fun clearFavorites(context: Context) {
+        writeFavorites(context, emptyList())
+    }
+
+    /** 重命名收藏项（改 name，不动 uri/order/lastUsed）。 */
+    fun renameFavorite(context: Context, uri: String, newName: String) {
+        val cur = favorites(context)
+        writeFavorites(context, cur.map { if (it.uri == uri) it.copy(name = newName) else it })
+    }
+
+    /**
+     * 调整收藏项顺序（X9）：把 [uri] 移到位置 [newOrder]，其余项顺序号顺延。
+     * order 越小越靠前；同 order 按 lastUsed 倒序。置顶 = newOrder=0。
+     */
+    fun reorderFavorite(context: Context, uri: String, newOrder: Int) {
+        val cur = favorites(context)
+        val target = cur.firstOrNull { it.uri == uri } ?: return
+        val others = cur.filter { it.uri != uri }
+        // 重新分配连续 order：目标插入 newOrder 位置，其余顺延。
+        val before = others.filter { it.order < newOrder || (it.order == newOrder && false) }
+        val after = others.filter { it.order >= newOrder }
+        val merged = before + target.copy(order = newOrder) + after.mapIndexed { i, f -> f.copy(order = newOrder + 1 + i) }
+        writeFavorites(context, merged)
+    }
+
     private fun writeFavorites(context: Context, list: List<Favorite>) {
         val arr = org.json.JSONArray()
         for (f in list) {
             val o = org.json.JSONObject()
-            o.put("uri", f.uri); o.put("name", f.name); o.put("lastUsed", f.lastUsed)
+            o.put("uri", f.uri); o.put("name", f.name); o.put("lastUsed", f.lastUsed); o.put("order", f.order)
             arr.put(o)
         }
         prefs(context).edit().putString(KEY_FAVORITES, arr.toString()).apply()

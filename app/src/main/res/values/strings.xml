@@ -172,6 +172,8 @@
     <string name="create_cluster_32768">32768 bytes</string>
     <string name="create_dynamic">Dynamic volume (sparse)</string>
     <string name="create_dynamic_hint">Allocates space on demand. UI is ready; backend treats it as a regular volume for now.</string>
+    <string name="create_random_fill">Random fill</string>
+    <string name="create_random_fill_hint">Fills the entire volume with random data for maximum plausible-deniability (safer). Large containers take longer to create.</string>
 
     <!-- Change password / PIM / PRF / keyfiles (B1) -->
     <string name="change_pwd_entry">Change password / PIM / keyfiles</string>
@@ -223,4 +225,95 @@
     <string name="settings_lock_screen_off">Lock when screen turns off</string>
     <string name="favorites_title">Saved containers</string>
     <string name="favorites_remove">Remove</string>
+    <!-- Hidden volume keyfile (C2 enhancement, align with desktop VC) -->
+    <string name="create_hidden_keyfiles_none">Hidden keyfiles (optional)</string>
+    <string name="create_hidden_keyfiles_selected">Hidden keyfiles: %1$d selected</string>
+
+    <!-- Volume expansion (X17) -->
+    <string name="expand_volume_entry">Expand volume</string>
+    <string name="expand_volume_title">Expand volume</string>
+    <string name="expand_volume_desc">Enlarge this container without re-encrypting data. The master key stays the same; only the headers and file size change. Enter the new total size below. Only enlargement is supported. A rescue backup of the current header is saved first.</string>
+    <string name="expand_volume_current_size">Current size: %1$s</string>
+    <string name="expand_volume_new_size_mb">New total size (MB)</string>
+    <string name="expand_volume_working">Expanding volume…</string>
+    <string name="expand_volume_submit">Expand</string>
+    <string name="expand_volume_cancel">Cancel</string>
+    <string name="expand_volume_ok">Volume expanded to %1$s.</string>
+    <string name="expand_volume_failed">Failed to expand volume</string>
+    <string name="expand_volume_too_small">New size must be larger than the current size</string>
+
+    <!-- Partition encryption probe (X2/X3, experimental, root-gated) -->
+    <string name="block_device_entry">Partition encryption (experimental)</string>
+    <string name="block_device_title">Partitions (read-only probe)</string>
+    <string name="block_device_desc">Experimental. Lists block devices read-only. No encryption is performed. Requires root.</string>
+    <string name="block_device_loading">Enumerating…</string>
+    <string name="block_device_empty">No block devices found.</string>
+    <string name="block_device_no_root">Root not granted. Cannot enumerate block devices.</string>
+    <string name="block_device_request_root">Grant root</string>
+    <string name="block_device_close">Close</string>
+    <string name="block_device_size">Size: %1$s</string>
+    <string name="block_device_removable">Removable</string>
+
+    <!-- Container info panel (X10) -->
+    <string name="info_entry">Container info</string>
+    <string name="info_title">Container info</string>
+    <string name="info_algorithm">Encryption</string>
+    <string name="info_prf">Key derivation (PRF)</string>
+    <string name="info_data_size">Data area size</string>
+    <string name="info_sector_size">Sector size</string>
+    <string name="info_fs_type">File system</string>
+    <string name="info_label">Volume label</string>
+    <string name="info_hidden">Hidden volume</string>
+    <string name="info_writable">Mounted writable</string>
+    <string name="info_yes">Yes</string>
+    <string name="info_no">No</string>
+    <string name="info_close">Close</string>
+    <string name="info_bytes_fmt">%1$s (%2$d bytes)</string>
+    <string name="info_cascade">Cascade</string>
+    <string name="browse_write_full">Container is full — not enough free space</string>
+    <!-- W16 目录操作 rename/mkdir/move/rmdir -->
+    <string name="browse_new_folder">New folder</string>
+    <string name="browse_new_folder_hint">Folder name</string>
+    <string name="browse_new_folder_ok">Folder created: %1$s</string>
+    <string name="browse_new_folder_failed">Could not create folder</string>
+    <string name="browse_action_rename">Rename</string>
+    <string name="browse_action_move">Move to…</string>
+    <string name="browse_action_delete_folder">Delete folder</string>
+    <string name="browse_rename_title">Rename</string>
+    <string name="browse_rename_hint">New name</string>
+    <string name="browse_rename_ok">Renamed to %1$s</string>
+    <string name="browse_rename_failed">Rename failed</string>
+    <string name="browse_move_title">Move \"%1$s\" to</string>
+    <string name="browse_move_here">Move here</string>
+    <string name="browse_move_up">.. (parent)</string>
+    <string name="browse_move_ok">Moved: %1$s</string>
+    <string name="browse_move_failed">Move failed</string>
+    <string name="browse_rmdir_title">Delete folder</string>
+    <string name="browse_rmdir_msg">Delete folder \"%1$s\"? Only empty folders can be deleted.</string>
+    <string name="browse_rmdir_ok">Folder deleted: %1$s</string>
+    <string name="browse_rmdir_failed">Delete failed (folder may not be empty)</string>
+    <string name="browse_op_unsupported">This file system does not support that operation yet</string>
+    <string name="browse_action_more">More</string>
+    <string name="favorites_rename">Rename</string>
+    <string name="favorites_pin">Pin to top</string>
+    <string name="favorites_rename_title">Rename favorite</string>
+    <string name="favorites_rename_hint">Display name</string>
+    <string name="settings_default_mount_writable">Default read-write mount</string>
+    <string name="settings_default_prf">Default PRF</string>
+    <string name="settings_ntfs_exp">Enable NTFS (experimental)</string>
+    <string name="settings_ntfs_exp_desc">NTFS read/write is unverified on device. Use throwaway containers only. Off = NTFS containers refuse to mount.</string>
+    <!-- 块设备解锁（F2）-->
+    <string name="block_device_unlock">Unlock</string>
+    <string name="block_device_unlocking">Unlocking…</string>
+    <string name="block_device_unlock_failed">Unlock failed: %1$s</string>
+    <string name="block_device_unlocked">Unlocked: %1$s</string>
+    <!-- 系统挂载暴露（F3）-->
+    <string name="expose_title">Expose to system</string>
+    <string name="expose_warning">This decrypts container contents to a directory accessible by all apps. Major security risk — only for trusted environments.</string>
+    <string name="expose_dir_hint">Target directory (e.g. /data/local/tmp/sealchest)</string>
+    <string name="expose_start">Start expose</string>
+    <string name="expose_cleanup">Cleanup</string>
+    <string name="expose_progress">Syncing: %1$s</string>
+    <string name="expose_done">Exposed %1$d files</string>
+    <string name="expose_failed">Expose failed: %1$s</string>
 </resources>

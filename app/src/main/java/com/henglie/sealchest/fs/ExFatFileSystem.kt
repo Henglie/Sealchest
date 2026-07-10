@@ -381,13 +381,39 @@ class ExFatFileSystem private constructor(
      * 分配 [bytes] 所需簇并写入数据，建 FAT 链（末簇 EOC）。返回首簇；失败返回 0（已回滚）。
      * 走 FAT 链（非 NoFatChain），永远合法，免连续空闲区搜索。
      */
+    /**
+     * 分配 [need] 个连续空闲簇（W3，NoFatChain 大文件用）。返回首簇；无连续段返回 -1（不占位图）。
+     * 成功则置位图全部 need 位。NoFatChain 不写 FAT 链，簇号连续即定位。
+     */
+    private fun allocContiguous(need: Int): Long {
+        if (bitmapChain.isEmpty() || need <= 0) return -1L
+        val max = boot.clusterCount + 2
+        var runStart = -1L
+        var runLen = 0
+        var c = 2L
+        while (c < max) {
+            if (!isClusterUsed(c)) {
+                if (runStart < 0) runStart = c
+                runLen++
+                if (runLen >= need) {
+                    for (k in 0 until need) setClusterBit(runStart + k, true)
+                    return runStart
+                }
+            } else {
+                runStart = -1; runLen = 0
+            }
+            c++
+        }
+        return -1L
+    }
+
     private fun allocAndWriteChain(bytes: ByteArray): Long {
         if (bytes.isEmpty()) return 0L
         val need = ((bytes.size + bytesPerCluster - 1) / bytesPerCluster)
         val clusters = ArrayList<Long>(need)
         for (k in 0 until need) {
             val c = allocCluster()
-            if (c < 2) { clusters.forEach { setClusterBit(it, false) }; return 0L }  // 回滚
+            if (c < 2) { clusters.forEach { setClusterBit(it, false) }; throw VolumeFullException() }  // 回滚 + W18
             clusters.add(c)
         }
         // 写 FAT 链：每簇指向下一簇，末簇 EOC。
@@ -408,12 +434,18 @@ class ExFatFileSystem private constructor(
 
     /** 释放簇链（顺 FAT 链清位图 + 清 FAT 项）。 */
     private fun freeChain(first: Long) {
-        if (first < 2) return
-        val chain = clusterChain(first, noFatChain = false, dataLength = 0)
+                if (first < 2) return
+        // X4 BUG-1 修复：NoFatChain 文件（桌面 VC 连续分配）须按 dataLength 算簇数，
+        // 否则 clusterChain 走 FAT 链首簇即跳出，只释放首簇 → 簇泄漏。chainHint 由 parseDir
+        // 填；app 自建文件无 hint 走 else（allocAndWriteChain 永远 FAT 链，noFatChain=false 正确）。
+        val hint = chainHint[first]
+        val chain = if (hint != null) clusterChain(first, hint.noFatChain, hint.dataLength)
+                    else clusterChain(first, noFatChain = false, dataLength = 0)
         for (c in chain) {
             writeFatEntry(c, 0L)
             setClusterBit(c, false)
         }
+        chainHint.remove(first)   // 清残留：否则新文件复用此簇号且走 FAT 分支时会被旧 hint 污染
     }
 
     // ---- upcase / 名字哈希 / 校验和 ----
@@ -478,7 +510,7 @@ class ExFatFileSystem private constructor(
      * 造完整目录项组字节（0x85 + 0xC0 + N×0xC1）。名字 UTF-16LE，每 0xC1 项 15 字符。
      * [firstCluster]=0 表示空文件（无数据簇）。返回整组字节（32×项数）。
      */
-    private fun buildEntrySet(name: String, isDir: Boolean, firstCluster: Long, dataLength: Long): ByteArray {
+    private fun buildEntrySet(name: String, isDir: Boolean, firstCluster: Long, dataLength: Long, noFatChain: Boolean = false): ByteArray {
         val nameLen = name.length
         val nameEntries = (nameLen + 14) / 15   // ceil(len/15)
         val secondaryCount = 1 + nameEntries    // 0xC0 + N×0xC1
@@ -499,8 +531,10 @@ class ExFatFileSystem private constructor(
         // --- 0xC0 流扩展项 ---
         val s = ENTRY_SIZE
         buf[s] = TYPE_STREAM_EXT.toByte()
-        // flags：不设 NoFatChain（走 FAT 链）。有数据时 bit0 AllocationPossible=1。
-        buf[s + 1] = if (firstCluster >= 2) 0x01 else 0x00
+        // flags：bit0 AllocationPossible（有数据），bit1 NoFatChain（连续分配，W3）。
+        var sflags = if (firstCluster >= 2) 0x01 else 0x00
+        if (noFatChain) sflags = sflags or FLAG_NO_FAT_CHAIN
+        buf[s + 1] = sflags.toByte()
         buf[s + 3] = nameLen.toByte()   // NameLength
         putU16(buf, s + 4, nameHash(name))  // NameHash
         putU64(buf, s + 8, dataLength)      // ValidDataLength
@@ -579,18 +613,78 @@ class ExFatFileSystem private constructor(
         return null
     }
 
+
+    /**
+     * 扩展目录簇链（W2）：在 [ctx] 链尾追加一个新簇（alloc -> 挂 FAT -> 清零），返回刷新后的 ctx。
+     * 失败（无空闲簇）返回 null。新簇全 0 = EndOfDir 标记，findFreeSlots 视为空闲槽。
+     * 注：仅 root 目录场景（root 无 stream extension，链长即真长）；subdir 扩展另需更新其
+     * 流扩展 DataLength，留 W9 exFAT mkdir 同批处理（当前 writeFile 只写 root/既有目录）。
+     */
+    private fun expandDir(ctx: DirCtx): DirCtx? {
+        val tail = ctx.chain.lastOrNull() ?: return null
+        val newC = allocCluster()
+        if (newC < 2) return null
+        writeFatEntry(tail, newC)        // 旧尾簇 -> 新簇
+        writeFatEntry(newC, EOC)         // 新簇为尾，EOC
+        // 新簇清零（0x00 = EndOfDir，free slots）。整簇写 0。
+        reader.write(boot.clusterToOffset(newC), ByteArray(bytesPerCluster), 0, bytesPerCluster)
+        val newChain = clusterChain(ctx.chain.first(), noFatChain = false, dataLength = 0)
+        val newBuf = readChain(newChain, -1)
+        return DirCtx(newChain, newBuf)
+    }
     override fun writeFile(dirFirstCluster: Long, name: String, bytes: ByteArray): Boolean {
         if (name.isEmpty() || bitmapChain.isEmpty()) return false
         val ctx = openDir(dirFirstCluster)
         if (locateEntry(ctx, name) != null) return false   // 已存在
-        val firstCluster = if (bytes.isEmpty()) 0L else allocAndWriteChain(bytes)
-        if (bytes.isNotEmpty() && firstCluster < 2) return false  // 分配失败
-        val entrySet = buildEntrySet(name, isDir = false, firstCluster = firstCluster, dataLength = bytes.size.toLong())
+        // 先分配数据簇（满盘抛 VolumeFullException），再写目录项。
+        val (firstCluster, noFat) = allocDataClusters(bytes)
+        return writeDirEntry(dirFirstCluster, name, firstCluster, bytes.size.toLong(), noFat)
+    }
+
+    /**
+     * 分配数据簇并写入内容。空文件返回 (0, false)。满盘抛 VolumeFullException
+     * （不残留：连续段满盘直接回退 FAT 链；allocAndWriteChain 分配失败内部回滚已占位簇）。
+     * 两条分支都显式登记 chainHint，杜绝旧 hint 残留污染 freeChain 的簇数推导。
+     */
+    private fun allocDataClusters(bytes: ByteArray): Pair<Long, Boolean> {
+        if (bytes.isEmpty()) return 0L to false
+        val need = (bytes.size + bytesPerCluster - 1) / bytesPerCluster
+        val contStart = allocContiguous(need)
+        if (contStart >= 2) {
+            // W3：NoFatChain 连续分配——写数据到连续簇段，不写 FAT 链。
+            var off = 0
+            for (k in 0 until need) {
+                val chunk = minOf(bytesPerCluster, bytes.size - off)
+                val block = if (chunk == bytesPerCluster) bytes.copyOfRange(off, off + chunk)
+                            else ByteArray(bytesPerCluster).also { System.arraycopy(bytes, off, it, 0, chunk) }
+                reader.write(boot.clusterToOffset(contStart + k), block, 0, bytesPerCluster)
+                off += chunk
+            }
+            chainHint[contStart] = ChainHint(true, bytes.size.toLong())
+            return contStart to true
+        }
+        // 回退 FAT 链（空间碎片化无连续段；真正空间不足由 allocAndWriteChain 抛 VolumeFullException）。
+        val first = allocAndWriteChain(bytes)
+        chainHint[first] = ChainHint(false, bytes.size.toLong())
+        return first to false
+    }
+
+    /**
+     * 把已分配好数据簇的文件写入目录项（目录满则扩簇重试）。
+     * 无空间放目录项时回滚数据簇并返回 false。
+     */
+    private fun writeDirEntry(dirFirstCluster: Long, name: String, firstCluster: Long, dataLength: Long, noFat: Boolean): Boolean {
+        var ctx = openDir(dirFirstCluster)
+        val entrySet = buildEntrySet(name, isDir = false, firstCluster = firstCluster, dataLength = dataLength, noFatChain = noFat)
         val slots = entrySet.size / ENTRY_SIZE
-        val pos = findFreeSlots(ctx.buf, slots)
-        if (pos < 0) {
-            if (firstCluster >= 2) freeChain(firstCluster)   // 回滚数据簇
-            return false   // 目录满（本版不扩目录簇）
+        var pos = findFreeSlots(ctx.buf, slots)
+        // W2：目录满则扩簇（链尾追加新簇 -> 挂 FAT -> 清零 -> 刷新 ctx）后重试，直至放下或无空间。
+        while (pos < 0) {
+            ctx = expandDir(ctx) ?: run {
+                if (firstCluster >= 2) freeChain(firstCluster)   // 回滚数据簇
+                return false
+            }
+            pos = findFreeSlots(ctx.buf, slots)
         }
         // 逐项写入（可能跨簇边界，故按项算逻辑偏移）。
         for (e in 0 until slots) {
@@ -617,9 +711,185 @@ class ExFatFileSystem private constructor(
     }
 
     override fun overwriteFile(dirFirstCluster: Long, name: String, bytes: ByteArray): Boolean {
-        // 覆写 = 删除旧项（释放旧簇）+ 写新项。非崩溃原子，与 FAT 层同级别。
-        if (!deleteFile(dirFirstCluster, name)) return false
-        return writeFile(dirFirstCluster, name, bytes)
+        // W19 优化：大小不变时走原地覆盖（不重新分配簇链），与 FAT 层语义对齐。
+        //   大小变化则回退到删旧+写新（非崩溃原子，与 FAT 同级）。
+        val dir = if (dirFirstCluster < 2) boot.rootCluster else dirFirstCluster
+        val entry = parseDir(dir).firstOrNull { it.name == name && !it.isDirectory } ?: return false
+        if (entry.size == bytes.size.toLong() && entry.firstCluster >= 2 && bytes.isNotEmpty()) {
+            // 大小不变：原地逐簇覆盖数据，不重新分配。noFatChain 判定沿用 chainHint（X4 同模式）。
+            val hint = chainHint[entry.firstCluster]
+            val noFat = hint?.noFatChain ?: false
+            val chain = clusterChain(entry.firstCluster, noFat, entry.size)
+            var off = 0
+            for (c in chain) {
+                val chunk = minOf(bytesPerCluster, bytes.size - off)
+                if (chunk <= 0) break
+                // 与 writeFile 一致：整簇对齐写，尾簇补零，避免越界读源数组。
+                val block = if (chunk == bytesPerCluster) bytes.copyOfRange(off, off + chunk)
+                            else ByteArray(bytesPerCluster).also { System.arraycopy(bytes, off, it, 0, chunk) }
+                reader.write(boot.clusterToOffset(c), block, 0, bytesPerCluster)
+                off += chunk
+            }
+            return true
+        }
+        // 大小变化：先建后拆（对齐 FAT 层 FatFileSystem.overwriteFile）。
+        //   ① 先分配新数据簇（满盘抛 VolumeFullException，此时旧文件完好无损，绝不先删）；
+        //   ② 分配成功再删旧（释放旧簇 + 清旧目录项）；③ 写新目录项复用释放出的 slot。
+        // 旧实现"先 deleteFile 后 writeFile"在满盘时会丢掉整个原文件（H1），已废弃。
+        val (newFirst, noFat) = allocDataClusters(bytes)
+        if (!deleteFile(dirFirstCluster, name)) {
+            if (newFirst >= 2) freeChain(newFirst)   // 删旧失败则回滚刚分配的新簇
+            return false
+        }
+        return writeDirEntry(dirFirstCluster, name, newFirst, bytes.size.toLong(), noFat)
+    }
+
+    // ==== W7/W9/W10/W14 exFAT 目录操作（纯新增，不动上方 writeFile/overwriteFile/deleteFile）====
+
+    /** 旧项元数据：从 0x85 attr + 0xC0 流扩展直接取字节。FsEntry 不暴露 noFatChain，且目录 size 恒 0。 */
+    private class DirItemMeta(val isDir: Boolean, val firstCluster: Long, val dataLength: Long, val noFatChain: Boolean)
+
+    private fun readItemMeta(buf: ByteArray, base: Int): DirItemMeta {
+        val attr = u16(buf, base + 4)
+        val s = base + ENTRY_SIZE
+        val flags = buf[s + 1].toInt() and 0xFF
+        return DirItemMeta(
+            isDir = (attr and ATTR_DIRECTORY) != 0,
+            firstCluster = u32(buf, s + 20),
+            dataLength = u64(buf, s + 24),
+            noFatChain = (flags and FLAG_NO_FAT_CHAIN) != 0,
+        )
+    }
+
+    /** 把已建好的 entry set 写入目录空位（满则 expandDir 重试）。无空间返回 false。落盘循环同 writeDirEntry。 */
+    private fun writeEntrySet(dirFirstCluster: Long, entrySet: ByteArray): Boolean {
+        var ctx = openDir(dirFirstCluster)
+        val slots = entrySet.size / ENTRY_SIZE
+        var pos = findFreeSlots(ctx.buf, slots)
+        while (pos < 0) {
+            ctx = expandDir(ctx) ?: return false
+            pos = findFreeSlots(ctx.buf, slots)
+        }
+        for (e in 0 until slots) {
+            reader.write(dirLogical(ctx, pos + e * ENTRY_SIZE), entrySet, e * ENTRY_SIZE, ENTRY_SIZE)
+        }
+        return true
+    }
+
+    /** 清 entry set 的 InUse 位（type & 0x7F，逐项写回），不动数据簇。同 deleteFile 删项逻辑。 */
+    private fun clearEntrySet(ctx: DirCtx, base: Int, count: Int) {
+        for (e in 0 until count) {
+            val off = dirLogical(ctx, base + e * ENTRY_SIZE)
+            val t = (reader.read(off, 1)[0].toInt() and 0xFF) and 0x7F
+            reader.write(off, byteArrayOf(t.toByte()), 0, 1)
+        }
+    }
+
+    /**
+     * W7 重命名：exFAT 改名 = 重建整组 entry set（名字长度变化会改 NameLength/SecondaryCount/
+     * NameHash/SetChecksum，无法原地改）。先建 newName 组（复用旧首簇/DataLength/isDir/noFatChain）
+     * 写入目录空位，成功后再清旧组 InUse 位。先建后拆：中途失败旧项完好。数据簇与 chainHint 全不动。
+     */
+    override fun rename(dirFirstCluster: Long, oldName: String, newName: String): Boolean {
+        if (bitmapChain.isEmpty()) return false
+        if (newName.isEmpty() || newName.length > 255 || oldName == newName) return false
+        val ctx = openDir(dirFirstCluster)
+        if (locateEntry(ctx, newName) != null) return false      // 新名已存在
+        val (base, count) = locateEntry(ctx, oldName) ?: return false
+        val m = readItemMeta(ctx.buf, base)
+        val entrySet = buildEntrySet(newName, m.isDir, m.firstCluster, m.dataLength, m.noFatChain)
+        if (!writeEntrySet(dirFirstCluster, entrySet)) return false   // 目录满且扩不了：旧项未动
+        // 重新 openDir 取旧项最新逻辑位（写新组可能已 expandDir，旧簇不变故 base 仍有效，但保险重定位）。
+        val ctx2 = openDir(dirFirstCluster)
+        val loc = locateEntry(ctx2, oldName) ?: return true      // 理论必存在；防御
+        clearEntrySet(ctx2, loc.first, loc.second)
+        return true
+    }
+
+    /**
+     * W9 新建目录：分配一簇作目录数据 → 整簇清零（0x00 = EndOfDir）→ 写 FAT 项 EOC
+     * （关键：openDir/parseDir 硬编码走 FAT 链读目录，故新簇必须挂 FAT，否则将来读到旧垃圾值）
+     * → 父目录写 entry set（isDir=true，DataLength=一簇大小，NoFatChain 单簇连续）
+     * → 登记 chainHint 防将来 freeChain 簇泄漏。写项失败回滚：清 FAT + 释放簇。
+     * 返回新目录首簇；失败返回 0（接口语义，非任务卡的 -1）。
+     */
+    override fun mkdir(dirFirstCluster: Long, name: String): Long {
+        if (name.isEmpty() || name.length > 255 || bitmapChain.isEmpty()) return 0L
+        val ctx = openDir(dirFirstCluster)
+        if (locateEntry(ctx, name) != null) return 0L            // 同名已存在
+        val newC = allocCluster()                                // 内部已置位图
+        if (newC < 2) return 0L
+        reader.write(boot.clusterToOffset(newC), ByteArray(bytesPerCluster), 0, bytesPerCluster)  // 整簇清零
+        writeFatEntry(newC, EOC)                                 // 单簇挂 FAT 尾，openDir 可读
+        val dataLen = bytesPerCluster.toLong()
+        val entrySet = buildEntrySet(name, isDir = true, firstCluster = newC, dataLength = dataLen, noFatChain = true)
+        if (!writeEntrySet(dirFirstCluster, entrySet)) {         // 父目录满且扩不了：回滚
+            writeFatEntry(newC, 0L)
+            setClusterBit(newC, false)
+            return 0L
+        }
+        chainHint[newC] = ChainHint(true, dataLen)               // 防将来 freeChain 只释放首簇
+        return newC
+    }
+
+    /**
+     * W10 同卷移动：数据簇不搬，纯目录项搬家。exFAT 目录不记父（无 ..），比 FAT 简单。
+     * 读源组全字段 → dstDir 建同名组（复用首簇/DataLength/isDir/noFatChain）→ 删 srcDir 源组。先建后拆。
+     * 同目录（含 <2 归一到 rootCluster）视为无操作直接 true：避免两份独立 ctx 快照互相覆盖。
+     */
+    override fun move(srcDirFirstCluster: Long, name: String, dstDirFirstCluster: Long): Boolean {
+        if (bitmapChain.isEmpty()) return false
+        val src = if (srcDirFirstCluster < 2) boot.rootCluster else srcDirFirstCluster
+        val dst = if (dstDirFirstCluster < 2) boot.rootCluster else dstDirFirstCluster
+        if (src == dst) return true                              // 同目录无操作
+        val srcCtx = openDir(src)
+        val (base, _) = locateEntry(srcCtx, name) ?: return false
+        val m = readItemMeta(srcCtx.buf, base)
+        val dstCtx = openDir(dst)
+        if (locateEntry(dstCtx, name) != null) return false      // 目标已存在同名
+        val entrySet = buildEntrySet(name, m.isDir, m.firstCluster, m.dataLength, m.noFatChain)
+        if (!writeEntrySet(dst, entrySet)) return false          // 目标满且扩不了：源未动
+        val srcCtx2 = openDir(src)                               // 重定位源（dst 若是 src 已排除）
+        val loc = locateEntry(srcCtx2, name) ?: return true
+        clearEntrySet(srcCtx2, loc.first, loc.second)
+        return true
+    }
+
+    /** 目录是否空：扫其簇内容，遇 0x00=EndOfDir 判空；遇 0x85（InUse 文件项）判非空；已删项(InUse=0)跳过。 */
+    private fun isDirEmpty(firstCluster: Long, dataLength: Long, noFatChain: Boolean): Boolean {
+        val chain = clusterChain(firstCluster, noFatChain, dataLength)
+        if (chain.isEmpty()) return true
+        val buf = readChain(chain, -1)
+        var i = 0
+        while (i + ENTRY_SIZE <= buf.size) {
+            val type = buf[i].toInt() and 0xFF
+            if (type == 0x00) return true                        // EndOfDir，其后全空
+            if (type == TYPE_FILE) return false                  // 存活文件/子目录项
+            i += ENTRY_SIZE                                      // 0xC0/0xC1 从属项 或 已删项，跳过
+        }
+        return true
+    }
+
+    /**
+     * W14 删目录：非目录返 false。判空后 freeChain（目录首簇）+ 清父目录该项 InUse。
+     * 关键：freeChain 靠 chainHint 判 NoFatChain 算簇数，外部 VC 建的目录无 hint 会漏释放 →
+     * 删前显式登记 chainHint。recursive 未实现：非空恒返 false（保守，留后续）。
+     */
+    override fun rmdir(dirFirstCluster: Long, name: String, recursive: Boolean): Boolean {
+        if (bitmapChain.isEmpty()) return false
+        val ctx = openDir(dirFirstCluster)
+        val (base, count) = locateEntry(ctx, name) ?: return false
+        val m = readItemMeta(ctx.buf, base)
+        if (!m.isDir) return false                               // 不是目录
+        if (m.firstCluster >= 2 && !isDirEmpty(m.firstCluster, m.dataLength, m.noFatChain)) {
+            return false                                         // 非空：recursive 未实现，一律拒绝
+        }
+        if (m.firstCluster >= 2) {
+            chainHint[m.firstCluster] = ChainHint(m.noFatChain, m.dataLength)  // 防漏释放
+            freeChain(m.firstCluster)
+        }
+        clearEntrySet(ctx, base, count)
+        return true
     }
 
     override fun invalidateFsInfo() { /* exFAT 无 FAT32 FSInfo，空操作 */ }

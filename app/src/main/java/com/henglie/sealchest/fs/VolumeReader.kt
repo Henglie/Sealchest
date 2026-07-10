@@ -30,6 +30,16 @@ class VolumeReader(
     /** 卷数据区字节数（不含头），逻辑偏移上界。 */
     val dataSize: Long = volume.volumeSize
 
+    // 卷 crypto 元信息转发（X10 容器信息面板）：只读快照，仅供展示，不参与解密路径。
+    /** VeraCrypt 加密算法编号（与创建用 EA ID 同套：1=AES 2=Serpent 3=Twofish 4=Camellia 5=Kuznyechik，其余为级联）。 */
+    val encryptionAlgorithm: Int = volume.encryptionAlgorithm
+    /** 派生用 PRF 编号（1=SHA512 2=Whirlpool 3=SHA256 4=BLAKE2s 5=Streebog）。 */
+    val prf: Int = volume.prf
+    /** 扇区大小（字节），通常 512。 */
+    val sectorSize: Int = volume.sectorSize
+    /** 是否隐藏卷（用隐藏卷头解锁）。 */
+    val isHidden: Boolean = volume.isHidden
+
     private companion object {
         const val UNIT = 512
         /** 512B * 512 = 256KB 解密缓存，够覆盖 FAT 表热点。 */

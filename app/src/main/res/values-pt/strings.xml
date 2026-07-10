@@ -1,0 +1,320 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Default locale = English. Chinese lives in values-zh. This makes any
+         non-Chinese system language fall back to English (product requirement:
+         Chinese system -> Chinese, everything else -> English). -->
+    <string name="app_name">Sealchest</string>
+
+    <!-- Home -->
+    <string name="home_title">Sealchest</string>
+    <string name="home_subtitle">Abra contêineres VeraCrypt sem root</string>
+    <string name="home_pick_container">Escolha um arquivo de contêiner</string>
+    <string name="home_no_container">Nenhum contêiner aberto ainda</string>
+    <string name="home_recent">Abertos recentemente</string>
+
+    <!-- Unlock -->
+    <string name="unlock_title">Desbloquear contêiner</string>
+    <string name="unlock_password">Senha</string>
+    <string name="unlock_pim">PIM (opcional, deixe em branco para o padrão)</string>
+    <string name="unlock_prf">Algoritmo de hash (PRF)</string>
+    <string name="unlock_prf_auto">Detecção automática</string>
+    <string name="unlock_submit">Desbloquear</string>
+    <string name="unlock_unlocking">Derivando chave…</string>
+    <string name="unlock_wrong">Senha, PIM ou PRF incorretos; não foi possível desbloquear</string>
+
+    <!-- PRF options -->
+    <string name="prf_auto">Detecção automática</string>
+    <string name="prf_sha512">SHA-512</string>
+    <string name="prf_whirlpool">Whirlpool</string>
+    <string name="prf_sha256">SHA-256</string>
+    <string name="prf_blake2s">BLAKE2s</string>
+    <string name="prf_streebog">Streebog</string>
+
+    <!-- Mount / writable -->
+    <string name="mount_writable_on">Montagem com gravação (alterações gravadas de volta no contêiner)</string>
+    <string name="mount_writable_off">Montagem com gravação (esta origem não permite gravação)</string>
+    <string name="mount_default_container">Contêiner</string>
+
+    <!-- Mounted panel -->
+    <string name="mounted_no_label">(sem rótulo)</string>
+    <string name="mounted_filesystem">Sistema de arquivos: %1$s</string>
+    <string name="mounted_label">Rótulo: %1$s</string>
+
+    <!-- Self-test -->
+    <string name="selftest_running">  Executando autoteste criptográfico…</string>
+    <string name="selftest_button">Autoteste criptográfico</string>
+    <string name="selftest_title">Autoteste criptográfico</string>
+    <string name="selftest_ok_button">OK</string>
+    <string name="selftest_unavailable">O autoteste não pôde ser executado (não montado ou erro no núcleo).</string>
+    <string name="selftest_roundtrip1">%1$s Ida e volta 1  encrypt(decrypt(C0)) == C0</string>
+    <string name="selftest_encchanges">%1$s A criptografia realmente altera os dados</string>
+    <string name="selftest_roundtrip2">%1$s Ida e volta 2  decrypt(encrypt(X)) == X</string>
+    <string name="selftest_pass">Tudo passou: o caminho de criptografia é o inverso exato da descriptografia; após gravar de volta, o VeraCrypt desktop ainda consegue abrir o contêiner.</string>
+    <string name="selftest_fail">Algumas verificações falharam: o caminho de criptografia está quebrado e não pode ser usado para gravação.</string>
+
+    <!-- Browse -->
+    <string name="browse_title">Conteúdo do contêiner</string>
+    <string name="browse_empty">Esta pasta está vazia</string>
+    <string name="browse_lock">Bloquear e fechar</string>
+    <string name="browse_root">Raiz</string>
+    <string name="browse_back">Voltar</string>
+    <string name="browse_exported">Exportado %1$s</string>
+    <string name="browse_export_failed">Falha na exportação</string>
+    <string name="browse_no_preview">Não é possível visualizar este tipo de arquivo</string>
+    <string name="browse_action_preview">Visualizar (imagem / texto)</string>
+    <string name="browse_action_export">Exportar para o telefone</string>
+    <string name="browse_action_open_with">Abrir com outro app</string>
+    <string name="browse_image_decode_failed">Falha ao decodificar a imagem</string>
+    <string name="browse_export_open_failed">Exportação falhou, não foi possível abrir</string>
+    <string name="browse_no_app_for_type">Nenhum app abre este tipo</string>
+    <string name="browse_action_overwrite">Sobrescrever com arquivo do telefone</string>
+    <string name="browse_action_delete">Excluir</string>
+    <string name="browse_import_file">Importar arquivo para o contêiner</string>
+    <string name="browse_delete_confirm_title">Excluir arquivo</string>
+    <string name="browse_delete_confirm_msg">Excluir \"%1$s\" deste contêiner? Isso não pode ser desfeito.</string>
+    <string name="browse_delete_confirm_yes">Excluir</string>
+    <string name="browse_write_ok">Gravado: %1$s</string>
+    <string name="browse_write_failed">Falha na gravação</string>
+    <string name="browse_overwrite_ok">Sobrescrito: %1$s</string>
+    <string name="browse_overwrite_failed">Falha na sobrescrita</string>
+    <string name="browse_delete_ok">Excluído: %1$s</string>
+    <string name="browse_delete_failed">Falha na exclusão</string>
+
+    <!-- Common -->
+    <string name="cancel">Cancelar</string>
+    <string name="ok">OK</string>
+    <string name="error_generic">Algo deu errado</string>
+    <string name="native_unavailable">O núcleo criptográfico falhou ao carregar; não é possível descriptografar contêineres</string>
+
+    <!-- Self-test placeholder screen (first version) -->
+    <string name="app_tagline">Abra contêineres VeraCrypt sem root</string>
+    <string name="native_ready">O núcleo criptográfico está pronto</string>
+    <string name="native_missing">O núcleo criptográfico falhou ao carregar</string>
+    <string name="native_version">Versão do núcleo: %1$s</string>
+
+    <!-- About -->
+    <string name="about_title">Sobre</string>
+    <string name="about_button">Sobre</string>
+    <string name="about_app_desc">Uma ferramenta para abrir contêineres VeraCrypt criptografados no Android sem root, em espaço de usuário puro.</string>
+    <string name="about_author_label">Autor</string>
+    <string name="about_author">Henglie / EternalBlaze</string>
+    <string name="about_project_label">Projeto</string>
+    <string name="about_version_label">Versão</string>
+    <string name="about_upstream_label">Núcleo VeraCrypt</string>
+    <string name="about_upstream_commit_label">Commit fixado</string>
+    <string name="about_toolchain_label">Toolchain de build</string>
+    <string name="about_abis_label">ABIs</string>
+    <string name="about_supplychain_note">Este app compila o núcleo criptográfico C upstream do VeraCrypt, fixado no commit acima. Você pode auditar exatamente qual código-fonte é compilado em github.com/veracrypt/VeraCrypt.</string>
+    <string name="about_credit">O núcleo criptográfico é portado do VeraCrypt (Apache-2.0 + TrueCrypt License 3.0). Sealchest é um produto independente e não é afiliado, nem se faz passar por, os projetos VeraCrypt ou TrueCrypt.</string>
+    <string name="unlock_keyfiles_none">Arquivos-chave (opcional)</string>
+    <string name="unlock_keyfiles_selected">Arquivos-chave: %1$d selecionados</string>
+    <string name="unlock_keyfiles_clear">Limpar arquivos-chave</string>
+    <!-- Volume header tool (A2: backup / rescue) -->
+    <string name="header_tool_entry">Ferramentas de cabeçalho do volume (backup / recuperação)</string>
+    <string name="header_tool_title">Ferramentas de cabeçalho do volume</string>
+    <string name="header_tool_desc">Um volume VeraCrypt mantém um cabeçalho de backup no final do contêiner. Se o cabeçalho primário for danificado e o volume não abrir, restaure-o a partir do backup incorporado. Faça backup do cabeçalho regularmente enquanto o volume está íntegro.</string>
+    <string name="header_tool_close">Fechar</string>
+    <string name="header_export_button">Fazer backup do cabeçalho primário para arquivo</string>
+    <string name="header_export_ok">Backup do cabeçalho concluído.</string>
+    <string name="header_export_failed">Backup do cabeçalho falhou.</string>
+    <string name="header_rescue_warn">A recuperação sobrescreve o cabeçalho primário com o cabeçalho de backup incorporado. Ela primeiro verifica se o backup abre com sua senha/arquivos-chave e salva o cabeçalho atual em um arquivo de recuperação, mas ainda assim grava no contêiner — certifique-se de que o volume não esteja montado em outro lugar.</string>
+    <string name="header_rescue_button">Recuperar do cabeçalho de backup incorporado</string>
+    <string name="header_rescue_need_write">A recuperação precisa de permissão de gravação (selecione novamente o contêiner concedendo acesso de gravação)</string>
+    <string name="header_restore_ok">Cabeçalho primário restaurado do backup. Tente desbloquear agora.</string>
+    <string name="header_restore_failed">Falha na restauração. O contêiner não foi modificado.</string>
+
+    <!-- Create volume wizard (B2) -->
+    <string name="create_entry">Criar novo contêiner</string>
+    <string name="create_title">Criar contêiner</string>
+    <string name="create_algorithm">Algoritmo de criptografia</string>
+    <string name="create_algo_aes">AES</string>
+    <string name="create_algo_serpent">Serpent</string>
+    <string name="create_algo_twofish">Twofish</string>
+    <string name="create_algo_camellia">Camellia</string>
+    <string name="create_algo_kuznyechik">Kuznyechik</string>
+    <string name="create_prf">Algoritmo de hash (PRF)</string>
+    <string name="create_size_mb">Tamanho (MB)</string>
+    <string name="create_size_hint">Tamanho da área de dados do contêiner em MB. Mínimo 1 MB; maiores armazenam mais arquivos.</string>
+    <string name="create_password">Senha</string>
+    <string name="create_password_confirm">Confirmar senha</string>
+    <string name="create_password_mismatch">As duas senhas não coincidem</string>
+    <string name="create_pim">PIM (opcional, deixe em branco para o padrão)</string>
+    <string name="create_pim_hint">Multiplicador pessoal de iterações. Deixe em branco para usar a contagem de iterações padrão.</string>
+    <string name="create_cancel">Cancelar</string>
+    <string name="create_submit">Criar</string>
+    <string name="create_ok">Contêiner criado</string>
+    <string name="create_failed">Falha ao criar contêiner</string>
+    <string name="create_in_progress">Criando contêiner…</string>
+    <string name="create_entropy_title">Coletar aleatoriedade</string>
+    <string name="create_entropy_hint">Deslize o dedo pela caixa abaixo. Seus movimentos imprevisíveis adicionam entropia à chave mestra (como mover o mouse no VeraCrypt desktop).</string>
+    <string name="create_entropy_progress">Continue deslizando… %1$d%%</string>
+    <string name="create_entropy_done">Aleatoriedade suficiente coletada</string>
+    <string name="create_next">Avançar</string>
+    <string name="create_entropy_fullscreen_hint">Deslize o dedo por toda a tela e agite o telefone se ele tiver sensor de movimento. Seus movimentos imprevisíveis alimentam o pool de aleatoriedade da chave mestra (como mover o mouse no VeraCrypt desktop). Continue até o pool estar cheio.</string>
+    <string name="create_entropy_sensor_on">Sensor de movimento ativo — agitar também adiciona aleatoriedade</string>
+    <string name="create_entropy_sensor_none">Sem sensor de movimento — apenas deslizar</string>
+    <string name="create_entropy_pool_label">Pool de aleatoriedade</string>
+    <string name="create_entropy_swipe_here">Deslize em qualquer lugar aqui</string>
+
+    <!-- File system / cluster size / dynamic volume (X2) -->
+    <string name="create_fs_type">Sistema de arquivos</string>
+    <string name="create_fs_fat">FAT</string>
+    <string name="create_fs_exfat">exFAT</string>
+    <string name="create_fs_ntfs">NTFS</string>
+    <string name="create_fs_coming_soon">(em breve)</string>
+    <string name="create_cluster_size">Tamanho do cluster</string>
+    <string name="create_cluster_default">Padrão</string>
+    <string name="create_cluster_512">512 bytes</string>
+    <string name="create_cluster_1024">1024 bytes</string>
+    <string name="create_cluster_2048">2048 bytes</string>
+    <string name="create_cluster_4096">4096 bytes</string>
+    <string name="create_cluster_8192">8192 bytes</string>
+    <string name="create_cluster_16384">16384 bytes</string>
+    <string name="create_cluster_32768">32768 bytes</string>
+    <string name="create_dynamic">Volume dinâmico (sparse)</string>
+    <string name="create_dynamic_hint">Aloca espaço sob demanda. A interface está pronta; o backend por enquanto o trata como um volume comum.</string>
+    <string name="create_random_fill">Preenchimento aleatório</string>
+    <string name="create_random_fill_hint">Preenche todo o volume com dados aleatórios para máxima negação plausível (mais seguro). Contêineres grandes levam mais tempo para criar.</string>
+
+    <!-- Change password / PIM / PRF / keyfiles (B1) -->
+    <string name="change_pwd_entry">Alterar senha / PIM / arquivos-chave</string>
+    <string name="change_pwd_title">Alterar senha</string>
+    <string name="change_pwd_desc">Digite a senha / PIM / PRF / arquivos-chave atuais acima (igual ao desbloquear), depois defina os novos aqui. Apenas o cabeçalho é recriptografado — a chave mestra e seus dados nunca mudam. Uma cópia de recuperação do cabeçalho atual é salva antes da gravação, caso algo dê errado.</string>
+    <string name="change_pwd_new_password">Nova senha</string>
+    <string name="change_pwd_new_pim">Novo PIM (opcional)</string>
+    <string name="change_pwd_new_prf">Novo PRF (0 = manter atual)</string>
+    <string name="change_pwd_new_keyfiles_none">Novos arquivos-chave (opcional)</string>
+    <string name="change_pwd_new_keyfiles_selected">Novos arquivos-chave: %1$d selecionados</string>
+    <string name="change_pwd_working">Recriptografando cabeçalho…</string>
+    <string name="change_pwd_submit">Alterar senha</string>
+    <string name="change_pwd_dismiss">Cancelar</string>
+    <string name="change_pwd_ok">Senha alterada. Daqui em diante, desbloqueie com a nova senha.</string>
+    <string name="change_pwd_failed">Falha ao alterar a senha</string>
+
+    <!-- Create hidden volume (C2) -->
+    <string name="create_hidden_entry">Criar volume oculto</string>
+    <string name="create_hidden_title">Criar volume oculto</string>
+    <string name="create_hidden_desc">Um volume oculto reside no espaço livre final deste contêiner (externo). O volume externo é desbloqueado com as credenciais digitadas acima, seu FAT é lido para localizar espaço livre de modo que arquivos existentes não sejam sobrescritos, então o volume oculto é criado com sua própria senha abaixo.</string>
+    <string name="create_hidden_password">Senha do volume oculto</string>
+    <string name="create_hidden_size_mb">Tamanho do volume oculto (MB)</string>
+    <string name="create_hidden_pim">PIM oculto (opcional)</string>
+    <string name="create_hidden_working">Criando volume oculto…</string>
+    <string name="create_hidden_submit">Criar volume oculto</string>
+    <string name="create_hidden_cancel">Cancelar</string>
+    <string name="create_hidden_ok">Volume oculto criado. Desbloqueie com a senha oculta para usá-lo.</string>
+    <string name="create_hidden_failed">Falha ao criar volume oculto</string>
+    <string name="rescue_entry">Gerenciador de arquivos de recuperação</string>
+    <string name="rescue_mgr_title">Arquivos de recuperação</string>
+    <string name="rescue_mgr_warn">Estes são backups do ANTIGO grupo de cabeçalhos. Qualquer um com a ANTIGA senha ainda pode abrir o volume usando-os. Exclua-os após confirmar que a nova senha funciona.</string>
+    <string name="rescue_mgr_empty">Nenhum arquivo de recuperação salvo automaticamente.</string>
+    <string name="rescue_mgr_delete">Excluir</string>
+    <string name="rescue_mgr_clear_all">Excluir todos</string>
+    <string name="close">Fechar</string>
+    <string name="settings_title">Configurações</string>
+    <string name="settings_close">Fechar</string>
+    <string name="settings_entry">Configurações</string>
+    <string name="settings_autolock">Bloqueio automático</string>
+    <string name="settings_autolock_desc">Destrua automaticamente as chaves na memória para proteger o contêiner</string>
+    <string name="settings_timeout">Tempo limite de inatividade</string>
+    <string name="settings_lock_bg">Bloquear ao ir para segundo plano</string>
+    <string name="settings_lock_bg_desc">Bloquear imediatamente quando o app vai para segundo plano</string>
+    <string name="settings_lock_screen">Bloquear ao desligar a tela</string>
+    <string name="settings_lock_screen_desc">Bloquear imediatamente quando a tela se desliga</string>
+    <string name="settings_autolock_enable">Bloqueio automático</string>
+    <string name="settings_autolock_timeout">Tempo limite de inatividade</string>
+    <string name="settings_lock_background">Bloquear quando o app vai para segundo plano</string>
+    <string name="settings_lock_screen_off">Bloquear quando a tela se desliga</string>
+    <string name="favorites_title">Contêineres salvos</string>
+    <string name="favorites_remove">Remover</string>
+    <!-- Hidden volume keyfile (C2 enhancement, align with desktop VC) -->
+    <string name="create_hidden_keyfiles_none">Arquivos-chave ocultos (opcional)</string>
+    <string name="create_hidden_keyfiles_selected">Arquivos-chave ocultos: %1$d selecionados</string>
+
+    <!-- Volume expansion (X17) -->
+    <string name="expand_volume_entry">Expandir volume</string>
+    <string name="expand_volume_title">Expandir volume</string>
+    <string name="expand_volume_desc">Aumente este contêiner sem recriptografar dados. A chave mestra permanece a mesma; apenas os cabeçalhos e o tamanho do arquivo mudam. Digite o novo tamanho total abaixo. Apenas ampliação é suportada. Um backup de recuperação do cabeçalho atual é salvo primeiro.</string>
+    <string name="expand_volume_current_size">Tamanho atual: %1$s</string>
+    <string name="expand_volume_new_size_mb">Novo tamanho total (MB)</string>
+    <string name="expand_volume_working">Expandindo volume…</string>
+    <string name="expand_volume_submit">Expandir</string>
+    <string name="expand_volume_cancel">Cancelar</string>
+    <string name="expand_volume_ok">Volume expandido para %1$s.</string>
+    <string name="expand_volume_failed">Falha ao expandir volume</string>
+    <string name="expand_volume_too_small">O novo tamanho deve ser maior que o tamanho atual</string>
+
+    <!-- Partition encryption probe (X2/X3, experimental, root-gated) -->
+    <string name="block_device_entry">Criptografia de partição (experimental)</string>
+    <string name="block_device_title">Partições (sonda somente leitura)</string>
+    <string name="block_device_desc">Experimental. Lista dispositivos de bloco somente leitura. Nenhuma criptografia é realizada. Requer root.</string>
+    <string name="block_device_loading">Enumerando…</string>
+    <string name="block_device_empty">Nenhum dispositivo de bloco encontrado.</string>
+    <string name="block_device_no_root">Root não concedido. Não é possível enumerar dispositivos de bloco.</string>
+    <string name="block_device_request_root">Conceder root</string>
+    <string name="block_device_close">Fechar</string>
+    <string name="block_device_size">Tamanho: %1$s</string>
+    <string name="block_device_removable">Removível</string>
+
+    <!-- Container info panel (X10) -->
+    <string name="info_entry">Informações do contêiner</string>
+    <string name="info_title">Informações do contêiner</string>
+    <string name="info_algorithm">Criptografia</string>
+    <string name="info_prf">Derivação de chave (PRF)</string>
+    <string name="info_data_size">Tamanho da área de dados</string>
+    <string name="info_sector_size">Tamanho do setor</string>
+    <string name="info_fs_type">Sistema de arquivos</string>
+    <string name="info_label">Rótulo do volume</string>
+    <string name="info_hidden">Volume oculto</string>
+    <string name="info_writable">Montado com gravação</string>
+    <string name="info_yes">Sim</string>
+    <string name="info_no">Não</string>
+    <string name="info_close">Fechar</string>
+    <string name="info_bytes_fmt">%1$s (%2$d bytes)</string>
+    <string name="info_cascade">Cascata</string>
+    <string name="browse_write_full">O contêiner está cheio — espaço livre insuficiente</string>
+    <!-- W16 目录操作 rename/mkdir/move/rmdir -->
+    <string name="browse_new_folder">Nova pasta</string>
+    <string name="browse_new_folder_hint">Nome da pasta</string>
+    <string name="browse_new_folder_ok">Pasta criada: %1$s</string>
+    <string name="browse_new_folder_failed">Não foi possível criar a pasta</string>
+    <string name="browse_action_rename">Renomear</string>
+    <string name="browse_action_move">Mover para…</string>
+    <string name="browse_action_delete_folder">Excluir pasta</string>
+    <string name="browse_rename_title">Renomear</string>
+    <string name="browse_rename_hint">Novo nome</string>
+    <string name="browse_rename_ok">Renomeado para %1$s</string>
+    <string name="browse_rename_failed">Falha ao renomear</string>
+    <string name="browse_move_title">Mover \"%1$s\" para</string>
+    <string name="browse_move_here">Mover para aqui</string>
+    <string name="browse_move_up">.. (pai)</string>
+    <string name="browse_move_ok">Movido: %1$s</string>
+    <string name="browse_move_failed">Falha ao mover</string>
+    <string name="browse_rmdir_title">Excluir pasta</string>
+    <string name="browse_rmdir_msg">Excluir a pasta \"%1$s\"? Apenas pastas vazias podem ser excluídas.</string>
+    <string name="browse_rmdir_ok">Pasta excluída: %1$s</string>
+    <string name="browse_rmdir_failed">Falha na exclusão (a pasta pode não estar vazia)</string>
+    <string name="browse_op_unsupported">Este sistema de arquivos ainda não suporta essa operação</string>
+    <string name="browse_action_more">Mais</string>
+    <string name="favorites_rename">Renomear</string>
+    <string name="favorites_pin">Fixar no topo</string>
+    <string name="favorites_rename_title">Renomear favorito</string>
+    <string name="favorites_rename_hint">Nome de exibição</string>
+    <string name="settings_default_mount_writable">Montagem leitura-gravação padrão</string>
+    <string name="settings_default_prf">PRF padrão</string>
+    <string name="settings_ntfs_exp">Ativar NTFS (experimental)</string>
+    <string name="settings_ntfs_exp_desc">Leitura/gravação NTFS não verificada no dispositivo. Use apenas contêineres descartáveis. Desligado = contêineres NTFS recusam montagem.</string>
+    <!-- 块设备解锁（F2）-->
+    <string name="block_device_unlock">Desbloquear</string>
+    <string name="block_device_unlocking">Desbloqueando…</string>
+    <string name="block_device_unlock_failed">Falha no desbloqueio: %1$s</string>
+    <string name="block_device_unlocked">Desbloqueado: %1$s</string>
+    <!-- 系统挂载暴露（F3）-->
+    <string name="expose_title">Expor ao sistema</string>
+    <string name="expose_warning">Isto descriptografa o conteúdo do contêiner para um diretório acessível por todos os apps. Grande risco de segurança — apenas para ambientes confiáveis.</string>
+    <string name="expose_dir_hint">Diretório de destino (ex. /data/local/tmp/sealchest)</string>
+    <string name="expose_start">Iniciar exposição</string>
+    <string name="expose_cleanup">Limpar</string>
+    <string name="expose_progress">Sincronizando: %1$s</string>
+    <string name="expose_done">Expostos %1$d arquivos</string>
+    <string name="expose_failed">Falha na exposição: %1$s</string>
+</resources>

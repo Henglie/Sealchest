@@ -26,13 +26,18 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.filled.DriveFileMove
+import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -40,6 +45,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -67,6 +73,7 @@ import androidx.compose.ui.window.Dialog
 import com.henglie.sealchest.R
 import com.henglie.sealchest.fs.FsEntry
 import com.henglie.sealchest.fs.MountManager
+import com.henglie.sealchest.fs.VolumeFullException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -93,6 +100,9 @@ private sealed interface Preview {
     data class TextPreview(val name: String, val text: String) : Preview
 }
 
+/** 媒体查看器态：当前目录的媒体文件列表 + 初始定位（点哪个媒体就从哪个开始）。 */
+private data class MediaViewerState(val files: List<FsEntry>, val index: Int)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BrowserScreen(onExit: () -> Unit) {
@@ -106,6 +116,8 @@ fun BrowserScreen(onExit: () -> Unit) {
     var loading by remember { mutableStateOf(true) }
     var selected by remember { mutableStateOf<FsEntry?>(null) }
     var preview by remember { mutableStateOf<Preview?>(null) }
+    // 全屏媒体查看器（图片画廊 / 视频 / 音频）。非空时覆盖浏览器。
+    var mediaViewer by remember { mutableStateOf<MediaViewerState?>(null) }
     var exportTarget by remember { mutableStateOf<FsEntry?>(null) }
     // 写操作后自增，触发目录重载。
     var refreshToken by remember { mutableStateOf(0) }
@@ -113,8 +125,36 @@ fun BrowserScreen(onExit: () -> Unit) {
     var deleteConfirm by remember { mutableStateOf<FsEntry?>(null) }
     // 覆写：先选容器内文件，再选手机上的源文件。
     var overwriteTarget by remember { mutableStateOf<FsEntry?>(null) }
+    // W16：目录动作单目标（点目录行的「更多」）。
+    var dirMenuTarget by remember { mutableStateOf<FsEntry?>(null) }
+    // W16：新建文件夹弹窗（true 时显示）。
+    var showNewFolder by remember { mutableStateOf(false) }
+    // W16：重命名弹窗目标。
+    var renameTarget by remember { mutableStateOf<FsEntry?>(null) }
+    // W16：删除文件夹确认目标。
+    var rmdirConfirm by remember { mutableStateOf<FsEntry?>(null) }
+    // W16：移动目标（选中的待移动项，非空时弹目录选择器）。
+    var moveTarget by remember { mutableStateOf<FsEntry?>(null) }
 
     val writable = MountManager.isWritable
+
+    // W16：统一的写操作结果提示 + 刷新。ok=true 走成功文案并刷新；异常走「不支持」提示。
+    fun runDirOp(okMsg: Int, failMsg: Int, op: (com.henglie.sealchest.fs.VolumeFs) -> Boolean) {
+        scope.launch {
+            val outcome = withContext(Dispatchers.IO) {
+                runCatching { MountManager.withWritableFs { fs -> op(fs) } ?: false }
+            }
+            when {
+                outcome.isSuccess && outcome.getOrNull() == true -> {
+                    refreshToken++
+                    Toast.makeText(context, context.getString(okMsg), Toast.LENGTH_SHORT).show()
+                }
+                outcome.exceptionOrNull() is UnsupportedOperationException ->
+                    Toast.makeText(context, context.getString(R.string.browse_op_unsupported), Toast.LENGTH_SHORT).show()
+                else -> Toast.makeText(context, context.getString(failMsg), Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     // 当前目录的 firstCluster（<2 = 根目录，与 writeFile/deleteFile 的 dirFirstCluster 语义一致）。
     val dirCluster = if (current.isRoot) 0L else current.firstCluster
@@ -177,20 +217,21 @@ fun BrowserScreen(onExit: () -> Unit) {
         if (uri != null) {
             scope.launch {
                 val name = queryDisplayName(context, uri) ?: uri.lastPathSegment ?: "imported"
-                val result = withContext(Dispatchers.IO) {
+                val outcome = withContext(Dispatchers.IO) {
                     runCatching {
                         val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
                             ?: return@runCatching false
                         MountManager.withWritableFs { fs ->
                             fs.writeFile(dirCluster, name, bytes)
                         } ?: false
-                    }.getOrDefault(false)
+                    }
                 }
-                if (result) {
+                if (outcome.isSuccess && outcome.getOrNull() == true) {
                     refreshToken++
                     Toast.makeText(context, context.getString(R.string.browse_write_ok, name), Toast.LENGTH_SHORT).show()
                 } else {
-                    Toast.makeText(context, context.getString(R.string.browse_write_failed), Toast.LENGTH_SHORT).show()
+                    val msg = if (outcome.exceptionOrNull() is VolumeFullException) R.string.browse_write_full else R.string.browse_write_failed
+                    Toast.makeText(context, context.getString(msg), Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -204,20 +245,21 @@ fun BrowserScreen(onExit: () -> Unit) {
         overwriteTarget = null
         if (uri != null && target != null) {
             scope.launch {
-                val result = withContext(Dispatchers.IO) {
+                val outcome = withContext(Dispatchers.IO) {
                     runCatching {
                         val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
                             ?: return@runCatching false
                         MountManager.withWritableFs { fs ->
                             fs.overwriteFile(dirCluster, target.name, bytes)
                         } ?: false
-                    }.getOrDefault(false)
+                    }
                 }
-                if (result) {
+                if (outcome.isSuccess && outcome.getOrNull() == true) {
                     refreshToken++
                     Toast.makeText(context, context.getString(R.string.browse_overwrite_ok, target.name), Toast.LENGTH_SHORT).show()
                 } else {
-                    Toast.makeText(context, context.getString(R.string.browse_overwrite_failed), Toast.LENGTH_SHORT).show()
+                    val msg = if (outcome.exceptionOrNull() is VolumeFullException) R.string.browse_write_full else R.string.browse_overwrite_failed
+                    Toast.makeText(context, context.getString(msg), Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -245,8 +287,23 @@ fun BrowserScreen(onExit: () -> Unit) {
         },
         floatingActionButton = {
             if (writable) {
-                FloatingActionButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) {
-                    Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.browse_import_file))
+                var fabMenu by remember { mutableStateOf(false) }
+                Box {
+                    FloatingActionButton(onClick = { fabMenu = true }) {
+                        Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.browse_import_file))
+                    }
+                    DropdownMenu(expanded = fabMenu, onDismissRequest = { fabMenu = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.browse_import_file)) },
+                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null) },
+                            onClick = { fabMenu = false; importLauncher.launch(arrayOf("*/*")) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.browse_new_folder)) },
+                            leadingIcon = { Icon(Icons.Filled.CreateNewFolder, contentDescription = null) },
+                            onClick = { fabMenu = false; showNewFolder = true },
+                        )
+                    }
                 }
             }
         },
@@ -263,13 +320,19 @@ fun BrowserScreen(onExit: () -> Unit) {
             } else {
                 LazyColumn(Modifier.fillMaxSize()) {
                     items(entries) { e ->
-                        EntryRow(e) {
-                            if (e.isDirectory) {
-                                dirStack.add(DirFrame(e.name, e.firstCluster, false))
-                            } else {
-                                selected = e
-                            }
-                        }
+                        EntryRow(
+                            e = e,
+                            onClick = {
+                                if (e.isDirectory) {
+                                    dirStack.add(DirFrame(e.name, e.firstCluster, false))
+                                } else {
+                                    selected = e
+                                }
+                            },
+                            onMore = if (writable) {
+                                { if (e.isDirectory) dirMenuTarget = e else selected = e }
+                            } else null,
+                        )
                     }
                 }
             }
@@ -284,10 +347,16 @@ fun BrowserScreen(onExit: () -> Unit) {
             onDismiss = { selected = null },
             onPreview = {
                 selected = null
-                scope.launch {
-                    val p = loadPreview(e)
-                    if (p != null) preview = p
-                    else Toast.makeText(context, context.getString(R.string.browse_no_preview), Toast.LENGTH_SHORT).show()
+                if (isMediaFile(e.name)) {
+                    // 媒体文件走全屏查看器：收集当前目录所有媒体作画廊列表，从点击项开始。
+                    val mediaFiles = entries.filter { !it.isDirectory && isMediaFile(it.name) }
+                    mediaViewer = MediaViewerState(mediaFiles, mediaFiles.indexOf(e))
+                } else {
+                    scope.launch {
+                        val p = loadPreview(e)
+                        if (p != null) preview = p
+                        else Toast.makeText(context, context.getString(R.string.browse_no_preview), Toast.LENGTH_SHORT).show()
+                    }
                 }
             },
             onExport = {
@@ -304,9 +373,108 @@ fun BrowserScreen(onExit: () -> Unit) {
                 overwriteTarget = e
                 overwriteLauncher.launch(arrayOf("*/*"))
             },
+            onRename = {
+                selected = null
+                renameTarget = e
+            },
+            onMove = {
+                selected = null
+                moveTarget = e
+            },
             onDelete = {
                 selected = null
                 deleteConfirm = e
+            },
+        )
+    }
+
+    // W16：目录动作单（重命名 / 移动 / 删除文件夹）
+    dirMenuTarget?.let { e ->
+        DirActionSheet(
+            entry = e,
+            onDismiss = { dirMenuTarget = null },
+            onRename = { dirMenuTarget = null; renameTarget = e },
+            onMove = { dirMenuTarget = null; moveTarget = e },
+            onDelete = { dirMenuTarget = null; rmdirConfirm = e },
+        )
+    }
+
+    // W16：新建文件夹弹窗
+    if (showNewFolder) {
+        NameInputDialog(
+            title = stringResource(R.string.browse_new_folder),
+            hint = stringResource(R.string.browse_new_folder_hint),
+            initial = "",
+            onDismiss = { showNewFolder = false },
+            onConfirm = { name ->
+                showNewFolder = false
+                scope.launch {
+                    val outcome = withContext(Dispatchers.IO) {
+                        runCatching { MountManager.withWritableFs { fs -> fs.mkdir(dirCluster, name) } ?: 0L }
+                    }
+                    when {
+                        outcome.isSuccess && (outcome.getOrNull() ?: 0L) >= 2L -> {
+                            refreshToken++
+                            Toast.makeText(context, context.getString(R.string.browse_new_folder_ok, name), Toast.LENGTH_SHORT).show()
+                        }
+                        outcome.exceptionOrNull() is UnsupportedOperationException ->
+                            Toast.makeText(context, context.getString(R.string.browse_op_unsupported), Toast.LENGTH_SHORT).show()
+                        else -> Toast.makeText(context, context.getString(R.string.browse_new_folder_failed), Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
+        )
+    }
+
+    // W16：重命名弹窗（文件 / 目录共用）
+    renameTarget?.let { e ->
+        NameInputDialog(
+            title = stringResource(R.string.browse_rename_title),
+            hint = stringResource(R.string.browse_rename_hint),
+            initial = e.name,
+            onDismiss = { renameTarget = null },
+            onConfirm = { newName ->
+                renameTarget = null
+                if (newName != e.name) {
+                    runDirOp(R.string.browse_rename_ok, R.string.browse_rename_failed) { fs ->
+                        fs.rename(dirCluster, e.name, newName)
+                    }
+                }
+            },
+        )
+    }
+
+    // W16：删除文件夹确认
+    rmdirConfirm?.let { e ->
+        AlertDialog(
+            onDismissRequest = { rmdirConfirm = null },
+            confirmButton = {
+                TextButton(onClick = {
+                    rmdirConfirm = null
+                    runDirOp(R.string.browse_rmdir_ok, R.string.browse_rmdir_failed) { fs ->
+                        fs.rmdir(dirCluster, e.name, false)
+                    }
+                }) { Text(stringResource(R.string.browse_delete_confirm_yes)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { rmdirConfirm = null }) { Text(stringResource(R.string.cancel)) }
+            },
+            title = { Text(stringResource(R.string.browse_rmdir_title)) },
+            text = { Text(context.getString(R.string.browse_rmdir_msg, e.name)) },
+        )
+    }
+
+    // W16：移动目标选择器（在容器内挑一个目录作落点）
+    moveTarget?.let { e ->
+        MoveDestinationDialog(
+            entry = e,
+            srcDirCluster = dirCluster,
+            onDismiss = { moveTarget = null },
+            onPick = { dstCluster ->
+                moveTarget = null
+                runDirOp(R.string.browse_move_ok, R.string.browse_move_failed) { fs ->
+                    fs.move(dirCluster, e.name, dstCluster)
+                }
             },
         )
     }
@@ -345,15 +513,24 @@ fun BrowserScreen(onExit: () -> Unit) {
     preview?.let { p ->
         PreviewDialog(p) { preview = null }
     }
+
+    // 全屏媒体查看器（图片画廊 / 视频 / 音频）
+    mediaViewer?.let { state ->
+        MediaViewer(
+            files = state.files,
+            initialIndex = state.index,
+            onDismiss = { mediaViewer = null },
+        )
+    }
 }
 
 @Composable
-private fun EntryRow(e: FsEntry, onClick: () -> Unit) {
+private fun EntryRow(e: FsEntry, onClick: () -> Unit, onMore: (() -> Unit)? = null) {
     Row(
         Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = if (onMore != null) 4.dp else 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
@@ -371,6 +548,11 @@ private fun EntryRow(e: FsEntry, onClick: () -> Unit) {
                 )
             }
         }
+        if (onMore != null) {
+            IconButton(onClick = onMore) {
+                Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.browse_action_more))
+            }
+        }
     }
 }
 
@@ -384,6 +566,8 @@ private fun FileActionSheet(
     onExport: () -> Unit,
     onOpenWith: () -> Unit,
     onOverwrite: () -> Unit,
+    onRename: () -> Unit,
+    onMove: () -> Unit,
     onDelete: () -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -401,10 +585,150 @@ private fun FileActionSheet(
             if (writable) {
                 HorizontalDivider()
                 ActionItem(Icons.Filled.Edit, stringResource(R.string.browse_action_overwrite), onOverwrite)
+                ActionItem(Icons.Filled.Edit, stringResource(R.string.browse_action_rename), onRename)
+                ActionItem(Icons.AutoMirrored.Filled.DriveFileMove, stringResource(R.string.browse_action_move), onMove)
                 ActionItem(Icons.Filled.Delete, stringResource(R.string.browse_action_delete), onDelete)
             }
         }
     }
+}
+
+/** W16：目录动作单（重命名 / 移动 / 删除文件夹）。目录不可预览/导出/覆写。 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DirActionSheet(
+    entry: FsEntry,
+    onDismiss: () -> Unit,
+    onRename: () -> Unit,
+    onMove: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.padding(bottom = 24.dp)) {
+            Text(
+                entry.name,
+                Modifier.padding(16.dp),
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 2,
+            )
+            HorizontalDivider()
+            ActionItem(Icons.Filled.Edit, stringResource(R.string.browse_action_rename), onRename)
+            ActionItem(Icons.AutoMirrored.Filled.DriveFileMove, stringResource(R.string.browse_action_move), onMove)
+            ActionItem(Icons.Filled.Delete, stringResource(R.string.browse_action_delete_folder), onDelete)
+        }
+    }
+}
+
+/** W16：单行文本输入弹窗（新建文件夹 / 重命名共用）。空名或未改名时确认按钮禁用。 */
+@Composable
+private fun NameInputDialog(
+    title: String,
+    hint: String,
+    initial: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var text by remember { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(text.trim()) },
+                enabled = text.trim().isNotEmpty(),
+            ) { Text(stringResource(R.string.ok)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        },
+        title = { Text(title) },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                singleLine = true,
+                label = { Text(hint) },
+            )
+        },
+    )
+}
+
+/**
+ * W16：移动落点选择器。在容器内从根开始导航目录树，选一个目录作落点。
+ * 禁止选中「源项自身所在目录」（原地移动无意义）与「被移动目录自身」（会成环）。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MoveDestinationDialog(
+    entry: FsEntry,
+    srcDirCluster: Long,
+    onDismiss: () -> Unit,
+    onPick: (Long) -> Unit,
+) {
+    // 目录选择器自己的栈，独立于主浏览栈。栈顶 = 当前浏览目录。
+    val navStack = remember { mutableStateListOf(DirFrame("", -1L, true)) }
+    val cur = navStack.last()
+    val curCluster = if (cur.isRoot) 0L else cur.firstCluster
+    var dirs by remember { mutableStateOf<List<FsEntry>>(emptyList()) }
+
+    LaunchedEffect(cur.firstCluster, cur.isRoot) {
+        val list = withContext(Dispatchers.IO) {
+            MountManager.withFs { fs ->
+                if (cur.isRoot) fs.listRoot() else fs.listDir(cur.firstCluster)
+            } ?: emptyList()
+        }
+        // 只列目录；排除被移动的目录自身（防选它进而成环）。
+        dirs = list.filter { it.isDirectory && it.firstCluster != entry.firstCluster }
+            .sortedBy { it.name.lowercase() }
+    }
+
+    // 落点不能是源目录本身（原地）。被移动项自身已在列表过滤掉，进不去也选不中。
+    val canDropHere = curCluster != srcDirCluster
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = { onPick(curCluster) }, enabled = canDropHere) {
+                Text(stringResource(R.string.browse_move_here))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        },
+        title = { Text(stringResource(R.string.browse_move_title, entry.name)) },
+        text = {
+            Column(Modifier.fillMaxWidth().heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
+                if (navStack.size > 1) {
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .clickable { navStack.removeAt(navStack.lastIndex) }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                        Spacer(Modifier.width(12.dp))
+                        Text(stringResource(R.string.browse_move_up))
+                    }
+                    HorizontalDivider()
+                }
+                if (dirs.isEmpty()) {
+                    Text(stringResource(R.string.browse_empty), Modifier.padding(vertical = 12.dp))
+                } else {
+                    dirs.forEach { d ->
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .clickable { navStack.add(DirFrame(d.name, d.firstCluster, false)) }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Filled.Folder, contentDescription = null)
+                            Spacer(Modifier.width(12.dp))
+                            Text(d.name, maxLines = 1)
+                        }
+                    }
+                }
+            }
+        },
+    )
 }
 
 @Composable

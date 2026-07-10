@@ -2,6 +2,7 @@ package com.henglie.sealchest.fs
 
 import android.content.Context
 import android.net.Uri
+import com.henglie.sealchest.core.Settings
 import com.henglie.sealchest.crypto.NativeBridge
 import java.io.Closeable
 import java.io.FileNotFoundException
@@ -51,6 +52,22 @@ object MountManager {
         var closed: Boolean = false
             private set
 
+        // 容器元信息便捷访问（X10 信息面板）：转发底层 reader/fs 的只读快照。
+        /** 加密算法编号（1=AES 2=Serpent 3=Twofish 4=Camellia 5=Kuznyechik，其余级联）。 */
+        val encryptionAlgorithm: Int get() = reader.encryptionAlgorithm
+        /** PRF 编号（1=SHA512 2=Whirlpool 3=SHA256 4=BLAKE2s 5=Streebog）。 */
+        val prf: Int get() = reader.prf
+        /** 数据区字节数（不含卷头）。 */
+        val dataSize: Long get() = reader.dataSize
+        /** 扇区大小（字节）。 */
+        val sectorSize: Int get() = reader.sectorSize
+        /** 是否隐藏卷。 */
+        val isHidden: Boolean get() = reader.isHidden
+        /** 文件系统类型串（如 FAT32 / exFAT）。 */
+        val fsType: String get() = fs.fsType
+        /** 卷标；无卷标为空串。 */
+        val volumeLabel: String get() = fs.volumeLabel
+
         override fun close() {
             if (closed) return
             closed = true
@@ -66,6 +83,15 @@ object MountManager {
 
     @Volatile
     private var current: Mount? = null
+
+    /**
+     * 挂载状态变化回调：unlock 成功后调 true，lock 后调 false。
+     * 用回调替代轮询（原 SealchestApp 每秒轮询 isMounted），实时响应 + 零 CPU 开销。
+     * 在 synchronized 块内调，用 runCatching 包裹防回调异常影响主流程。
+     * null = 无回调（默认）。
+     */
+    @Volatile
+    var onMountStateChanged: ((mounted: Boolean) -> Unit)? = null
 
     /** 当前挂载，未挂载为 null。 */
     fun currentMount(): Mount? = current
@@ -146,12 +172,33 @@ object MountManager {
                     ?: NativeBridge.openVolume(readHeaderAt(HIDDEN_VOLUME_HEADER_OFFSET), effective, pim, prf)
             } finally {
                 effective.fill(0)
-            } ?: throw SecurityException("密码、PIM、PRF 或 keyfile 不正确")
+            } ?: run {
+                // 开卷失败：先探测是不是「已知但不支持」的容器（当前仅 LUKS），给针对性
+                // 提示，避免用户对着 LUKS 容器反复试 VeraCrypt 密码。只探测魔数、绝不解密。
+                val raw0 = readHeaderAt(0L)
+                if (ContainerFormat.isLuks(raw0)) {
+                    val ver = ContainerFormat.luksVersion(raw0)
+                    throw UnsupportedContainerException(
+                        "检测到 LUKS" + (if (ver > 0) ver.toString() else "") + " 容器，暂不支持解锁"
+                    )
+                }
+                throw SecurityException("密码、PIM、PRF 或 keyfile 不正确")
+            }
 
             reader = VolumeReader(channel, volume)
-            // 文件系统分发：读解密后的引导扇区（逻辑偏移 0），exFAT 签名走 exFAT，否则当 FAT。
+            // 文件系统分发：读解密后的引导扇区（逻辑偏移 0）。exFAT 签名走 exFAT。
+            // NTFS：默认仍拒绝（正常用户零影响，宁可打不开绝不挂垃圾/误写）；仅当设置里显式开启
+            //   「NTFS 实验」开关才挂 NtfsFileSystem——供恒烈真机 chkdsk 验收。验收纪律见测试手册：
+            //   先挂只读（本次 writable=false 时只跑读路径，零写风险）验证读；读通过再开可写验写。
             val boot0 = reader.read(0, 512)
-            val fs: VolumeFs = if (ExFatBoot.isExFat(boot0)) ExFatFileSystem.mount(reader) else FatFileSystem.mount(reader)
+            if (NtfsBoot.isNtfs(boot0) && !Settings.ntfsExperimental(context)) {
+                throw UnsupportedContainerException("检测到 NTFS 文件系统容器，当前版本暂不支持（NTFS 读写实验开关未开启）")
+            }
+            val fs: VolumeFs = when {
+                NtfsBoot.isNtfs(boot0) -> NtfsFileSystem.mount(reader)
+                ExFatBoot.isExFat(boot0) -> ExFatFileSystem.mount(reader)
+                else -> FatFileSystem.mount(reader)
+            }
 
             val mount = Mount(idGen.getAndIncrement(), displayName, pfd, reader, fs, writable, raf)
             // 成功了才替换 + 关旧挂载。
@@ -159,6 +206,8 @@ object MountManager {
             current = mount
             // 通知系统 SAF 根变了（从无根变有根），老 DocumentsUI 才会重查看见入口。
             com.henglie.sealchest.saf.SafNotify.rootsChanged(context.applicationContext)
+            // 通知挂载状态变化回调（替代 SealchestApp 轮询）。
+            runCatching { onMountStateChanged?.invoke(true) }
             return mount
         } catch (t: Throwable) {
             // 失败：清掉本次半成品，绝不动 current。
@@ -180,6 +229,8 @@ object MountManager {
         if (had) context?.applicationContext?.let {
             com.henglie.sealchest.saf.SafNotify.rootsChanged(it)
         }
+        // 通知挂载状态变化回调（替代 SealchestApp 轮询）。
+        if (had) runCatching { onMountStateChanged?.invoke(false) }
     }
 
     /** 在锁内执行 FAT 操作。Provider / UI 都经此串行化访问。未挂载返回 null。 */
@@ -200,12 +251,17 @@ object MountManager {
     fun <R> withWritableFs(block: (VolumeFs) -> R): R? = synchronized(lock) {
         val m = current ?: return null
         if (m.closed || !m.writable) return null
-        val r = block(m.fs)
-        // 写后让 FAT32 FSInfo 空闲计数失效（置 unknown，OS 重算），避免桌面 VC/chkdsk
-        // 报「空闲空间不符」。FAT12/16 或无 FSInfo 时空操作。放 flush 之前，一并落盘。
-        runCatching { m.fs.invalidateFsInfo() }
-        runCatching { m.reader.flush() }
-        r
+        // M3 修复：block 抛异常时也必须 flush + invalidateFsInfo，否则已写脏页留在 channel、
+        //   FSInfo 未失效 → 进程被杀后 FAT 半写、chkdsk 可能报不一致。try/finally 保证落盘收口，
+        //   异常照常上抛（调用方感知失败）。flush/invalidate 各自 runCatching，互不阻断。
+        try {
+            block(m.fs)
+        } finally {
+            // 写后让 FAT32 FSInfo 空闲计数失效（置 unknown，OS 重算），避免桌面 VC/chkdsk
+            // 报「空闲空间不符」。FAT12/16 或无 FSInfo 时空操作。放 flush 之前，一并落盘。
+            runCatching { m.fs.invalidateFsInfo() }
+            runCatching { m.reader.flush() }
+        }
     }
 
     /** 当前挂载是否可写。UI 据此决定是否显示写操作入口。 */

@@ -16,8 +16,11 @@ android {
         applicationId = "com.henglie.sealchest"
         minSdk = 23
         targetSdk = 36
+        // 版本号锁定：恒烈定 versionName 固定 "0.1"，未经他明确授权不得改动。
+        // 日常功能开发、bug 修复一律不动版本号；仅「同步上游 VeraCrypt」且经恒烈同意时才可升，
+        // 且改前必须问过恒烈（见 上游同步与供应链安全.md「版本号纪律」）。
         versionCode = 4
-        versionName = "0.4"
+        versionName = "0.1"
 
         // 供应链透明信息：把「编进这个 APK 的上游 VeraCrypt 到底是哪个版本 / commit」
         // 与构建环境编入 BuildConfig，关于页直接读，单一真相源与实际构建绑定。
@@ -79,12 +82,23 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            // bouncycastle 1.79 与 jspecify 1.0.0 都带此多版本 jar 清单，合并冲突，排除。
+            excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
         }
     }
 
     // 仅支持中 / 英；其它语言回落英文。
     androidResources {
         localeFilters += listOf("en", "zh")
+    }
+
+    // 单元测试 fork 出的 JVM 默认按系统码页（本机中文 GBK）解析 classpath，
+    // 项目路径含中文「我的项目源码」→ kotlin-classes 目录路径被损坏 → ClassNotFoundException。
+    // 强制 fork JVM 用 UTF-8 解码文件名，classpath 中文路径才正确。
+    testOptions {
+        unitTests.all {
+            it.jvmArgs("-Dfile.encoding=UTF-8", "-Dsun.jnu.encoding=UTF-8")
+        }
     }
 }
 
@@ -107,6 +121,17 @@ dependencies {
 
     // SAF 选容器文件 / 持久化 URI 读权限
     implementation(libs.androidx.documentfile)
+
+    // Media3：内置加密媒体播放器（ExoPlayer + PlayerView），播放容器内视频/音频。
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.ui)
+
+    // PIN 锁：Argon2id 派生（BouncyCastle）+ 哈希存 EncryptedSharedPreferences
+    implementation(libs.bouncycastle.bcprov)
+    implementation(libs.androidx.security.crypto)
+
+    // 生物识别：BiometricPrompt 解锁 PIN 门禁（指纹/面部）
+    implementation(libs.androidx.biometric)
 
     testImplementation(libs.junit)
 }

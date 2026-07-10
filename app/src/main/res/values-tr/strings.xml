@@ -1,0 +1,316 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Home -->
+    <string name="app_name">Sealchest</string>
+    <string name="home_title">Sealchest</string>
+    <string name="home_subtitle">VeraCrypt kapsayıcılarını root\'su açın</string>
+    <string name="home_pick_container">Bir kapsayıcı dosya seçin</string>
+    <string name="home_no_container">Henüz kapsayıcı açılmadı</string>
+    <string name="home_recent">Son açılanlar</string>
+
+    <!-- Unlock -->
+    <string name="unlock_title">Kapsayıcı kilidini aç</string>
+    <string name="unlock_password">Parola</string>
+    <string name="unlock_pim">PIM (isteğe bağlı, varsayılan için boş bırakın)</string>
+    <string name="unlock_prf">Özet algoritması (PRF)</string>
+    <string name="unlock_prf_auto">Otomatik algıla</string>
+    <string name="unlock_submit">Kilidi aç</string>
+    <string name="unlock_unlocking">Anahtar türetiliyor…</string>
+    <string name="unlock_wrong">Yanlış parola, PIM veya PRF; kilidi açılamıyor</string>
+
+    <!-- PRF options -->
+    <string name="prf_auto">Otomatik algıla</string>
+    <string name="prf_sha512">SHA-512</string>
+    <string name="prf_whirlpool">Whirlpool</string>
+    <string name="prf_sha256">SHA-256</string>
+    <string name="prf_blake2s">BLAKE2s</string>
+    <string name="prf_streebog">Streebog</string>
+
+    <!-- Mount / writable -->
+    <string name="mount_writable_on">Yazılabilir bağlama (değişiklikler kapsayıcıya geri yazılır)</string>
+    <string name="mount_writable_off">Yazılabilir bağlama (bu kaynak yazılabilir değil)</string>
+    <string name="mount_default_container">Kapsayıcı</string>
+
+    <!-- Mounted panel -->
+    <string name="mounted_no_label">(etiket yok)</string>
+    <string name="mounted_filesystem">Dosya sistemi: %1$s</string>
+    <string name="mounted_label">Etiket: %1$s</string>
+
+    <!-- Self-test -->
+    <string name="selftest_running">  Şifreleme öz-testi çalıştırılıyor…</string>
+    <string name="selftest_button">Şifreleme öz-testi</string>
+    <string name="selftest_title">Şifreleme öz-testi</string>
+    <string name="selftest_ok_button">Tamam</string>
+    <string name="selftest_unavailable">Öz-test çalıştırılamadı (bağlı değil veya çekirdek hatası).</string>
+    <string name="selftest_roundtrip1">%1$s Gidiş-dönüş 1  encrypt(decrypt(C0)) == C0</string>
+    <string name="selftest_encchanges">%1$s Şifreleme gerçekten veriyi değiştiriyor</string>
+    <string name="selftest_roundtrip2">%1$s Gidiş-dönüş 2  decrypt(encrypt(X)) == X</string>
+    <string name="selftest_pass">Tümü geçti: şifreleme yolu, deşifrelemenin kesin tersidir; geri yazımdan sonra masaüstü VeraCrypt hâlâ kapsayıcıyı açabilir.</string>
+    <string name="selftest_fail">Bazı kontroller başarısız: şifreleme yolu bozuk ve yazma için kullanılamaz.</string>
+
+    <!-- Browse -->
+    <string name="browse_title">Kapsayıcı içeriği</string>
+    <string name="browse_empty">Bu klasör boş</string>
+    <string name="browse_lock">Kilitle ve kapat</string>
+    <string name="browse_root">Kök</string>
+    <string name="browse_back">Geri</string>
+    <string name="browse_exported">Dışa aktarıldı %1$s</string>
+    <string name="browse_export_failed">Dışa aktarma başarısız</string>
+    <string name="browse_no_preview">Bu dosya türü önizlenemiyor</string>
+    <string name="browse_action_preview">Önizleme (görüntü / metin)</string>
+    <string name="browse_action_export">Telefona dışa aktar</string>
+    <string name="browse_action_open_with">Başka bir uygulamayla aç</string>
+    <string name="browse_image_decode_failed">Görüntü kodu çözülemedi</string>
+    <string name="browse_export_open_failed">Dışa aktarma başarısız, açılamıyor</string>
+    <string name="browse_no_app_for_type">Bu türü açabilen uygulama yok</string>
+    <string name="browse_action_overwrite">Telefon dosyasıyla üzerine yaz</string>
+    <string name="browse_action_delete">Sil</string>
+    <string name="browse_import_file">Dosyayı kapsayıcıya içe aktar</string>
+    <string name="browse_delete_confirm_title">Dosyayı sil</string>
+    <string name="browse_delete_confirm_msg">\"%1$s\" bu kapsayıcıdan silinsin mi? Bu geri alınamaz.</string>
+    <string name="browse_delete_confirm_yes">Sil</string>
+    <string name="browse_write_ok">Yazıldı: %1$s</string>
+    <string name="browse_write_failed">Yazma başarısız</string>
+    <string name="browse_overwrite_ok">Üzerine yazıldı: %1$s</string>
+    <string name="browse_overwrite_failed">Üzerine yazma başarısız</string>
+    <string name="browse_delete_ok">Silindi: %1$s</string>
+    <string name="browse_delete_failed">Silme başarısız</string>
+
+    <!-- Common -->
+    <string name="cancel">İptal</string>
+    <string name="ok">Tamam</string>
+    <string name="error_generic">Bir şeyler ters gitti</string>
+    <string name="native_unavailable">Şifreleme çekirdeği yüklenemedi; kapsayıcıların şifresi çözülemiyor</string>
+
+    <!-- Self-test placeholder screen (first version) -->
+    <string name="app_tagline">VeraCrypt kapsayıcılarını root\'su açın</string>
+    <string name="native_ready">Şifreleme çekirdeği hazır</string>
+    <string name="native_missing">Şifreleme çekirdeği yüklenemedi</string>
+    <string name="native_version">Çekirdek sürümü: %1$s</string>
+
+    <!-- About -->
+    <string name="about_title">Hakkında</string>
+    <string name="about_button">Hakkında</string>
+    <string name="about_app_desc">Android\'de root\'su, tamamen kullanıcı alanında VeraCrypt şifreli kapsayıcıları açmak için bir araç.</string>
+    <string name="about_author_label">Yazar</string>
+    <string name="about_author">Henglie / EternalBlaze</string>
+    <string name="about_project_label">Proje</string>
+    <string name="about_version_label">Sürüm</string>
+    <string name="about_upstream_label">VeraCrypt çekirdeği</string>
+    <string name="about_upstream_commit_label">Sabitlenmiş commit</string>
+    <string name="about_toolchain_label">Derleme araç zinciri</string>
+    <string name="about_abis_label">ABIs</string>
+    <string name="about_supplychain_note">Bu uygulama, yukarıdaki commit\'e sabitlenmiş VeraCrypt\'ın upstream C şifreleme çekirdeğini derler. Hangi kaynağın derlendiğini github.com/veracrypt/VeraCrypt adresinde tam olarak denetleyebilirsiniz.</string>
+    <string name="about_credit">Şifreleme çekirdeği VeraCrypt\'tan (Apache-2.0 + TrueCrypt Lisansı 3.0) aktarılmıştır. Sealchest bağımsız bir üründür ve VeraCrypt veya TrueCrypt projeleriyle bağlantılı değildir, onları taklit etmez.</string>
+    <string name="unlock_keyfiles_none">Anahtar dosyalar (isteğe bağlı)</string>
+    <string name="unlock_keyfiles_selected">Anahtar dosyalar: %1$d seçili</string>
+    <string name="unlock_keyfiles_clear">Anahtar dosyaları temizle</string>
+    <!-- Volume header tool (A2: backup / rescue) -->
+    <string name="header_tool_entry">Birim başlık araçları (yedekleme / kurtarma)</string>
+    <string name="header_tool_title">Birim başlık araçları</string>
+    <string name="header_tool_desc">Bir VeraCrypt birimi, kapsayıcının sonunda bir yedek başlık tutar. Birincil başlık hasarlıysa ve birim açılmıyorsa, gömülü yedekten geri yükleyin. Birim sağlıklıyken başlığı düzenli olarak yedekleyin.</string>
+    <string name="header_tool_close">Kapat</string>
+    <string name="header_export_button">Birincil başlığı dosyaya yedekle</string>
+    <string name="header_export_ok">Başlık yedeklendi.</string>
+    <string name="header_export_failed">Başlık yedeklemesi başarısız.</string>
+    <string name="header_rescue_warn">Kurtarma, birincil başlığı gömülü yedek başlıkla üzerine yazar. Önce yedeğin parolanızla/anahtar dosyalarınızla açıldığını doğrular ve geçerli başlığı bir kurtarma dosyasına kaydeder, ancak bu yine de kapsayıcıya yazar — birimin başka bir yere bağlı olmadığından emin olun.</string>
+    <string name="header_rescue_button">Gömülü yedek başlıktan kurtar</string>
+    <string name="header_rescue_need_write">Kurtarma yazma izni gerektirir (kapsayıcıyı yazma erişimi vererek yeniden seçin)</string>
+    <string name="header_restore_ok">Birincil başlık yedekten geri yüklendi. Şimdi kilidi açmayı deneyin.</string>
+    <string name="header_restore_failed">Geri yükleme başarısız. Kapsayıcı değiştirilmedi.</string>
+
+    <!-- Create volume wizard (B2) -->
+    <string name="create_entry">Yeni kapsayıcı oluştur</string>
+    <string name="create_title">Kapsayıcı oluştur</string>
+    <string name="create_algorithm">Şifreleme algoritması</string>
+    <string name="create_algo_aes">AES</string>
+    <string name="create_algo_serpent">Serpent</string>
+    <string name="create_algo_twofish">Twofish</string>
+    <string name="create_algo_camellia">Camellia</string>
+    <string name="create_algo_kuznyechik">Kuznyechik</string>
+    <string name="create_prf">Özet algoritması (PRF)</string>
+    <string name="create_size_mb">Boyut (MB)</string>
+    <string name="create_size_hint">MB cinsinden kapsayıcı veri alanı boyutu. En az 1 MB; daha büyüğü daha fazla dosya tutar.</string>
+    <string name="create_password">Parola</string>
+    <string name="create_password_confirm">Parolayı onayla</string>
+    <string name="create_password_mismatch">İki parola eşleşmiyor</string>
+    <string name="create_pim">PIM (isteğe bağlı, varsayılan için boş bırakın)</string>
+    <string name="create_pim_hint">Kişisel Yineleme Çarpanı. Varsayılan yineleme sayısını kullanmak için boş bırakın.</string>
+    <string name="create_cancel">İptal</string>
+    <string name="create_submit">Oluştur</string>
+    <string name="create_ok">Kapsayıcı oluşturuldu</string>
+    <string name="create_failed">Kapsayıcı oluşturulamadı</string>
+    <string name="create_in_progress">Kapsayıcı oluşturuluyor…</string>
+    <string name="create_entropy_title">Rastgelelik topla</string>
+    <string name="create_entropy_hint">Parmağınızı aşağıdaki kutunun etrafında kaydırın. Öngörülemeyen hareketleriniz ana anahtara entropi ekler (masaüstü VeraCrypt\'ta fareyi hareket ettirmek gibi).</string>
+    <string name="create_entropy_progress">Kaydırmaya devam edin… %1$d%%</string>
+    <string name="create_entropy_done">Yeterli rastgelelik toplandı</string>
+    <string name="create_next">İleri</string>
+    <string name="create_entropy_fullscreen_hint">Parmağınızı ekranın her yerinde kaydırın ve hareket sensörü varsa telefonu sallayın. Öngörülemeyen hareketleriniz ana anahtarın rastgelelik havuzunu besler (masaüstü VeraCrypt\'ta fareyi hareket ettirmek gibi). Havuz dolana kadar devam edin.</string>
+    <string name="create_entropy_sensor_on">Hareket sensörü etkin — sallama da rastgelelik ekler</string>
+    <string name="create_entropy_sensor_none">Hareket sensörü yok — yalnızca kaydırın</string>
+    <string name="create_entropy_pool_label">Rastgelelik havuzu</string>
+    <string name="create_entropy_swipe_here">Burada herhangi bir yere kaydırın</string>
+
+    <!-- File system / cluster size / dynamic volume (X2) -->
+    <string name="create_fs_type">Dosya sistemi</string>
+    <string name="create_fs_fat">FAT</string>
+    <string name="create_fs_exfat">exFAT</string>
+    <string name="create_fs_ntfs">NTFS</string>
+    <string name="create_fs_coming_soon">(yakında)</string>
+    <string name="create_cluster_size">Küme boyutu</string>
+    <string name="create_cluster_default">Varsayılan</string>
+    <string name="create_cluster_512">512 bayt</string>
+    <string name="create_cluster_1024">1024 bayt</string>
+    <string name="create_cluster_2048">2048 bayt</string>
+    <string name="create_cluster_4096">4096 bayt</string>
+    <string name="create_cluster_8192">8192 bayt</string>
+    <string name="create_cluster_16384">16384 bayt</string>
+    <string name="create_cluster_32768">32768 bayt</string>
+    <string name="create_dynamic">Dinamik birim (seyrek)</string>
+    <string name="create_dynamic_hint">Alanı talep üzerine ayırır. Arayüz hazır; arka uç şimdilik onu normal birim olarak ele alıyor.</string>
+    <string name="create_random_fill">Rastgele doldurma</string>
+    <string name="create_random_fill_hint">Maksimum makul inkâr edilebilirlik için tüm birimi rastgele veriyle doldurur (daha güvenli). Büyük kapsayıcılar oluşturmak daha uzun sürer.</string>
+
+    <!-- Change password / PIM / PRF / keyfiles (B1) -->
+    <string name="change_pwd_entry">Parola / PIM / anahtar dosyaları değiştir</string>
+    <string name="change_pwd_title">Parola değiştir</string>
+    <string name="change_pwd_desc">Yukarıya mevcut parolayı / PIM / PRF / anahtar dosyalarını girin (kilidi açmakla aynı), ardından yenilerini burada ayarlayın. Yalnızca başlık yeniden şifrelenir — ana anahtar ve verileriniz hiçbir zaman değişmez. Bir şeyler ters giderse diye, yazmadan önce geçerli başlığın bir kurtarma kopyası kaydedilir.</string>
+    <string name="change_pwd_new_password">Yeni parola</string>
+    <string name="change_pwd_new_pim">Yeni PIM (isteğe bağlı)</string>
+    <string name="change_pwd_new_prf">Yeni PRF (0 = mevcutu koru)</string>
+    <string name="change_pwd_new_keyfiles_none">Yeni anahtar dosyalar (isteğe bağlı)</string>
+    <string name="change_pwd_new_keyfiles_selected">Yeni anahtar dosyalar: %1$d seçili</string>
+    <string name="change_pwd_working">Başlık yeniden şifreleniyor…</string>
+    <string name="change_pwd_submit">Parola değiştir</string>
+    <string name="change_pwd_dismiss">İptal</string>
+    <string name="change_pwd_ok">Parola değiştirildi. Bundan sonra yeni parolayla kilidi açın.</string>
+    <string name="change_pwd_failed">Parola değiştirilemedi</string>
+
+    <!-- Create hidden volume (C2) -->
+    <string name="create_hidden_entry">Gizli birim oluştur</string>
+    <string name="create_hidden_title">Gizli birim oluştur</string>
+    <string name="create_hidden_desc">Gizli birim, bu (dış) kapsayıcının son boş alanında bulunur. Dış birim yukarıda girilen kimlik bilgileriyle kilidi açılarak açılır, mevcut dosyaların üzerine yazılmaması için boş alanı bulmak üzere FAT\'si okunur, ardından gizli birim aşağıda kendi parolasıyla oluşturulur.</string>
+    <string name="create_hidden_password">Gizli birim parolası</string>
+    <string name="create_hidden_size_mb">Gizli birim boyutu (MB)</string>
+    <string name="create_hidden_pim">Gizli PIM (isteğe bağlı)</string>
+    <string name="create_hidden_working">Gizli birim oluşturuluyor…</string>
+    <string name="create_hidden_submit">Gizli birim oluştur</string>
+    <string name="create_hidden_cancel">İptal</string>
+    <string name="create_hidden_ok">Gizli birim oluşturuldu. Kullanmak için gizli parolayla kilidi açın.</string>
+    <string name="create_hidden_failed">Gizli birim oluşturulamadı</string>
+    <string name="rescue_entry">Kurtarma dosya yöneticisi</string>
+    <string name="rescue_mgr_title">Kurtarma dosyaları</string>
+    <string name="rescue_mgr_warn">Bunlar ESKİ başlık grubunun yedekleridir. ESKİ parolaya sahip herkes bunları kullanarak birimi hâlâ açabilir. Yeni parolanın çalıştığını onayladığınızda silin.</string>
+    <string name="rescue_mgr_empty">Otomatik kaydedilmiş kurtarma dosyası yok.</string>
+    <string name="rescue_mgr_delete">Sil</string>
+    <string name="rescue_mgr_clear_all">Tümünü sil</string>
+    <string name="close">Kapat</string>
+    <string name="settings_title">Ayarlar</string>
+    <string name="settings_close">Kapat</string>
+    <string name="settings_entry">Ayarlar</string>
+    <string name="settings_autolock">Otomatik kilitleme</string>
+    <string name="settings_autolock_desc">Kapsayıcıyı korumak için bellekteki anahtarları otomatik olarak yok edin</string>
+    <string name="settings_timeout">Boşta kalma süresi</string>
+    <string name="settings_lock_bg">Arka plana atıldığında kilitle</string>
+    <string name="settings_lock_bg_desc">Uygulama arka plana geçtiğinde hemen kilitle</string>
+    <string name="settings_lock_screen">Ekran kapandığında kilitle</string>
+    <string name="settings_lock_screen_desc">Ekran kapandığında hemen kilitle</string>
+    <string name="settings_autolock_enable">Otomatik kilitleme</string>
+    <string name="settings_autolock_timeout">Boşta kalma süresi</string>
+    <string name="settings_lock_background">Uygulama arka plana geçtiğinde kilitle</string>
+    <string name="settings_lock_screen_off">Ekran kapandığında kilitle</string>
+    <string name="favorites_title">Kaydedilen kapsayıcılar</string>
+    <string name="favorites_remove">Kaldır</string>
+    <!-- Hidden volume keyfile (C2 enhancement, align with desktop VC) -->
+    <string name="create_hidden_keyfiles_none">Gizli anahtar dosyalar (isteğe bağlı)</string>
+    <string name="create_hidden_keyfiles_selected">Gizli anahtar dosyalar: %1$d seçili</string>
+
+    <!-- Volume expansion (X17) -->
+    <string name="expand_volume_entry">Birimi genişlet</string>
+    <string name="expand_volume_title">Birimi genişlet</string>
+    <string name="expand_volume_desc">Verileri yeniden şifrelemeden bu kapsayıcıyı büyütün. Ana anahtar aynı kalır; yalnızca başlıklar ve dosya boyutu değişir. Yeni toplam boyutu aşağıya girin. Yalnızca büyütme desteklenir. Önce geçerli başlığın bir kurtarma yedeği kaydedilir.</string>
+    <string name="expand_volume_current_size">Mevcut boyut: %1$s</string>
+    <string name="expand_volume_new_size_mb">Yeni toplam boyut (MB)</string>
+    <string name="expand_volume_working">Birim genişletiliyor…</string>
+    <string name="expand_volume_submit">Genişlet</string>
+    <string name="expand_volume_cancel">İptal</string>
+    <string name="expand_volume_ok">Birim %1$s olarak genişletildi.</string>
+    <string name="expand_volume_failed">Birim genişletilemedi</string>
+    <string name="expand_volume_too_small">Yeni boyut mevcut boyuttan büyük olmalıdır</string>
+
+    <!-- Partition encryption probe (X2/X3, experimental, root-gated) -->
+    <string name="block_device_entry">Bölüm şifreleme (deneysel)</string>
+    <string name="block_device_title">Bölümler (salt-okunur yoklama)</string>
+    <string name="block_device_desc">Deneysel. Blok cihazları salt-okunur olarak listeler. Şifreleme yapılmaz. Root gerektirir.</string>
+    <string name="block_device_loading">Listeleniyor…</string>
+    <string name="block_device_empty">Blok cihaz bulunamadı.</string>
+    <string name="block_device_no_root">Root verilmedi. Blok cihazlar listelenemiyor.</string>
+    <string name="block_device_request_root">Root ver</string>
+    <string name="block_device_close">Kapat</string>
+    <string name="block_device_size">Boyut: %1$s</string>
+    <string name="block_device_removable">Çıkarılabilir</string>
+
+    <!-- Container info panel (X10) -->
+    <string name="info_entry">Kapsayıcı bilgisi</string>
+    <string name="info_title">Kapsayıcı bilgisi</string>
+    <string name="info_algorithm">Şifreleme</string>
+    <string name="info_prf">Anahtar türetme (PRF)</string>
+    <string name="info_data_size">Veri alanı boyutu</string>
+    <string name="info_sector_size">Sektör boyutu</string>
+    <string name="info_fs_type">Dosya sistemi</string>
+    <string name="info_label">Birim etiketi</string>
+    <string name="info_hidden">Gizli birim</string>
+    <string name="info_writable">Yazılabilir bağlandı</string>
+    <string name="info_yes">Evet</string>
+    <string name="info_no">Hayır</string>
+    <string name="info_close">Kapat</string>
+    <string name="info_bytes_fmt">%1$s (%2$d bayt)</string>
+    <string name="info_cascade">Kaskad</string>
+    <string name="browse_write_full">Kapsayıcı dolu — yeterli boş alan yok</string>
+    <!-- W16 目录操作 rename/mkdir/move/rmdir -->
+    <string name="browse_new_folder">Yeni klasör</string>
+    <string name="browse_new_folder_hint">Klasör adı</string>
+    <string name="browse_new_folder_ok">Klasör oluşturuldu: %1$s</string>
+    <string name="browse_new_folder_failed">Klasör oluşturulamadı</string>
+    <string name="browse_action_rename">Yeniden adlandır</string>
+    <string name="browse_action_move">Şuraya taşı…</string>
+    <string name="browse_action_delete_folder">Klasörü sil</string>
+    <string name="browse_rename_title">Yeniden adlandır</string>
+    <string name="browse_rename_hint">Yeni ad</string>
+    <string name="browse_rename_ok">%1$s olarak yeniden adlandırıldı</string>
+    <string name="browse_rename_failed">Yeniden adlandırma başarısız</string>
+    <string name="browse_move_title">\"%1$s\" şuraya taşı</string>
+    <string name="browse_move_here">Buraya taşı</string>
+    <string name="browse_move_up">.. (üst)</string>
+    <string name="browse_move_ok">Taşındı: %1$s</string>
+    <string name="browse_move_failed">Taşıma başarısız</string>
+    <string name="browse_rmdir_title">Klasörü sil</string>
+    <string name="browse_rmdir_msg">\"%1$s\" klasörü silinsin mi? Yalnızca boş klasörler silinebilir.</string>
+    <string name="browse_rmdir_ok">Klasör silindi: %1$s</string>
+    <string name="browse_rmdir_failed">Silme başarısız (klasör boş olmayabilir)</string>
+    <string name="browse_op_unsupported">Bu dosya sistemi henüz o işlemi desteklemiyor</string>
+    <string name="browse_action_more">Daha fazla</string>
+    <string name="favorites_rename">Yeniden adlandır</string>
+    <string name="favorites_pin">Üste sabitle</string>
+    <string name="favorites_rename_title">Sık kullanılanı yeniden adlandır</string>
+    <string name="favorites_rename_hint">Görünen ad</string>
+    <string name="settings_default_mount_writable">Varsayılan oku-yaz bağlama</string>
+    <string name="settings_default_prf">Varsayılan PRF</string>
+    <string name="settings_ntfs_exp">NTFS etkinleştir (deneysel)</string>
+    <string name="settings_ntfs_exp_desc">Cihazda NTFS okuma/yazma doğrulanmamıştır. Yalnızca tek kullanımlık kapsayıcılar kullanın. Kapalı = NTFS kapsayıcıları bağlanmayı reddeder.</string>
+    <!-- 块设备解锁（F2）-->
+    <string name="block_device_unlock">Kilidi aç</string>
+    <string name="block_device_unlocking">Kilit açılıyor…</string>
+    <string name="block_device_unlock_failed">Kilit açma başarısız: %1$s</string>
+    <string name="block_device_unlocked">Kilit açıldı: %1$s</string>
+    <!-- 系统挂载暴露（F3）-->
+    <string name="expose_title">Sisteme sun</string>
+    <string name="expose_warning">Bu, kapsayıcı içeriğini tüm uygulamaların erişebileceği bir dizine çözer. Büyük güvenlik riski — yalnızca güvenilir ortamlar için.</string>
+    <string name="expose_dir_hint">Hedef dizin (örn. /data/local/tmp/sealchest)</string>
+    <string name="expose_start">Sunmayı başlat</string>
+    <string name="expose_cleanup">Temizle</string>
+    <string name="expose_progress">Eşitleniyor: %1$s</string>
+    <string name="expose_done">%1$d dosya sunuldu</string>
+    <string name="expose_failed">Sunma başarısız: %1$s</string>
+</resources>

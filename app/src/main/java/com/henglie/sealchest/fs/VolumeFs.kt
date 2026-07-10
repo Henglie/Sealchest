@@ -1,6 +1,12 @@
 package com.henglie.sealchest.fs
 
 /**
+ * 容器空间不足（W18）。alloc 路径（FAT/exFAT/NTFS）空闲簇不够时抛出，
+ * 实现已回滚已分配簇（不留孤儿簇）。UI 捕获后提示「容器空间不足」而非通用「写入失败」。
+ */
+class VolumeFullException(message: String = "容器空间不足") : Exception(message)
+
+/**
  * 卷内文件系统抽象。FAT（[FatFileSystem]）与 exFAT（[ExFatFileSystem]）都实现它，
  * 让 [MountManager] / SAF Provider / 浏览器 UI 只依赖本接口，不认具体格式。
  *
@@ -9,6 +15,10 @@ package com.henglie.sealchest.fs
  *
  * 句柄语义：目录 / 文件都以 [FsEntry.firstCluster]（簇号，Long）为句柄。FAT 与 exFAT
  * 都是簇号寻址，故句柄类型统一为 Long；根目录传 0（各实现自行解释为其根）。
+ *
+ * 目录操作（rename/mkdir/rmdir/move）为 W12 引入的可选能力：默认实现抛
+ * [UnsupportedOperationException]，实现层按各自文件系统能力覆盖（纯增量，不覆盖即不支持，
+ * 上层捕获异常降级提示）。这样新增操作不强制所有实现同步跟进，保证低耦合、增量安全。
  */
 interface VolumeFs {
 
@@ -54,6 +64,49 @@ interface VolumeFs {
      * 无此类元数据的格式（FAT12/16 / exFAT 简版）为空实现。
      */
     fun invalidateFsInfo()
+
+    // ---- 目录操作（W12 · 可选能力，默认不支持）----
+
+    /**
+     * 重命名目录 [dirFirstCluster] 下的条目 [oldName] 为 [newName]（文件或子目录均可）。
+     * 只改目录项名字，不搬数据簇。成功返回 true。
+     * 默认抛 [UnsupportedOperationException]，由具体实现按能力覆盖。
+     */
+    fun rename(dirFirstCluster: Long, oldName: String, newName: String): Boolean =
+        throw UnsupportedOperationException("$fsType 暂不支持重命名")
+
+    /**
+     * 在目录 [dirFirstCluster] 下新建子目录 [name]。
+     * 成功返回新目录首簇（> 0）；失败返回 0（或抛异常）。
+     * 默认抛 [UnsupportedOperationException]。
+     */
+    fun mkdir(dirFirstCluster: Long, name: String): Long =
+        throw UnsupportedOperationException("$fsType 暂不支持新建目录")
+
+    /**
+     * 删除目录 [dirFirstCluster] 下的子目录 [name]。
+     * [recursive]=false（默认）只删空目录，非空拒绝；true 递归删除内容后删目录。
+     * 成功返回 true。默认抛 [UnsupportedOperationException]。
+     */
+    fun rmdir(dirFirstCluster: Long, name: String, recursive: Boolean = false): Boolean =
+        throw UnsupportedOperationException("$fsType 暂不支持删除目录")
+
+    /**
+     * 同卷内把 [srcDirFirstCluster] 下的条目 [name] 移动到目录 [dstDirFirstCluster]。
+     * 纯目录项操作（目标 addEntry 复用首簇/size + 源 removeEntry），不搬数据簇。
+     * 成功返回 true。默认抛 [UnsupportedOperationException]。
+     */
+    fun move(srcDirFirstCluster: Long, name: String, dstDirFirstCluster: Long): Boolean =
+        throw UnsupportedOperationException("$fsType 暂不支持移动")
+    /**
+     * X17 卷扩展：让 FS 认领扩大的数据区（[newDataAreaSize] = 新数据区字节数，不含头组）。
+     * 更新 FS 元数据（如 FAT BPB_TotSec32 / exFAT 簇堆大小 / NTFS $Volume）。
+     * 成功返回 true。默认抛 [UnsupportedOperationException]（待各 FS 实现）。
+     * **仅增大不缩小**，调用方保证 newDataAreaSize > 当前。
+     */
+    fun grow(newDataAreaSize: Long): Boolean =
+        throw UnsupportedOperationException("$fsType 暂不支持卷扩展")
+
 }
 
 /**

@@ -1,6 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- 前台服务保活（F4）：挂载期常驻通知防系统杀后台 → 密钥丢失。
+         FOREGROUND_SERVICE：Android 9+ 前台服务基础权限。
+         FOREGROUND_SERVICE_DATA_SYNC：Android 14+ 必须按类型声明，本服务属 dataSync。
+         POST_NOTIFICATIONS：Android 13+ 前台服务通知需运行时权限。 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:name=".SealchestApp"
         android:allowBackup="false"
@@ -20,6 +28,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- 挂载保活前台服务（F4）：容器解锁后常驻通知栏防杀后台。
+             exported=false 仅本 app 启动；foregroundServiceType=dataSync 对应 Android 14+
+             的分类型要求（与 FOREGROUND_SERVICE_DATA_SYNC 权限一致）。 -->
+        <service
+            android:name=".core.MountForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <!-- FileProvider：把内置浏览器导出的解密临时文件（cacheDir/exported）
              以 content:// 授权给「用其它应用打开」的目标 app。仅授临时读权限，

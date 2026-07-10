@@ -76,12 +76,15 @@ data class CreateParams(
     val pim: Int,
     val sizeBytes: Long,
     val password: ByteArray,
-    /** 文件系统：0=FAT（可创建），1=exFAT（后端待接），2=NTFS（后端待接）。 */
+    /** 文件系统：0=FAT / 1=exFAT / 2=NTFS（均可创建）。 */
     val fsType: Int = 0,
     /** 簇大小（字节）。0=自动（沿用 Formatter 阶梯），否则须为 512 的幂次倍数。 */
     val clusterSize: Int = 0,
     /** 动态卷（稀疏）：UI 已备，后端暂当普通卷处理（见 X2 回执）。 */
     val dynamic: Boolean = false,
+
+    /** 创建时全区随机填充（X14）：开启后数据区铺满随机明文->XTS 加密，整卷不可区分。默认关。 */
+    val randomFill: Boolean = false,
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -94,6 +97,8 @@ data class CreateParams(
             fsType == other.fsType &&
             clusterSize == other.clusterSize &&
             dynamic == other.dynamic
+            dynamic == other.dynamic &&
+            randomFill == other.randomFill
     }
 
     override fun hashCode(): Int {
@@ -105,6 +110,7 @@ data class CreateParams(
         result = 31 * result + fsType
         result = 31 * result + clusterSize
         result = 31 * result + dynamic.hashCode()
+        result = 31 * result + randomFill.hashCode()
         return result
     }
 }
@@ -127,7 +133,7 @@ private val CREATE_PRF_OPTIONS = listOf(
     R.string.prf_streebog to 5,
 )
 
-/** 文件系统选项：显示名 string res id + ID。0=FAT（可创建），1=exFAT / 2=NTFS 后端未就绪灰显。 */
+/** 文件系统选项：显示名 string res id + ID。0=FAT / 1=exFAT / 2=NTFS（均可创建）。 */
 private val FS_OPTIONS = listOf(
     R.string.create_fs_fat to 0,
     R.string.create_fs_exfat to 1,
@@ -181,6 +187,7 @@ fun CreateVolumeScreen(
     var fsIndex by remember { mutableStateOf(0) }
     var clusterIndex by remember { mutableStateOf(0) }
     var dynamic by remember { mutableStateOf(false) }
+    var randomFill by remember { mutableStateOf(false) }
     var sizeMb by remember { mutableStateOf("") }
     var pim by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -214,6 +221,8 @@ fun CreateVolumeScreen(
             onClusterChange = { clusterIndex = it },
             dynamic = dynamic,
             onDynamicChange = { dynamic = it },
+            randomFill = randomFill,
+            onRandomFillChange = { randomFill = it },
             formValid = formValid,
             onCancel = onCancel,
             onNext = { phase = 1 },
@@ -238,6 +247,7 @@ fun CreateVolumeScreen(
                         fsType = FS_OPTIONS[fsIndex].second,
                         clusterSize = CLUSTER_OPTIONS[clusterIndex].second,
                         dynamic = dynamic,
+                        randomFill = randomFill,
                     )
                 )
             },
@@ -269,6 +279,8 @@ private fun CreateFormPage(
     onClusterChange: (Int) -> Unit,
     dynamic: Boolean,
     onDynamicChange: (Boolean) -> Unit,
+    randomFill: Boolean,
+    onRandomFillChange: (Boolean) -> Unit,
     formValid: Boolean,
     onCancel: () -> Unit,
     onNext: () -> Unit,
@@ -389,7 +401,7 @@ private fun CreateFormPage(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            // ---- 文件系统（X2）：FAT 可选，exFAT / NTFS 后端未就绪灰显 ----
+            // ---- 文件系统（X2）：FAT / exFAT / NTFS 均可选 ----
             Text(stringResource(R.string.create_fs_type), style = MaterialTheme.typography.labelLarge)
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -400,10 +412,10 @@ private fun CreateFormPage(
                     FilterChip(
                         selected = fsIndex == i,
                         onClick = { onFsChange(i) },
-                        enabled = i <= 1, // FAT / exFAT 可创建，NTFS(2) 造盘器待接（最高危单件）
+                        enabled = i <= 2, // FAT / exFAT / NTFS 均可创建
                         label = {
                             Text(
-                                if (i <= 1) stringResource(labelResId)
+                                if (i <= 2) stringResource(labelResId)
                                 else stringResource(labelResId) + " " + stringResource(R.string.create_fs_coming_soon)
                             )
                         },
@@ -443,6 +455,26 @@ private fun CreateFormPage(
                     Text(stringResource(R.string.create_dynamic))
                     Text(
                         stringResource(R.string.create_dynamic_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            // ---- 全区随机填充（X14）：开启后整卷不可区分，但大容器创建慢 ----
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Checkbox(
+                    checked = randomFill,
+                    onCheckedChange = onRandomFillChange,
+                )
+                Column {
+                    Text(stringResource(R.string.create_random_fill))
+                    Text(
+                        stringResource(R.string.create_random_fill_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

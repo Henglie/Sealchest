@@ -6,6 +6,102 @@
 
 ---
 
+## ▍交接给 Claude（2026-07-11）
+
+**当前版本：v0.2 发布候选版（versionCode=5, versionName="0.2"）。** `assembleRelease` 三 ABI 编译通过，APK 9.86MB。已推送 GitHub（commit 7666f57）。
+
+### 已完成（代码层面全通，待真机验收）
+
+- VC 文件容器全功能复刻：FAT12/16/32 + exFAT + NTFS 读写/创建，全算法/PRF/PIM/keyfile/隐藏卷/改密/卷扩展/救砖
+- 16 国语言 i18n（中英法德西日韩俄意葡荷阿拉伯印地土波越）
+- 基准测试（10 种算法测速）+ 主题色自由调整（6 预设色）+ 酒红色锁图标
+- UI 全部改进：设置独立界面、多语言右上角、返回键 BackHandler、收藏手动按钮、容器菜单按钮编组、密钥文件全功能管理框、创建容器显示密码+随机池折叠
+
+### 已修复的 bug（v0.2 测试报告）
+
+| bug | 根因 | 修复 |
+|-----|------|------|
+| 多语言除中文外调不了 | `localeFilters` 把 14 国资源剥离 | 删掉过滤 |
+| randomFill 容器内幽灵文件 | FatFormatter 不覆盖 FAT 根目录区 | randomFill 后显式写零 |
+| NTFS Windows 无法访问 | $LogFile 全0 + dirty 位不设 + LSN 置0 | $LogFile 填0xFF + markVolumeDirty + LSN 递增 |
+| NTFS 重命名占位符 %1$s | runDirOp 不传格式化参数 | 加 okArgs 参数 |
+| root 不主动申请 | 按钮显示用 isGranted | 改用 isRootPossible + requestRoot |
+
+### 未完成 / 待验证（Claude 接手后优先处理）
+
+1. **NTFS 无法完全仿真** — 当前修复是"让 Windows 挂载时自动 chkdsk 修复"，不是完整 $LogFile 日志重放。每次手机编辑后 Windows 首次挂载会弹 chkdsk 提示。完整日志仿真需移植 ntfs-3g 日志子系统（工作量等于重写半个 NTFS 驱动）。
+2. **NTFS "无法写入文件只能删除修改"** — 代码层面 allocMftRecord 逻辑正确（H2 修复已生效）。需用 v0.2 新建容器实测确认是否已解决。旧容器可能命中 H2 bug。
+3. **exFAT chkdsk 测试2** — 只做了代码审查（删除逻辑正确），未实测。用户桌面有 `exFAT测试2 修改` 文件夹（删了"测试视频.mkv"），需挂载到 Windows 运行 `chkdsk A: /f` 验证。
+4. **VC 测试向量（Test Vectors）** — 未实现。现有 selfTest 是往返验证（encrypt(decrypt)==原值），不是已知答案测试。VC 桌面端有 Tools > Test Vectors。
+5. **热备份** — 未实现。
+6. **APK 桌面放置** — TRAE 沙箱限制桌面写操作。APK 在 `app/build/outputs/apk/release/app-release.apk`，需用户手动复制到桌面。
+
+### 下一步测试路径（给用户）
+
+**第一步**：用 v0.2 重新创建容器（旧容器可能命中 H2 bug）
+
+**第二步**：核心功能回归
+```
+1. 多语言切换 → 切法语/德语/日语，确认界面立即变化
+2. 返回键 → 进设置/关于/浏览器，按返回键应回上一页，主屏再按一次退出
+3. 收藏 → 选容器后点星标按钮收藏，解锁后不应自动收藏
+4. 创建容器 → 默认文件名无后缀，显示密码选项，随机池默认折叠
+5. 容器功能菜单 → 应是按钮编组（不是超链接文字）
+6. 密钥文件 → 列表显示+单项移除
+7. 主题色 → 设置页选色，即时生效
+8. 基准测试 → 实用工具组点"基准测试"，跑出速度表
+```
+
+**第三步**：NTFS 专项测试（关键）
+```
+1. 用 v0.2 新建 NTFS 容器
+2. 手机端写入文件 → 确认手机端能看到
+3. 卸载容器 → 重新挂载 → 确认文件还在
+4. 挂载到 Windows → 首次会弹 chkdsk，让它修复
+5. 修复后 Windows 能否访问？能否看到手机写入的文件？
+6. Windows 端写入文件 → 卸载 → 手机端挂载 → 能否看到？
+7. 重命名文件 → Toast 应显示"已重命名为 实际文件名"（不再是 %1$s）
+```
+
+**第四步**：exFAT chkdsk 测试
+```
+1. 用 v0.2 新建 exFAT 容器
+2. 手机端删除文件
+3. 挂载到 Windows → 运行 chkdsk A: /f → 应无错误
+```
+
+**第五步**：root 测试（如果有 Magisk 设备）
+```
+1. 实用工具组点"分区加密探针" → 应弹 Magisk 授权框
+2. 授权后应能枚举块设备
+```
+
+### 关键文件索引
+
+- 主入口：`app/src/main/java/com/henglie/sealchest/MainActivity.kt`
+- 设置：`app/src/main/java/com/henglie/sealchest/SettingsScreen.kt`
+- 基准测试：`app/src/main/java/com/henglie/sealchest/benchmark/`（BenchmarkRunner.kt + BenchmarkScreen.kt）
+- NTFS：`app/src/main/java/com/henglie/sealchest/fs/NtfsFileSystem.kt`（2323行）+ NtfsFormatter.kt + NtfsRecords.kt + NtfsTables.kt + NtfsBoot.kt
+- 文件系统层：`app/src/main/java/com/henglie/sealchest/fs/`（FAT/exFAT/NTFS + VolumeReader + MountManager）
+- 加密桥：`app/src/main/java/com/henglie/sealchest/crypto/NativeBridge.kt` + `app/src/main/cpp/native_lib.cpp`
+- 主题：`app/src/main/java/com/henglie/sealchest/ui/theme/Theme.kt`
+- 配置：`app/src/main/java/com/henglie/sealchest/core/Settings.kt`
+- 测试手册：`测试手册.md`（v0.7，含最小化全功能验收路径）
+- 路线图：`路线图.md`
+
+### 编译 & 交付
+
+```bash
+# 编译 release APK（debug 签名，发行时换正式签名）
+./gradlew.bat assembleRelease
+# 产物：app/build/outputs/apk/release/app-release.apk
+```
+
+- build.gradle.kts 第 63 行 release 块暂用 `signingConfig = signingConfigs.getByName("debug")`，发行时需换正式 keystore
+- F-Droid 上架待办：Fastlane Metadata + 正式签名 + reproducible build
+
+---
+
 ## ▍一句话
 
 安卓无 root 加载 VeraCrypt 加密容器，纯用户态解密 + SAF 暴露文件系统。VC「文件容器」这条线功能全复刻，FAT12/16/32 + exFAT + NTFS 全算法/PRF/PIM/keyfile/隐藏卷/创建/改密/救砖全通，辅以 root 可选增强与体验对齐。

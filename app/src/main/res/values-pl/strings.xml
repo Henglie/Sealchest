@@ -317,4 +317,30 @@
     <string name="expose_progress">Synchronizowanie: %1$s</string>
     <string name="expose_done">Udostępniono %1$d plików</string>
     <string name="expose_failed">Udostępnianie nie powiodło się: %1$s</string>
+
+    <!-- Language switcher -->
+    <string name="lang_follow_system">Zgodnie z systemem</string>
+    <string name="lang_title">Język</string>
+
+    <!-- v0.2 新增字符串 -->
+    <string name="favorites_add">Ulubione</string>
+    <string name="favorites_favorited">Dodano do ulubionych</string>
+    <string name="exit_press_again">Naciśnij Wstecz ponownie, aby wyjść</string>
+    <string name="tools_volume_group">Narzędzia wolumenu</string>
+    <string name="tools_utils_group">Narzędzia</string>
+    <string name="unlock_keyfiles_title">Pliki kluczy</string>
+    <string name="unlock_keyfiles_add">Dodaj plik klucza</string>
+    <string name="unlock_keyfiles_remove">Usuń</string>
+    <string name="create_show_password">Pokaż hasło</string>
+    <string name="create_password_warn">Hasło będzie wyświetlone w postaci zwykłego tekstu. Uważaj na otoczenie.</string>
+    <string name="create_random_pool">Pula losowa</string>
+    <string name="create_random_pool_hint">Stuknij, aby rozwinąć/zwinąć</string>
+
+    <!-- Benchmark -->
+    <string name="benchmark_title">Benchmark</string>
+    <string name="benchmark_start">Rozpocznij</string>
+    <string name="benchmark_running">Testowanie %1$s…</string>
+    <string name="benchmark_entry">Benchmark</string>
+    <string name="benchmark_unit">MB/s</string>
+    <string name="settings_theme_color">Kolor motywu</string>
 </resources>

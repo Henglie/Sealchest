@@ -9,6 +9,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 private val LightColors = lightColorScheme(
@@ -60,6 +61,7 @@ private val DarkColors = darkColorScheme(
 fun SealchestTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = true,
+    primaryColor: Int? = null,
     content: @Composable () -> Unit,
 ) {
     val colorScheme = when {
@@ -70,9 +72,11 @@ fun SealchestTheme(
         darkTheme -> DarkColors
         else -> LightColors
     }
+    // 用户自定义主题色覆盖 primary（其余 M3 配色保留），null 则用原配色 / 动态取色。
+    val finalScheme = if (primaryColor != null) colorScheme.copy(primary = Color(primaryColor)) else colorScheme
 
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = finalScheme,
         typography = Typography,
         content = content,
     )

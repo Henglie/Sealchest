@@ -6,6 +6,7 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +24,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -36,6 +40,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -54,6 +59,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -285,6 +291,8 @@ private fun CreateFormPage(
     onCancel: () -> Unit,
     onNext: () -> Unit,
 ) {
+    var passwordVisible by remember { mutableStateOf(false) }
+    var showPasswordWarn by remember { mutableStateOf(false) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -358,14 +366,22 @@ private fun CreateFormPage(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            // ---- 密码 + 确认 ----
+            // ---- 密码 + 确认（可切换明文显示）----
             OutlinedTextField(
                 value = password,
                 onValueChange = onPasswordChange,
                 label = { Text(stringResource(R.string.create_password)) },
                 singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
+                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                trailingIcon = {
+                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                        Icon(
+                            if (passwordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                            contentDescription = null,
+                        )
+                    }
+                },
                 modifier = Modifier.fillMaxWidth(),
             )
             OutlinedTextField(
@@ -373,9 +389,17 @@ private fun CreateFormPage(
                 onValueChange = onConfirmChange,
                 label = { Text(stringResource(R.string.create_password_confirm)) },
                 singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
+                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 isError = confirm.isNotEmpty() && !passwordsMatch,
+                trailingIcon = {
+                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                        Icon(
+                            if (passwordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                            contentDescription = null,
+                        )
+                    }
+                },
                 modifier = Modifier.fillMaxWidth(),
             )
             if (confirm.isNotEmpty() && !passwordsMatch) {
@@ -383,6 +407,34 @@ private fun CreateFormPage(
                     stringResource(R.string.create_password_mismatch),
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+
+            // ---- 显示密码开关：勾选后明文显示，首次开启弹安全提示 ----
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Checkbox(
+                    checked = passwordVisible,
+                    onCheckedChange = {
+                        passwordVisible = it
+                        if (it) showPasswordWarn = true
+                    },
+                )
+                Text(stringResource(R.string.create_show_password))
+            }
+            if (showPasswordWarn) {
+                AlertDialog(
+                    onDismissRequest = { showPasswordWarn = false },
+                    confirmButton = {
+                        TextButton(onClick = { showPasswordWarn = false }) {
+                            Text(stringResource(R.string.ok))
+                        }
+                    },
+                    title = { Text(stringResource(R.string.create_show_password)) },
+                    text = { Text(stringResource(R.string.create_password_warn)) },
                 )
             }
 
@@ -533,6 +585,8 @@ private fun EntropyPage(
     var poolHex by remember { mutableStateOf("") }
     // 是否检测到加速度计（无则界面提示「此机无传感器」，但不影响创建）。
     var hasSensor by remember { mutableStateOf(false) }
+    // 随机池默认折叠（不显示 hex），把竖向空间留给涂抹区；点击展开看前 48 字节。
+    var poolExpanded by remember { mutableStateOf(false) }
 
     // ---- 加速度传感器：注册监听，每次读数喂熵池 ----
     DisposableEffect(Unit) {
@@ -571,8 +625,10 @@ private fun EntropyPage(
         while (true) {
             val snap = NativeBridge.randomPoolSnapshot()
             if (snap.isNotEmpty()) {
-                val sb = StringBuilder(snap.size * 2 + snap.size / 16)
-                for (i in snap.indices) {
+                // 只取前 48 字节（3 行 hex），减小竖向占用，把更多空间留给涂抹区。
+                val limit = minOf(snap.size, 48)
+                val sb = StringBuilder(limit * 3)
+                for (i in 0 until limit) {
                     val v = snap[i].toInt() and 0xFF
                     sb.append(HEX[v ushr 4]).append(HEX[v and 0xF])
                     // 每 16 字节换行，排成整齐网格。
@@ -636,25 +692,47 @@ private fun EntropyPage(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            // ---- 随机池 hex 网格：跳动的「加密流」，对齐桌面 VeraCrypt Random Pool ----
-            Text(
-                stringResource(R.string.create_entropy_pool_label),
-                style = MaterialTheme.typography.labelLarge,
-            )
-            Box(
+            // ---- 随机池：默认折叠，展开看 hex（前 48 字节 / 3 行）----
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(8.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .clickable { poolExpanded = !poolExpanded }
                     .padding(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text(
-                    text = poolHex,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 10.sp,
-                    color = MaterialTheme.colorScheme.primary,
-                    lineHeight = 13.sp,
+                Icon(
+                    if (poolExpanded) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                    contentDescription = null,
                 )
+                if (poolExpanded) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            stringResource(R.string.create_random_pool) + "（" +
+                                stringResource(R.string.create_random_pool_hint) + "）",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = poolHex,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            lineHeight = 13.sp,
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "±±±±±±±±±±±±±±±±  " + stringResource(R.string.create_random_pool) + "（" +
+                            stringResource(R.string.create_random_pool_hint) + "）",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
 
             // ---- 进度 ----

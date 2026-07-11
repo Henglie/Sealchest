@@ -317,4 +317,30 @@
     <string name="expose_progress">同期中: %1$s</string>
     <string name="expose_done">%1$d 個のファイルを公開しました</string>
     <string name="expose_failed">公開失敗: %1$s</string>
+
+    <!-- Language switcher -->
+    <string name="lang_follow_system">システムに従う</string>
+    <string name="lang_title">言語</string>
+
+    <!-- v0.2 新增字符串 -->
+    <string name="favorites_add">お気に入り</string>
+    <string name="favorites_favorited">お気に入りに追加済み</string>
+    <string name="exit_press_again">もう一度戻るを押して終了</string>
+    <string name="tools_volume_group">ボリュームツール</string>
+    <string name="tools_utils_group">ユーティリティ</string>
+    <string name="unlock_keyfiles_title">キーファイル</string>
+    <string name="unlock_keyfiles_add">キーファイルを追加</string>
+    <string name="unlock_keyfiles_remove">削除</string>
+    <string name="create_show_password">パスワードを表示</string>
+    <string name="create_password_warn">パスワードが平文で表示されます。周囲にご注意ください。</string>
+    <string name="create_random_pool">ランダムプール</string>
+    <string name="create_random_pool_hint">タップで展開/折りたたみ</string>
+
+    <!-- Benchmark -->
+    <string name="benchmark_title">ベンチマーク</string>
+    <string name="benchmark_start">開始</string>
+    <string name="benchmark_running">%1$s をテスト中…</string>
+    <string name="benchmark_entry">ベンチマーク</string>
+    <string name="benchmark_unit">MB/s</string>
+    <string name="settings_theme_color">テーマカラー</string>
 </resources>

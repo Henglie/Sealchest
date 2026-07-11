@@ -1,23 +1,42 @@
 package com.henglie.sealchest
 
+import android.app.Activity
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,12 +57,26 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/** 主题色预设：(ARGB, 显示名)。默认酒红排第一，与 Settings.themeColor 默认值一致。 */
+private val THEME_COLOR_OPTIONS: List<Pair<Int, String>> = listOf(
+    0xFF8B2D35.toInt() to "酒红",
+    0xFF1A5276.toInt() to "深蓝",
+    0xFF1E5631.toInt() to "森林绿",
+    0xFF6C3483.toInt() to "紫罗兰",
+    0xFFB7950B.toInt() to "琥珀",
+    0xFF2C3E50.toInt() to "炭灰",
+)
+
 /**
- * 设置弹窗：自动锁定配置。改动即写 [Settings]，并 [AutoLock.touch] 让新超时立刻生效。
- * 仅存行为偏好，绝不碰密码/密钥。
+ * 设置独立界面（全屏 Scaffold + 分类 Card）。替代原 [SettingsDialog] 弹窗——
+ * 弹窗内控件太多太挤，改全屏滚动后每组用 Card 分隔，呼吸感更好。
+ *
+ * 分类：自动锁定 / PIN 门禁 / Panic PIN / 挂载偏好 / 高级。
+ * 子对话框（SetPin/ClearPin/SetPanic/ClearPanic）仍用 AlertDialog，逻辑不变。
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsDialog(onDismiss: () -> Unit) {
+fun SettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
 
     var enabled by remember { mutableStateOf(Settings.autoLockEnabled(context)) }
@@ -54,13 +87,12 @@ fun SettingsDialog(onDismiss: () -> Unit) {
     var defMountWritable by remember { mutableStateOf(Settings.defaultMountWritable(context)) }
     var defPrfIndex by remember { mutableStateOf(Settings.defaultPrfIndex(context)) }
     var ntfsExp by remember { mutableStateOf(Settings.ntfsExperimental(context)) }
+    var currentThemeColor by remember { mutableStateOf(Settings.themeColor(context)) }
     var pinSet by remember { mutableStateOf(PinManager.isPinSet(context)) }
     var showSetPin by remember { mutableStateOf(false) }
     var showClearPin by remember { mutableStateOf(false) }
-    // 生物识别解锁 PIN 门禁（X4）：仅 PIN 已设时生效。
     var biometricEnabled by remember { mutableStateOf(Settings.biometricUnlockEnabled(context)) }
     val biometricSupported = com.henglie.sealchest.core.BiometricUnlock.canAuthenticate(context)
-    // Panic PIN（紧急擦除）
     var panicSet by remember { mutableStateOf(com.henglie.sealchest.core.PanicManager.isPanicPinSet(context)) }
     var showSetPanic by remember { mutableStateOf(false) }
     var showClearPanic by remember { mutableStateOf(false) }
@@ -73,40 +105,44 @@ fun SettingsDialog(onDismiss: () -> Unit) {
     fun timeoutLabel(ms: Long): String =
         Settings.TIMEOUT_OPTIONS.firstOrNull { it.first == ms }?.second ?: "$ms ms"
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_close)) }
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.settings_title)) },
+                navigationIcon = {
+                    androidx.compose.material3.IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                    }
+                },
+            )
         },
-        title = { Text(stringResource(R.string.settings_title)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    ) { inner ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(inner)
+                .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Spacer(Modifier.height(8.dp))
+
+            // ===== 自动锁定 =====
+            SettingsCard(title = stringResource(R.string.settings_autolock_enable)) {
                 Text(
                     stringResource(R.string.settings_autolock_desc),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-
-                // 总开关
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        stringResource(R.string.settings_autolock_enable),
-                        modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Switch(
-                        checked = enabled,
-                        onCheckedChange = {
-                            enabled = it
-                            Settings.setAutoLockEnabled(context, it)
-                            AutoLock.touch()
-                        },
-                    )
-                }
-
+                SettingsSwitchRow(
+                    label = stringResource(R.string.settings_autolock_enable),
+                    checked = enabled,
+                    onCheckedChange = {
+                        enabled = it
+                        Settings.setAutoLockEnabled(context, it)
+                        AutoLock.touch()
+                    },
+                )
                 // 超时档位
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -137,69 +173,105 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                         }
                     }
                 }
+                SettingsSwitchRow(
+                    label = stringResource(R.string.settings_lock_background),
+                    checked = lockBg,
+                    enabled = enabled,
+                    onCheckedChange = {
+                        lockBg = it
+                        Settings.setLockOnBackground(context, it)
+                    },
+                )
+                SettingsSwitchRow(
+                    label = stringResource(R.string.settings_lock_screen_off),
+                    checked = lockScreenOff,
+                    enabled = enabled,
+                    onCheckedChange = {
+                        lockScreenOff = it
+                        Settings.setLockOnScreenOff(context, it)
+                    },
+                )
+            }
 
-                // 切后台锁
+            // ===== PIN 门禁 =====
+            SettingsCard(title = "PIN") {
+                Text(
+                    if (pinSet) "已设置：启动 app 需输入 PIN" else "未设置：启动 app 直接进入",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text(
-                        stringResource(R.string.settings_lock_background),
+                    OutlinedButton(
+                        onClick = { showSetPin = true },
                         modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Switch(
-                        checked = lockBg,
-                        enabled = enabled,
-                        onCheckedChange = {
-                            lockBg = it
-                            Settings.setLockOnBackground(context, it)
-                        },
-                    )
+                    ) { Text(if (pinSet) "修改 PIN" else "设置 PIN") }
+                    if (pinSet) {
+                        OutlinedButton(
+                            onClick = { showClearPin = true },
+                            modifier = Modifier.weight(1f),
+                        ) { Text("清除 PIN") }
+                    }
                 }
+                Spacer(Modifier.height(4.dp))
+                SettingsSwitchRow(
+                    label = "生物识别解锁",
+                    checked = biometricEnabled,
+                    enabled = pinSet && biometricSupported,
+                    onCheckedChange = {
+                        biometricEnabled = it
+                        Settings.setBiometricUnlockEnabled(context, it)
+                    },
+                )
+                Text(
+                    when {
+                        !pinSet -> "需先设置 PIN 才能启用生物识别"
+                        !biometricSupported -> "设备未录入指纹/面部或不支持"
+                        biometricEnabled -> "启动 app 可用指纹/面部解锁门禁（Panic PIN 仍需手动输）"
+                        else -> "关闭：每次启动需手动输 PIN"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
 
-                // 息屏锁
+            // ===== Panic PIN =====
+            SettingsCard(title = "Panic PIN") {
+                Text(
+                    if (panicSet) "已设置：输入此 PIN 触发擦除（容器上锁+收藏清空+PIN 清除）"
+                    else "未设置：输入此 PIN 立即擦除 app 数据并退出",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text(
-                        stringResource(R.string.settings_lock_screen_off),
+                    OutlinedButton(
+                        onClick = { showSetPanic = true },
                         modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Switch(
-                        checked = lockScreenOff,
-                        enabled = enabled,
-                        onCheckedChange = {
-                            lockScreenOff = it
-                            Settings.setLockOnScreenOff(context, it)
-                        },
-                    )
+                    ) { Text(if (panicSet) "修改 Panic PIN" else "设置 Panic PIN") }
+                    if (panicSet) {
+                        OutlinedButton(
+                            onClick = { showClearPanic = true },
+                            modifier = Modifier.weight(1f),
+                        ) { Text("清除 Panic PIN") }
+                    }
                 }
+            }
 
-                Spacer(Modifier.height(8.dp))
-
-                // 默认挂载模式（X13）
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        stringResource(R.string.settings_default_mount_writable),
-                        modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Switch(
-                        checked = defMountWritable,
-                        onCheckedChange = {
-                            defMountWritable = it
-                            Settings.setDefaultMountWritable(context, it)
-                        },
-                    )
-                }
-
-                // 默认 PRF（X13）
+            // ===== 挂载偏好 =====
+            SettingsCard(title = stringResource(R.string.settings_default_mount_writable)) {
+                SettingsSwitchRow(
+                    label = stringResource(R.string.settings_default_mount_writable),
+                    checked = defMountWritable,
+                    onCheckedChange = {
+                        defMountWritable = it
+                        Settings.setDefaultMountWritable(context, it)
+                    },
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -228,123 +300,57 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                         }
                     }
                 }
+            }
 
-                Spacer(Modifier.height(8.dp))
+            // ===== 主题色 =====
+            SettingsCard(title = stringResource(R.string.settings_theme_color)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    THEME_COLOR_OPTIONS.forEach { (argb, _) ->
+                        val selected = argb == currentThemeColor
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(Color(argb))
+                                .clickable {
+                                    currentThemeColor = argb
+                                    Settings.setThemeColor(context, argb)
+                                    (context as? Activity)?.recreate()
+                                }
+                                .then(
+                                    if (selected) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
+                                    else Modifier
+                                ),
+                        )
+                    }
+                }
+            }
 
-                // NTFS 实验开关（默认关）：开启才允许挂 NTFS 容器（读写待真机 chkdsk 验收）。
+            // ===== 高级 =====
+            SettingsCard(title = stringResource(R.string.settings_ntfs_exp)) {
                 Text(
                     stringResource(R.string.settings_ntfs_exp_desc),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        stringResource(R.string.settings_ntfs_exp),
-                        modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Switch(
-                        checked = ntfsExp,
-                        onCheckedChange = {
-                            ntfsExp = it
-                            Settings.setNtfsExperimental(context, it)
-                        },
-                    )
-                }
-
-                // ---- PIN 锁（app 启动门禁，对标 Arcanum）----
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "PIN 锁",
-                    style = MaterialTheme.typography.labelLarge,
-                )
-                Text(
-                    if (pinSet) "已设置：启动 app 需输入 PIN" else "未设置：启动 app 直接进入",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    OutlinedButton(
-                        onClick = { showSetPin = true },
-                        modifier = Modifier.weight(1f),
-                    ) { Text(if (pinSet) "修改 PIN" else "设置 PIN") }
-                    if (pinSet) {
-                        OutlinedButton(
-                            onClick = { showClearPin = true },
-                            modifier = Modifier.weight(1f),
-                        ) { Text("清除 PIN") }
-                    }
-                }
-
-                // 生物识别解锁（仅 PIN 已设 + 设备支持时可用）
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        "生物识别解锁",
-                        modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Switch(
-                        checked = biometricEnabled,
-                        enabled = pinSet && biometricSupported,
-                        onCheckedChange = {
-                            biometricEnabled = it
-                            Settings.setBiometricUnlockEnabled(context, it)
-                        },
-                    )
-                }
-                Text(
-                    when {
-                        !pinSet -> "需先设置 PIN 才能启用生物识别"
-                        !biometricSupported -> "设备未录入指纹/面部或不支持"
-                        biometricEnabled -> "启动 app 可用指纹/面部解锁门禁（Panic PIN 仍需手动输）"
-                        else -> "关闭：每次启动需手动输 PIN"
+                SettingsSwitchRow(
+                    label = stringResource(R.string.settings_ntfs_exp),
+                    checked = ntfsExp,
+                    onCheckedChange = {
+                        ntfsExp = it
+                        Settings.setNtfsExperimental(context, it)
                     },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-
-                // ---- Panic PIN（紧急擦除，对标 Arcanum panic mode）----
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "Panic PIN（紧急擦除）",
-                    style = MaterialTheme.typography.labelLarge,
-                )
-                Text(
-                    if (panicSet) "已设置：输入此 PIN 触发擦除（容器上锁+收藏清空+PIN 清除）"
-                    else "未设置：输入此 PIN 立即擦除 app 数据并退出",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    OutlinedButton(
-                        onClick = { showSetPanic = true },
-                        modifier = Modifier.weight(1f),
-                    ) { Text(if (panicSet) "修改 Panic PIN" else "设置 Panic PIN") }
-                    if (panicSet) {
-                        OutlinedButton(
-                            onClick = { showClearPanic = true },
-                            modifier = Modifier.weight(1f),
-                        ) { Text("清除 Panic PIN") }
-                    }
-                }
             }
-        },
-    )
 
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+
+    // ---- 子对话框（逻辑不变，从原 SettingsDialog 平移）----
     if (showSetPin) {
         SetPinDialog(
             onDismiss = { showSetPin = false },
@@ -382,6 +388,49 @@ fun SettingsDialog(onDismiss: () -> Unit) {
         )
     }
 }
+
+/** 设置页分组卡片：标题 + 内容块。 */
+@Composable
+private fun SettingsCard(title: String, content: @Composable () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            content()
+        }
+    }
+}
+
+/** 设置行：左标签 + 右开关。 */
+@Composable
+private fun SettingsSwitchRow(
+    label: String,
+    checked: Boolean,
+    enabled: Boolean = true,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            label,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Switch(checked = checked, enabled = enabled, onCheckedChange = onCheckedChange)
+    }
+}
+
+// ===== 以下子对话框从原 SettingsDialog.kt 平移，逻辑不变 =====
 
 /**
  * 设置 / 修改 PIN 对话框。收集新 PIN + 确认，一致才提交。覆盖旧 PIN。

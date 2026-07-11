@@ -16,11 +16,11 @@ android {
         applicationId = "com.henglie.sealchest"
         minSdk = 23
         targetSdk = 36
-        // 版本号锁定：恒烈定 versionName 固定 "0.1"，未经他明确授权不得改动。
+        // 版本号：0.2（2026-07-11 恒烈授权升级：UI 改进 + 16 国语言 + 酒红色锁图标）。
         // 日常功能开发、bug 修复一律不动版本号；仅「同步上游 VeraCrypt」且经恒烈同意时才可升，
         // 且改前必须问过恒烈（见 上游同步与供应链安全.md「版本号纪律」）。
-        versionCode = 4
-        versionName = "0.1"
+        versionCode = 5
+        versionName = "0.2"
 
         // 供应链透明信息：把「编进这个 APK 的上游 VeraCrypt 到底是哪个版本 / commit」
         // 与构建环境编入 BuildConfig，关于页直接读，单一真相源与实际构建绑定。
@@ -61,6 +61,8 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            // 0.2 落地版：暂用 debug 签名（未配正式 keystore）。后续正式发行需换正式签名。
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -87,9 +89,9 @@ android {
         }
     }
 
-    // 仅支持中 / 英；其它语言回落英文。
+    // 16 国语言全部打包进 APK（zh/en/fr/de/es/ja/ko/ru/it/pt/nl/ar/hi/tr/pl/vi）。
+    // 早期仅 en/zh 是因为还没做翻译；现在翻译齐全，放开过滤。
     androidResources {
-        localeFilters += listOf("en", "zh")
     }
 
     // 单元测试 fork 出的 JVM 默认按系统码页（本机中文 GBK）解析 classpath，

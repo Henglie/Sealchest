@@ -139,7 +139,8 @@ fun BrowserScreen(onExit: () -> Unit) {
     val writable = MountManager.isWritable
 
     // W16：统一的写操作结果提示 + 刷新。ok=true 走成功文案并刷新；异常走「不支持」提示。
-    fun runDirOp(okMsg: Int, failMsg: Int, op: (com.henglie.sealchest.fs.VolumeFs) -> Boolean) {
+    // okArgs 可选：成功提示含 %1$s 等占位符时传入格式化参数（如重命名的新名字）。
+    fun runDirOp(okMsg: Int, failMsg: Int, okArgs: Array<Any?>? = null, op: (com.henglie.sealchest.fs.VolumeFs) -> Boolean) {
         scope.launch {
             val outcome = withContext(Dispatchers.IO) {
                 runCatching { MountManager.withWritableFs { fs -> op(fs) } ?: false }
@@ -147,7 +148,8 @@ fun BrowserScreen(onExit: () -> Unit) {
             when {
                 outcome.isSuccess && outcome.getOrNull() == true -> {
                     refreshToken++
-                    Toast.makeText(context, context.getString(okMsg), Toast.LENGTH_SHORT).show()
+                    val msg = if (okArgs != null) context.getString(okMsg, *okArgs) else context.getString(okMsg)
+                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                 }
                 outcome.exceptionOrNull() is UnsupportedOperationException ->
                     Toast.makeText(context, context.getString(R.string.browse_op_unsupported), Toast.LENGTH_SHORT).show()
@@ -436,7 +438,7 @@ fun BrowserScreen(onExit: () -> Unit) {
             onConfirm = { newName ->
                 renameTarget = null
                 if (newName != e.name) {
-                    runDirOp(R.string.browse_rename_ok, R.string.browse_rename_failed) { fs ->
+                    runDirOp(R.string.browse_rename_ok, R.string.browse_rename_failed, okArgs = arrayOf(newName)) { fs ->
                         fs.rename(dirCluster, e.name, newName)
                     }
                 }

@@ -317,4 +317,30 @@
     <string name="expose_progress">Synchroniseren: %1$s</string>
     <string name="expose_done">%1$d bestanden blootgesteld</string>
     <string name="expose_failed">Blootstellen mislukt: %1$s</string>
+
+    <!-- Language switcher -->
+    <string name="lang_follow_system">Systeem volgen</string>
+    <string name="lang_title">Taal</string>
+
+    <!-- v0.2 新增字符串 -->
+    <string name="favorites_add">Favoriet</string>
+    <string name="favorites_favorited">Aan favorieten toegevoegd</string>
+    <string name="exit_press_again">Druk nogmaals op Terug om af te sluiten</string>
+    <string name="tools_volume_group">Volumehulpmiddelen</string>
+    <string name="tools_utils_group">Hulpprogramma\'s</string>
+    <string name="unlock_keyfiles_title">Sleutelbestanden</string>
+    <string name="unlock_keyfiles_add">Sleutelbestand toevoegen</string>
+    <string name="unlock_keyfiles_remove">Verwijderen</string>
+    <string name="create_show_password">Wachtwoord tonen</string>
+    <string name="create_password_warn">Het wachtwoord wordt in platte tekst getoond. Let op uw omgeving.</string>
+    <string name="create_random_pool">Willekeurige pool</string>
+    <string name="create_random_pool_hint">Tik om uit/samen te vouwen</string>
+
+    <!-- Benchmark -->
+    <string name="benchmark_title">Benchmark</string>
+    <string name="benchmark_start">Starten</string>
+    <string name="benchmark_running">%1$s testen…</string>
+    <string name="benchmark_entry">Benchmark</string>
+    <string name="benchmark_unit">MB/s</string>
+    <string name="settings_theme_color">Themakleur</string>
 </resources>

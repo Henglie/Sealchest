@@ -313,4 +313,30 @@
     <string name="expose_progress">Synchronisiere: %1$s</string>
     <string name="expose_done">%1$d Dateien verfügbar gemacht</string>
     <string name="expose_failed">Verfügbar machen fehlgeschlagen: %1$s</string>
+
+    <!-- Language switcher -->
+    <string name="lang_follow_system">System folgen</string>
+    <string name="lang_title">Sprache</string>
+
+    <!-- v0.2 新增字符串 -->
+    <string name="favorites_add">Favorit</string>
+    <string name="favorites_favorited">Zu Favoriten hinzugefügt</string>
+    <string name="exit_press_again">Erneut Zurück drücken zum Beenden</string>
+    <string name="tools_volume_group">Volume-Werkzeuge</string>
+    <string name="tools_utils_group">Dienstprogramme</string>
+    <string name="unlock_keyfiles_title">Schlüsseldateien</string>
+    <string name="unlock_keyfiles_add">Schlüsseldatei hinzufügen</string>
+    <string name="unlock_keyfiles_remove">Entfernen</string>
+    <string name="create_show_password">Passwort anzeigen</string>
+    <string name="create_password_warn">Das Passwort wird im Klartext angezeigt. Achten Sie auf Ihre Umgebung.</string>
+    <string name="create_random_pool">Zufallspool</string>
+    <string name="create_random_pool_hint">Zum Aus-/Einklappen tippen</string>
+
+    <!-- Benchmark -->
+    <string name="benchmark_title">Benchmark</string>
+    <string name="benchmark_start">Starten</string>
+    <string name="benchmark_running">Teste %1$s…</string>
+    <string name="benchmark_entry">Benchmark</string>
+    <string name="benchmark_unit">MB/s</string>
+    <string name="settings_theme_color">Themenfarbe</string>
 </resources>

@@ -317,4 +317,30 @@
     <string name="expose_progress">Синхронизация: %1$s</string>
     <string name="expose_done">Предоставлено файлов: %1$d</string>
     <string name="expose_failed">Ошибка предоставления: %1$s</string>
+
+    <!-- Language switcher -->
+    <string name="lang_follow_system">Следовать системе</string>
+    <string name="lang_title">Язык</string>
+
+    <!-- v0.2 新增字符串 -->
+    <string name="favorites_add">Избранное</string>
+    <string name="favorites_favorited">В избранном</string>
+    <string name="exit_press_again">Нажмите «Назад» ещё раз для выхода</string>
+    <string name="tools_volume_group">Инструменты тома</string>
+    <string name="tools_utils_group">Утилиты</string>
+    <string name="unlock_keyfiles_title">Файлы ключей</string>
+    <string name="unlock_keyfiles_add">Добавить файл ключа</string>
+    <string name="unlock_keyfiles_remove">Убрать</string>
+    <string name="create_show_password">Показать пароль</string>
+    <string name="create_password_warn">Пароль будет показан в открытом виде. Следите за окружением.</string>
+    <string name="create_random_pool">Пул случайности</string>
+    <string name="create_random_pool_hint">Нажмите, чтобы развернуть/свернуть</string>
+
+    <!-- Benchmark -->
+    <string name="benchmark_title">Бенчмарк</string>
+    <string name="benchmark_start">Начать</string>
+    <string name="benchmark_running">Тестирование %1$s…</string>
+    <string name="benchmark_entry">Бенчмарк</string>
+    <string name="benchmark_unit">MB/s</string>
+    <string name="settings_theme_color">Цвет темы</string>
 </resources>

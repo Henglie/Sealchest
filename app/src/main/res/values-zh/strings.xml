@@ -172,6 +172,10 @@
     <string name="create_dynamic_hint">按需分配空间。UI 已备，后端暂当普通卷处理。</string>
     <string name="create_random_fill">全区随机填充</string>
     <string name="create_random_fill_hint">用随机数据铺满整个容器，使整卷不可区分（更安全）。大容器创建会变慢。</string>
+    <string name="create_show_password">显示密码</string>
+    <string name="create_password_warn">密码将以明文显示，请注意周围环境安全</string>
+    <string name="create_random_pool">随机池</string>
+    <string name="create_random_pool_hint">点击展开/折叠</string>
 
     <!-- 创建隐藏卷（C2） -->
     <string name="create_hidden_entry">创建隐藏卷</string>
@@ -300,6 +304,7 @@
     <string name="settings_default_prf">默认 PRF</string>
     <string name="settings_ntfs_exp">启用 NTFS（实验）</string>
     <string name="settings_ntfs_exp_desc">NTFS 读写未经真机验证，只用废容器测试。关闭时 NTFS 容器一律拒绝挂载。</string>
+    <string name="settings_theme_color">主题色</string>
     <!-- 块设备解锁（F2）-->
     <string name="block_device_unlock">解锁</string>
     <string name="block_device_unlocking">解锁中…</string>
@@ -314,4 +319,21 @@
     <string name="expose_progress">同步中：%1$s</string>
     <string name="expose_done">已暴露 %1$d 个文件</string>
     <string name="expose_failed">暴露失败：%1$s</string>
+    <!-- Language switcher -->
+    <string name="lang_follow_system">跟随系统</string>
+    <string name="lang_title">语言</string>
+    <string name="favorites_add">收藏</string>
+    <string name="favorites_favorited">已收藏</string>
+    <string name="exit_press_again">再按一次返回退出应用</string>
+    <string name="tools_volume_group">卷管理工具</string>
+    <string name="tools_utils_group">实用工具</string>
+    <string name="unlock_keyfiles_title">密钥文件</string>
+    <string name="unlock_keyfiles_add">添加密钥文件</string>
+    <string name="unlock_keyfiles_remove">移除</string>
+    <!-- 基准测试（VeraCrypt 风格加密算法测速） -->
+    <string name="benchmark_title">基准测试</string>
+    <string name="benchmark_start">开始测试</string>
+    <string name="benchmark_running">正在测试 %1$s…</string>
+    <string name="benchmark_entry">基准测试</string>
+    <string name="benchmark_unit">MB/s</string>
 </resources>

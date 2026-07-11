@@ -261,6 +261,16 @@ object VolumeCreator {
                     }
                     filled += n
                 }
+
+                // randomFill 把整个数据区铺满加密随机字节，但 FatFormatter.buildEmptyFat
+                // 不显式写 FAT16 固定根目录区 / FAT32 根目录簇2（依赖数据区全零假设）。
+                // 随机填充下该假设不成立，根目录区残留随机字节会被 FAT 解析成幽灵目录项
+                // （如"随机文件1"）。故在此对根目录区显式写零（走 reader.write，经 XTS 加密）。
+                // exFAT/NTFS 显式写根目录，不受影响，无需此处理。
+                if (fsType == 0) {
+                    val (rootOff, rootLen) = FatFormatter.rootDirRegion(volumeSizeBytes, clusterSize)
+                    reader.write(rootOff, ByteArray(rootLen), 0, rootLen)
+                }
             }
 
             // ---------- 8. 写空文件系统结构 ----------

@@ -313,4 +313,30 @@
     <string name="expose_progress">Eşitleniyor: %1$s</string>
     <string name="expose_done">%1$d dosya sunuldu</string>
     <string name="expose_failed">Sunma başarısız: %1$s</string>
+
+    <!-- Language switcher -->
+    <string name="lang_follow_system">Sistemi izle</string>
+    <string name="lang_title">Dil</string>
+
+    <!-- v0.2 新增字符串 -->
+    <string name="favorites_add">Favori</string>
+    <string name="favorites_favorited">Favorilere eklendi</string>
+    <string name="exit_press_again">Çıkmak için Geri tuşuna tekrar basın</string>
+    <string name="tools_volume_group">Birim araçları</string>
+    <string name="tools_utils_group">Yardımcı programlar</string>
+    <string name="unlock_keyfiles_title">Anahtar dosyalar</string>
+    <string name="unlock_keyfiles_add">Anahtar dosyası ekle</string>
+    <string name="unlock_keyfiles_remove">Kaldır</string>
+    <string name="create_show_password">Parolayı göster</string>
+    <string name="create_password_warn">Parola düz metin olarak gösterilecek. Etrafınıza dikkat edin.</string>
+    <string name="create_random_pool">Rastgele havuz</string>
+    <string name="create_random_pool_hint">Genişlet/daralt için dokunun</string>
+
+    <!-- Benchmark -->
+    <string name="benchmark_title">Kıyaslama</string>
+    <string name="benchmark_start">Başlat</string>
+    <string name="benchmark_running">%1$s test ediliyor…</string>
+    <string name="benchmark_entry">Kıyaslama</string>
+    <string name="benchmark_unit">MB/s</string>
+    <string name="settings_theme_color">Tema rengi</string>
 </resources>

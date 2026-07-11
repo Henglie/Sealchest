@@ -317,4 +317,30 @@
     <string name="expose_progress">동기화 중: %1$s</string>
     <string name="expose_done">%1$d개 파일 노출됨</string>
     <string name="expose_failed">노출 실패: %1$s</string>
+
+    <!-- Language switcher -->
+    <string name="lang_follow_system">시스템 따르기</string>
+    <string name="lang_title">언어</string>
+
+    <!-- v0.2 新增字符串 -->
+    <string name="favorites_add">즐겨찾기</string>
+    <string name="favorites_favorited">즐겨찾기에 추가됨</string>
+    <string name="exit_press_again">뒤로 버튼을 한 번 더 누르면 종료됩니다</string>
+    <string name="tools_volume_group">볼륨 도구</string>
+    <string name="tools_utils_group">유틸리티</string>
+    <string name="unlock_keyfiles_title">키 파일</string>
+    <string name="unlock_keyfiles_add">키 파일 추가</string>
+    <string name="unlock_keyfiles_remove">제거</string>
+    <string name="create_show_password">비밀번호 표시</string>
+    <string name="create_password_warn">비밀번호가 일반 텍스트로 표시됩니다. 주변을 주의하세요.</string>
+    <string name="create_random_pool">무작위 풀</string>
+    <string name="create_random_pool_hint">탭하여 펼치기/접기</string>
+
+    <!-- Benchmark -->
+    <string name="benchmark_title">벤치마크</string>
+    <string name="benchmark_start">시작</string>
+    <string name="benchmark_running">%1$s 테스트 중…</string>
+    <string name="benchmark_entry">벤치마크</string>
+    <string name="benchmark_unit">MB/s</string>
+    <string name="settings_theme_color">테마 색상</string>
 </resources>

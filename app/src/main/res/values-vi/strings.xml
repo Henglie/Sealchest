@@ -317,4 +317,30 @@
     <string name="expose_progress">Đang đồng bộ: %1$s</string>
     <string name="expose_done">Đã phơi bày %1$d tệp</string>
     <string name="expose_failed">Phơi bày thất bại: %1$s</string>
+
+    <!-- Language switcher -->
+    <string name="lang_follow_system">Theo hệ thống</string>
+    <string name="lang_title">Ngôn ngữ</string>
+
+    <!-- v0.2 新增字符串 -->
+    <string name="favorites_add">Yêu thích</string>
+    <string name="favorites_favorited">Đã thêm vào yêu thích</string>
+    <string name="exit_press_again">Nhấn Quay lại thêm lần nữa để thoát</string>
+    <string name="tools_volume_group">Công cụ phân vùng</string>
+    <string name="tools_utils_group">Tiện ích</string>
+    <string name="unlock_keyfiles_title">Tệp khóa</string>
+    <string name="unlock_keyfiles_add">Thêm tệp khóa</string>
+    <string name="unlock_keyfiles_remove">Gỡ</string>
+    <string name="create_show_password">Hiện mật khẩu</string>
+    <string name="create_password_warn">Mật khẩu sẽ hiển thị ở dạng văn bản rõ. Chú ý môi trường xung quanh.</string>
+    <string name="create_random_pool">Bộ ngẫu nhiên</string>
+    <string name="create_random_pool_hint">Chạm để mở rộng/thu gọn</string>
+
+    <!-- Benchmark -->
+    <string name="benchmark_title">Đo hiệu suất</string>
+    <string name="benchmark_start">Bắt đầu</string>
+    <string name="benchmark_running">Đang đo %1$s…</string>
+    <string name="benchmark_entry">Đo hiệu suất</string>
+    <string name="benchmark_unit">MB/s</string>
+    <string name="settings_theme_color">Màu chủ đề</string>
 </resources>

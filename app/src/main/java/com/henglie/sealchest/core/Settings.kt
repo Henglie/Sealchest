@@ -40,7 +40,7 @@ object Settings {
         prefs(context).edit().putLong(KEY_TIMEOUT, v).apply()
 
     fun lockOnBackground(context: Context): Boolean =
-        prefs(context).getBoolean(KEY_LOCK_BG, true)
+        prefs(context).getBoolean(KEY_LOCK_BG, false)
     fun setLockOnBackground(context: Context, v: Boolean) =
         prefs(context).edit().putBoolean(KEY_LOCK_BG, v).apply()
 
@@ -82,6 +82,21 @@ object Settings {
         prefs(context).getBoolean(KEY_NTFS_EXPERIMENTAL, false)
     fun setNtfsExperimental(context: Context, v: Boolean) =
         prefs(context).edit().putBoolean(KEY_NTFS_EXPERIMENTAL, v).apply()
+
+    // ---- 语言偏好（16 国语言切换）。空串=跟随系统。----
+    private const val KEY_LANG = "language_tag"
+    fun languageTag(context: Context): String =
+        prefs(context).getString(KEY_LANG, "") ?: ""
+    fun setLanguageTag(context: Context, tag: String) =
+        prefs(context).edit().putString(KEY_LANG, tag).apply()
+
+    // ---- 主题色（用户可自由调整的强调色，覆盖 MaterialTheme 的 primary）。----
+    //   存 ARGB int，默认酒红色 0xFF8B2D35。仅行为偏好，非敏感。
+    private const val KEY_THEME_COLOR = "theme_color"
+    fun themeColor(context: Context): Int =
+        prefs(context).getInt(KEY_THEME_COLOR, 0xFF8B2D35.toInt())
+    fun setThemeColor(context: Context, argb: Int) =
+        prefs(context).edit().putInt(KEY_THEME_COLOR, argb).apply()
 
     // ---- 收藏容器（多容器快速切换，E 阶段）。仅存 URI+名字+时间，绝不存密码/密钥。----
     private const val KEY_FAVORITES = "favorite_containers"

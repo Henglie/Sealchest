@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  前景：经典安卓机器人 Bugdroid（绿色），居中绘制。
-  adaptive icon 前景画布 108x108dp，安全区 66dp 居中（半径约 33dp）。
-  机器人主体含头、两眼、两触角、身躯、两臂、两腿，整体落在中央安全区内。
-  颜色用官方 Bugdroid 绿 #3DDC84。
+  匿匣启动图标前景：盾牌 + 挂锁。酒红色调，平面设计 + 色彩层次。
+  - 盾牌主体 #8B2D35（主酒红）
+  - 盾牌顶部高光带 #B0454E（亮酒红，模拟左上光照）
+  - 锁梁+锁体 #4A1518（深酒红，凹陷层次）
+  - 锁孔 #F5E6E8（暖白，醒目）
+  3 层酒红 + 白锁孔 = 平面但有层次感。adaptive icon 安全区 66dp 居中。
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
@@ -11,54 +13,34 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <group android:name="bugdroid">
-        <!-- 触角（左） -->
-        <path
-            android:strokeColor="#3DDC84"
-            android:strokeWidth="2.2"
-            android:strokeLineCap="round"
-            android:pathData="M44.5,38 L40,31.5" />
-        <!-- 触角（右） -->
-        <path
-            android:strokeColor="#3DDC84"
-            android:strokeWidth="2.2"
-            android:strokeLineCap="round"
-            android:pathData="M63.5,38 L68,31.5" />
+    <!-- 盾牌主体：主酒红 -->
+    <path
+        android:fillColor="#8B2D35"
+        android:pathData="M54,26 L78,34 L78,56 C78,72 67,82 54,88 C41,82 30,72 30,56 L30,34 Z" />
 
-        <!-- 头部（半圆穹顶） + 身躯（圆角矩形）合为主体 -->
-        <!-- 头部半圆，圆心 (54,46)，半径 13 -->
-        <path
-            android:fillColor="#3DDC84"
-            android:pathData="M41,46 a13,13 0 0 1 26,0 Z" />
-        <!-- 眼睛（背景挖空成两点白底机器眼，用底色覆盖） -->
-        <path
-            android:fillColor="#FFFFFF"
-            android:pathData="M48.2,42.5 m-1.7,0 a1.7,1.7 0 1 0 3.4,0 a1.7,1.7 0 1 0 -3.4,0 Z" />
-        <path
-            android:fillColor="#FFFFFF"
-            android:pathData="M59.8,42.5 m-1.7,0 a1.7,1.7 0 1 0 3.4,0 a1.7,1.7 0 1 0 -3.4,0 Z" />
+    <!-- 盾牌顶部高光带：亮酒红，模拟光照层次 -->
+    <path
+        android:fillColor="#B0454E"
+        android:pathData="M54,26 L78,34 L78,39 L54,31 L30,39 L30,34 Z" />
 
-        <!-- 身躯：圆角矩形，x 41..67，y 48..70 -->
-        <path
-            android:fillColor="#3DDC84"
-            android:pathData="M41,49 L67,49 L67,68 a2,2 0 0 1 -2,2 L43,70 a2,2 0 0 1 -2,-2 Z" />
+    <!-- 锁梁（U形弧）：深酒红描边 -->
+    <path
+        android:strokeColor="#4A1518"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M47,52 C47,43 61,43 61,52" />
 
-        <!-- 左臂 -->
-        <path
-            android:fillColor="#3DDC84"
-            android:pathData="M35,50 a2.5,2.5 0 0 1 5,0 L40,63 a2.5,2.5 0 0 1 -5,0 Z" />
-        <!-- 右臂 -->
-        <path
-            android:fillColor="#3DDC84"
-            android:pathData="M68,50 a2.5,2.5 0 0 1 5,0 L73,63 a2.5,2.5 0 0 1 -5,0 Z" />
+    <!-- 锁体（圆角矩形）：深酒红填充 -->
+    <path
+        android:fillColor="#4A1518"
+        android:pathData="M43,50 L65,50 L65,68 C65,72 62,75 58,75 L50,75 C46,75 43,72 43,68 Z" />
 
-        <!-- 左腿 -->
-        <path
-            android:fillColor="#3DDC84"
-            android:pathData="M46,68 a2.5,2.5 0 0 1 5,0 L51,78 a2.5,2.5 0 0 1 -5,0 Z" />
-        <!-- 右腿 -->
-        <path
-            android:fillColor="#3DDC84"
-            android:pathData="M57,68 a2.5,2.5 0 0 1 5,0 L62,78 a2.5,2.5 0 0 1 -5,0 Z" />
-    </group>
+    <!-- 锁孔（暖白）：圆+下方梯形 -->
+    <path
+        android:fillColor="#F5E6E8"
+        android:pathData="M54,59 m-2.8,0 a2.8,2.8 0 1 0 5.6,0 a2.8,2.8 0 1 0 -5.6,0 Z" />
+    <path
+        android:fillColor="#F5E6E8"
+        android:pathData="M52.2,60.5 L55.8,60.5 L54.8,67 L53.2,67 Z" />
 </vector>

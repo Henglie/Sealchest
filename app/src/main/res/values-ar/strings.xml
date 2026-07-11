@@ -313,4 +313,30 @@
     <string name="expose_progress">جارٍ المزامنة: %1$s</string>
     <string name="expose_done">تم تعريض %1$d ملف</string>
     <string name="expose_failed">فشل التعريض: %1$s</string>
+
+    <!-- Language switcher -->
+    <string name="lang_follow_system">اتباع النظام</string>
+    <string name="lang_title">اللغة</string>
+
+    <!-- v0.2 新增字符串 -->
+    <string name="favorites_add">مفضلة</string>
+    <string name="favorites_favorited">أُضيف إلى المفضلة</string>
+    <string name="exit_press_again">اضغط رجوع مرة أخرى للخروج</string>
+    <string name="tools_volume_group">أدوات الأقسام</string>
+    <string name="tools_utils_group">أدوات مساعدة</string>
+    <string name="unlock_keyfiles_title">ملفات المفاتيح</string>
+    <string name="unlock_keyfiles_add">إضافة ملف مفتاح</string>
+    <string name="unlock_keyfiles_remove">إزالة</string>
+    <string name="create_show_password">إظهار كلمة المرور</string>
+    <string name="create_password_warn">ستُعرض كلمة المرور كنص واضح. انتبه لمن حولك.</string>
+    <string name="create_random_pool">تجمع عشوائي</string>
+    <string name="create_random_pool_hint">انقر للتوسيع/الطي</string>
+
+    <!-- Benchmark -->
+    <string name="benchmark_title">اختبار الأداء</string>
+    <string name="benchmark_start">بدء</string>
+    <string name="benchmark_running">جارٍ اختبار %1$s…</string>
+    <string name="benchmark_entry">اختبار الأداء</string>
+    <string name="benchmark_unit">MB/s</string>
+    <string name="settings_theme_color">لون السمة</string>
 </resources>

@@ -174,6 +174,10 @@
     <string name="create_dynamic_hint">Allocates space on demand. UI is ready; backend treats it as a regular volume for now.</string>
     <string name="create_random_fill">Random fill</string>
     <string name="create_random_fill_hint">Fills the entire volume with random data for maximum plausible-deniability (safer). Large containers take longer to create.</string>
+    <string name="create_show_password">Show password</string>
+    <string name="create_password_warn">Password will be shown in plain text. Mind your surroundings.</string>
+    <string name="create_random_pool">Random pool</string>
+    <string name="create_random_pool_hint">Tap to expand/collapse</string>
 
     <!-- Change password / PIM / PRF / keyfiles (B1) -->
     <string name="change_pwd_entry">Change password / PIM / keyfiles</string>
@@ -302,6 +306,7 @@
     <string name="settings_default_prf">Default PRF</string>
     <string name="settings_ntfs_exp">Enable NTFS (experimental)</string>
     <string name="settings_ntfs_exp_desc">NTFS read/write is unverified on device. Use throwaway containers only. Off = NTFS containers refuse to mount.</string>
+    <string name="settings_theme_color">Theme color</string>
     <!-- 块设备解锁（F2）-->
     <string name="block_device_unlock">Unlock</string>
     <string name="block_device_unlocking">Unlocking…</string>
@@ -316,4 +321,21 @@
     <string name="expose_progress">Syncing: %1$s</string>
     <string name="expose_done">Exposed %1$d files</string>
     <string name="expose_failed">Expose failed: %1$s</string>
+    <!-- Language switcher -->
+    <string name="lang_follow_system">Follow system</string>
+    <string name="lang_title">Language</string>
+    <string name="favorites_add">Favorite</string>
+    <string name="favorites_favorited">Favorited</string>
+    <string name="exit_press_again">Press back again to exit</string>
+    <string name="tools_volume_group">Volume tools</string>
+    <string name="tools_utils_group">Utilities</string>
+    <string name="unlock_keyfiles_title">Keyfiles</string>
+    <string name="unlock_keyfiles_add">Add keyfile</string>
+    <string name="unlock_keyfiles_remove">Remove</string>
+    <!-- Benchmark (VeraCrypt-style encryption speed test) -->
+    <string name="benchmark_title">Benchmark</string>
+    <string name="benchmark_start">Start</string>
+    <string name="benchmark_running">Testing %1$s…</string>
+    <string name="benchmark_entry">Benchmark</string>
+    <string name="benchmark_unit">MB/s</string>
 </resources>

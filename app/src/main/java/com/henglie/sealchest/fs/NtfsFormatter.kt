@@ -12,7 +12,7 @@ package com.henglie.sealchest.fs
  * 空盘布局（4KB 簇 / 512B 扇区）：
  *   LCN 0..1        $Boot 引导区（8KB，扇区 0 = VBR + BPB）
  *   LCN mftLcn..    $MFT（32 条记录 × 1024B = 32KB）
- *   LCN logFileLcn  $LogFile（全 0，Windows 挂载重置）
+ *   LCN logFileLcn  $LogFile（全 0xFF，Windows/chkdsk 当空日志接受）
  *   LCN bitmapLcn   $Bitmap（卷簇分配位图）
  *   LCN upcaseLcn   $UpCase（128KB 大写表）
  *   LCN attrDefLcn  $AttrDef（2560B 属性定义表，16 条 × 160B）
@@ -175,7 +175,11 @@ object NtfsFormatter {
         }
         sectors.add(mftMirrLcn * bytesPerCluster to mirrImage)
 
-        sectors.add(logFileLcn * bytesPerCluster to ByteArray((logFileClusters * bytesPerCluster).toInt()))
+        // $LogFile 填 0xFF（ntfs-3g mkfs 做法）：无有效 RSTR restart page → Windows/chkdsk
+        //   识别为「空日志」并接受，挂载时靠 $Volume dirty 位触发 chkdsk 重建日志。
+        //   原 ByteArray(...) 默认全 0 → Windows 读 restart page 时 UsaOffset=0 误解析 → 拒绝挂载。
+        val logFileData = ByteArray((logFileClusters * bytesPerCluster).toInt()) { 0xFF.toByte() }
+        sectors.add(logFileLcn * bytesPerCluster to logFileData)
 
         val bitmapData = ByteArray((bitmapClusters * bytesPerCluster).toInt())
         for ((start, count) in usedLcns) {

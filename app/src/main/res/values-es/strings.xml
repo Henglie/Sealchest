@@ -313,4 +313,30 @@
     <string name="expose_progress">Sincronizando: %1$s</string>
     <string name="expose_done">%1$d archivos expuestos</string>
     <string name="expose_failed">Exposición fallida: %1$s</string>
+
+    <!-- Language switcher -->
+    <string name="lang_follow_system">Seguir el sistema</string>
+    <string name="lang_title">Idioma</string>
+
+    <!-- v0.2 新增字符串 -->
+    <string name="favorites_add">Favorito</string>
+    <string name="favorites_favorited">Añadido a favoritos</string>
+    <string name="exit_press_again">Pulsa Atrás de nuevo para salir</string>
+    <string name="tools_volume_group">Herramientas de volumen</string>
+    <string name="tools_utils_group">Utilidades</string>
+    <string name="unlock_keyfiles_title">Archivos de clave</string>
+    <string name="unlock_keyfiles_add">Añadir archivo de clave</string>
+    <string name="unlock_keyfiles_remove">Quitar</string>
+    <string name="create_show_password">Mostrar contraseña</string>
+    <string name="create_password_warn">La contraseña se mostrará en texto plano. Cuida tu entorno.</string>
+    <string name="create_random_pool">Pool aleatorio</string>
+    <string name="create_random_pool_hint">Toca para expandir/contraer</string>
+
+    <!-- Benchmark -->
+    <string name="benchmark_title">Benchmark</string>
+    <string name="benchmark_start">Iniciar</string>
+    <string name="benchmark_running">Probando %1$s…</string>
+    <string name="benchmark_entry">Benchmark</string>
+    <string name="benchmark_unit">MB/s</string>
+    <string name="settings_theme_color">Color del tema</string>
 </resources>

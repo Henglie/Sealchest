@@ -6,6 +6,7 @@ import java.io.File
 import android.os.Bundle
 import android.provider.DocumentsContract
 import androidx.fragment.app.FragmentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -22,20 +23,31 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -55,14 +67,18 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.os.LocaleListCompat
+import com.henglie.sealchest.benchmark.BenchmarkScreen
 import com.henglie.sealchest.browse.BrowserScreen
 import com.henglie.sealchest.browse.FileExport
 import com.henglie.sealchest.crypto.NativeBridge
@@ -88,14 +104,13 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            SealchestTheme {
+            val ctx = LocalContext.current
+            SealchestTheme(primaryColor = Settings.themeColor(ctx)) {
                 // 顶层在「主屏」与「内置浏览器」之间切换。内置浏览器不依赖系统
                 // DocumentsUI —— 老安卓（7/9）自带文件管理器多半不认第三方 SAF，
                 // 内置浏览器保证任何机型都能浏览容器。
                 var showBrowser by remember { mutableStateOf(false) }
                 var showCreate by remember { mutableStateOf(false) }
-
-                val ctx = LocalContext.current
                 // PIN 门禁：已设 PIN 则启动时先拦在 PinGateScreen，验证通过才进主界面。
                 var pinUnlocked by remember { mutableStateOf(!PinManager.isPinSet(ctx)) }
                 val createScope = rememberCoroutineScope()
@@ -106,6 +121,12 @@ class MainActivity : FragmentActivity() {
                 }
                 var creating by remember { mutableStateOf(false) }
                 var createMsg by remember { mutableStateOf<String?>(null) }
+
+                // 返回键拦截：建卷向导 / 浏览器 开启时，返回键关闭子屏而非退出 App。
+                BackHandler(enabled = showCreate || showBrowser) {
+                    if (showCreate) { showCreate = false; createMsg = null }
+                    else if (showBrowser) { showBrowser = false }
+                }
 
                 // 建卷文件：SAF 建新文档（.hc），拿到可写 URI 后预分配 + 写卷头 + 空 FAT。
                 val createFileLauncher = rememberLauncherForActivityResult(
@@ -172,10 +193,10 @@ class MainActivity : FragmentActivity() {
                         message = createMsg,
                         onCancel = { if (!creating) { showCreate = false; createMsg = null } },
                         onCreate = { params ->
-                            // 采集完参数：暂存 + 启动建文件（默认文件名带 .hc 后缀，与 VeraCrypt 惯例一致）。
+                            // 采集完参数：暂存 + 启动建文件。默认文件名不带后缀（用户自行决定）。
                             pendingParams = params
                             createMsg = null
-                            createFileLauncher.launch("sealchest-container.hc")
+                            createFileLauncher.launch("sealchest-container")
                         },
                     )
                 } else if (showBrowser && MountManager.isMounted) {
@@ -196,6 +217,31 @@ class MainActivity : FragmentActivity() {
         // 读取挂载中的文件。真正上锁由用户显式触发或进程死亡（密钥随内存释放）。
     }
 }
+
+/**
+ * 语言切换菜单选项：(BCP-47 tag, 显示名)。显示名用各语言的自称（如 English/中文/日本語），
+ * 这样无论当前 UI 是哪种语言，用户都能找到自己要切的目标语言。空 tag = 跟随系统，
+ * 显示名留空串占位，菜单渲染时用 [R.string.lang_follow_system] 替换。
+ */
+private val LANGUAGE_OPTIONS: List<Pair<String, String>> = listOf(
+    "" to "",          // 跟随系统（菜单渲染时用 stringResource 替换）
+    "zh" to "中文",
+    "en" to "English",
+    "fr" to "Français",
+    "de" to "Deutsch",
+    "es" to "Español",
+    "ja" to "日本語",
+    "ko" to "한국어",
+    "ru" to "Русский",
+    "it" to "Italiano",
+    "pt" to "Português",
+    "nl" to "Nederlands",
+    "ar" to "العربية",
+    "hi" to "हिन्दी",
+    "tr" to "Türkçe",
+    "pl" to "Polski",
+    "vi" to "Tiếng Việt",
+)
 
 /** PRF 选项：显示名 string res id + 传给 native 的 ID（0=自动）。 */
 private val PRF_OPTIONS = listOf(
@@ -249,6 +295,11 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
     // 「关于」弹窗显隐。
     var showAbout by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var showBenchmark by remember { mutableStateOf(false) }
+    // 语言切换下拉菜单显隐。右上角地球图标点开，列出「跟随系统」+ 16 种语言。
+    var langMenuOpen by remember { mutableStateOf(false) }
+    // 当前选中的语言 tag（空串=跟随系统）。读一次偏好作初始值，菜单项打勾用。
+    var currentLangTag by remember { mutableStateOf(Settings.languageTag(context)) }
     // 收藏项重命名（X9）：待重命名的 uri + 输入文本。null 表示对话框关闭。
     var renameFavoriteUri by remember { mutableStateOf<String?>(null) }
     var renameFavoriteText by remember { mutableStateOf("") }
@@ -592,9 +643,38 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
         }
     }
 
+    // 返回键：关于/设置页 → 回主屏；主屏 → 「再按一次退出」提示。
+    var backPressedTime by remember { mutableStateOf(0L) }
+    BackHandler(enabled = showAbout || showSettings || showBenchmark) {
+        if (showBenchmark) showBenchmark = false
+        if (showSettings) showSettings = false
+        if (showAbout) showAbout = false
+    }
+    BackHandler(enabled = !showAbout && !showSettings && !showBenchmark) {
+        val now = System.currentTimeMillis()
+        if (now - backPressedTime < 2000) {
+            (context as? android.app.Activity)?.finish()
+        } else {
+            backPressedTime = now
+            android.widget.Toast.makeText(
+                context, context.getString(R.string.exit_press_again), android.widget.Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
     // 「关于」整屏：showAbout 为真时渲染独立界面并 early-return，替代原弹窗。
     if (showAbout) {
         AboutScreen(onBack = { showAbout = false })
+        return
+    }
+    // 「设置」整屏：同上，替代原弹窗（控件多，弹窗太挤）。
+    if (showSettings) {
+        SettingsScreen(onBack = { showSettings = false })
+        return
+    }
+    // 「基准测试」整屏：VeraCrypt 风格加密算法测速。
+    if (showBenchmark) {
+        BenchmarkScreen(onBack = { showBenchmark = false })
         return
     }
 
@@ -603,6 +683,27 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
             TopAppBar(
                 title = { Text(stringResource(R.string.home_title)) },
                 actions = {
+                    // 语言切换：地球图标点开下拉菜单，列出「跟随系统」+ 16 种语言。
+                    // 选中即时切换（AppCompatDelegate per-app 语言，无需重启）。
+                    IconButton(onClick = { langMenuOpen = true }) {
+                        Icon(Icons.Filled.Language, contentDescription = stringResource(R.string.lang_title))
+                    }
+                    DropdownMenu(expanded = langMenuOpen, onDismissRequest = { langMenuOpen = false }) {
+                        val followSystemLabel = stringResource(R.string.lang_follow_system)
+                        LANGUAGE_OPTIONS.forEach { (tag, name) ->
+                            DropdownMenuItem(
+                                text = { Text(if (name.isEmpty()) followSystemLabel else name) },
+                                onClick = {
+                                    Settings.setLanguageTag(context, tag)
+                                    val locales = if (tag.isEmpty()) LocaleListCompat.getEmptyLocaleList()
+                                                  else LocaleListCompat.forLanguageTags(tag)
+                                    AppCompatDelegate.setApplicationLocales(locales)
+                                    currentLangTag = tag
+                                    langMenuOpen = false
+                                },
+                            )
+                        }
+                    }
                     IconButton(onClick = { showSettings = true }) {
                         Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.settings_title))
                     }
@@ -849,6 +950,25 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
                 }
 
                 if (pickedUri != null) {
+                    // 手动收藏按钮：用户主动收藏当前选中容器（不自动收藏）。
+                    val isFav = remember(favTick, pickedUri) {
+                        pickedUri != null && Settings.favorites(context).any { it.uri == pickedUri.toString() }
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            if (isFav) Settings.removeFavorite(context, pickedUri.toString())
+                            else Settings.addFavorite(context, pickedUri.toString(), pickedName)
+                            favTick++
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(
+                            if (isFav) Icons.Filled.Star else Icons.Filled.StarBorder,
+                            contentDescription = null,
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(if (isFav) R.string.favorites_favorited else R.string.favorites_add))
+                    }
                     OutlinedTextField(
                         value = password,
                         onValueChange = { password = it; error = null },
@@ -910,24 +1030,53 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
                         modifier = Modifier.fillMaxWidth(),
                     )
 
-                    // Keyfile 入口。带 keyfile 的容器必须选齐同一组 keyfile 才能开卷（顺序无关）。
-                    // 空 = 仅密码。选择走多选累加，可清空重来。keyfile 只读内容、不 take 持久权限。
+                    // Keyfile 管理（对齐 VC 桌面版密钥文件管理框）：
+                    // 列表显示已添加的 keyfile（文件名 + 单项移除）+ 添加按钮 + 全部清空。
+                    // 空 = 仅密码。选择走多选累加。keyfile 只读内容、不 take 持久权限。
+                    Text(
+                        stringResource(R.string.unlock_keyfiles_title),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    // 已添加的 keyfile 列表。
+                    keyfileUris.forEach { kfUri ->
+                        val kfName = remember(kfUri) {
+                            queryDisplayName(context, kfUri) ?: kfUri.lastPathSegment ?: "keyfile"
+                        }
+                        Card(modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = kfName,
+                                    modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    maxLines = 1,
+                                )
+                                IconButton(onClick = { keyfileUris = keyfileUris - kfUri }) {
+                                    Icon(
+                                        Icons.Filled.Close,
+                                        contentDescription = stringResource(R.string.unlock_keyfiles_remove),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    // 添加 + 清空按钮。
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         OutlinedButton(
                             onClick = { keyfilePicker.launch(arrayOf("*/*")) },
                             modifier = Modifier.weight(1f),
                         ) {
-                            Text(
-                                if (keyfileUris.isEmpty()) stringResource(R.string.unlock_keyfiles_none)
-                                else stringResource(R.string.unlock_keyfiles_selected, keyfileUris.size)
-                            )
+                            Text(stringResource(R.string.unlock_keyfiles_add))
                         }
                         if (keyfileUris.isNotEmpty()) {
-                            TextButton(onClick = { keyfileUris = emptyList() }) {
+                            OutlinedButton(onClick = { keyfileUris = emptyList() }) {
                                 Text(stringResource(R.string.unlock_keyfiles_clear))
                             }
                         }
@@ -963,7 +1112,7 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
                                     password = ""
                                     mountToken++
                                     AutoLock.touch()
-                                    Settings.addFavorite(context, uri.toString(), pickedName)
+                                    // 不自动收藏：用户需手动点星标按钮收藏（原自动收藏不透明）。
                                     favTick++
                                     // F4：解锁成功请求通知权限，保活前台服务通知才能显示（Android 13+）。
                                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
@@ -981,41 +1130,37 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
                     ) {
                         if (unlocking) {
                             CircularProgressIndicator(
-                                modifier = Modifier.height(20.dp),
+                                modifier = Modifier.size(16.dp),
                                 strokeWidth = 2.dp,
                             )
-                            Spacer(Modifier.height(0.dp))
-                            Text("  " + stringResource(R.string.unlock_unlocking))
+                            Spacer(Modifier.width(6.dp))
+                            Text(stringResource(R.string.unlock_unlocking))
                         } else {
                             Text(stringResource(R.string.unlock_submit))
                         }
                     }
 
-                    // 改密码入口（B1）：写操作，仅拿到写权限时可用。旧凭据取上方已填的
-                    // 密码 / PIM / PRF / keyfile；点开对话框收集新凭据。
+                    // ---- 卷管理工具组（需写权限）：修改密码 / 创建隐藏卷 / 扩展卷 / 救援文件 ----
                     if (uriWritable) {
-                        TextButton(
-                            onClick = { changePwdMsg = null; showChangePwd = true },
+                        Text(
+                            stringResource(R.string.tools_volume_group),
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Text(stringResource(R.string.change_pwd_entry))
-                        }
-                    }
-
-                    // 创建隐藏卷入口（C2）：写操作，仅拿到写权限时可用。在选中的外层容器内
-                    // 造隐藏卷；上方已填的密码 / PIM / PRF / keyfile 作外层凭据（读外层 FAT 算安全区），
-                    // 点开对话框收集隐藏卷新凭据。
-                    if (uriWritable) {
-                        TextButton(
-                            onClick = { createHiddenMsg = null; showCreateHidden = true },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(stringResource(R.string.create_hidden_entry))
-                        }
-
-                        // 卷扩展入口（X17）：写操作，仅拿到写权限时可用。主密钥不动，换头+扩文件。
-                        TextButton(
-                            onClick = {
+                            // 改密码（B1）：旧凭据取上方已填的密码/PIM/PRF/keyfile，点开对话框收集新凭据。
+                            OutlinedButton(onClick = { changePwdMsg = null; showChangePwd = true }) {
+                                Text(stringResource(R.string.change_pwd_entry))
+                            }
+                            // 创建隐藏卷（C2）：在选中外层容器内造隐藏卷。
+                            OutlinedButton(onClick = { createHiddenMsg = null; showCreateHidden = true }) {
+                                Text(stringResource(R.string.create_hidden_entry))
+                            }
+                            // 卷扩展（X17）：主密钥不动，换头+扩文件。
+                            OutlinedButton(onClick = {
                                 expandMsg = null; expandSizeMb = ""
                                 val u = pickedUri
                                 if (u != null) {
@@ -1029,60 +1174,65 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
                                         showExpandVolume = true
                                     }
                                 }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(stringResource(R.string.expand_volume_entry))
-                        }
-                        TextButton(
-                            onClick = { showRescueManager = true },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(stringResource(R.string.rescue_entry))
+                            }) {
+                                Text(stringResource(R.string.expand_volume_entry))
+                            }
+                            // 救援文件管理。
+                            OutlinedButton(onClick = { showRescueManager = true }) {
+                                Text(stringResource(R.string.rescue_entry))
+                            }
                         }
                     }
 
-                    // 卷头工具入口（A2 救砖）：低调 TextButton，主头损坏打不开时的最后一道保险。
-                    TextButton(
-                        onClick = { headerMsg = null; showHeaderTool = true },
+                    // ---- 实用工具组：卷头工具 / 分区探针 / 暴露到系统 ----
+                    Text(
+                        stringResource(R.string.tools_utils_group),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text(stringResource(R.string.header_tool_entry))
-                    }
-                    // 分区加密探针入口（X2/X3，实验性）：root-gated 只读枚举块设备。
-                    TextButton(
-                        onClick = {
+                        // 卷头工具（A2 救砖）：主头损坏打不开时的最后一道保险。
+                        OutlinedButton(onClick = { headerMsg = null; showHeaderTool = true }) {
+                            Text(stringResource(R.string.header_tool_entry))
+                        }
+                        // 分区加密探针（X2/X3，实验性）：root-gated 只读枚举块设备。
+                        // 点击时主动申请 root（弹 Magisk 授权框），而非被动等授权。
+                        OutlinedButton(onClick = {
                             blockDeviceMsg = null
                             showBlockDevice = true
                             scope.launch {
                                 blockDeviceBusy = true
-                                val granted = withContext(Dispatchers.IO) { com.henglie.sealchest.core.RootManager.isGranted() }
+                                val granted = withContext(Dispatchers.IO) {
+                                    if (com.henglie.sealchest.core.RootManager.isGranted()) true
+                                    else com.henglie.sealchest.core.RootManager.requestRoot()
+                                }
                                 blockDeviceRootGranted = granted
                                 if (granted) {
                                     blockDeviceList = withContext(Dispatchers.IO) { com.henglie.sealchest.core.BlockDeviceEnumerator.list() }
                                 }
                                 blockDeviceBusy = false
                             }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(stringResource(R.string.block_device_entry))
-                    }
-                    // F3：暴露到系统入口。已挂载 + root 已授权时才显示。
-                    if (MountManager.isMounted && com.henglie.sealchest.core.RootManager.isGranted()) {
-                        TextButton(
-                            onClick = { showExpose = true; exposeMsg = null },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(stringResource(R.string.expose_title))
+                        }) {
+                            Text(stringResource(R.string.block_device_entry))
+                        }
+                        // 加密算法基准测试（VeraCrypt 风格）：测各算法 XTS 加密吞吐。
+                        OutlinedButton(onClick = { showBenchmark = true }) {
+                            Text(stringResource(R.string.benchmark_entry))
+                        }
+                        // F3：暴露到系统。已挂载 + 探测到 root（不一定已授权）时显示，点击时主动申请。
+                        if (MountManager.isMounted && com.henglie.sealchest.core.RootManager.isRootPossible()) {
+                            OutlinedButton(onClick = { showExpose = true; exposeMsg = null }) {
+                                Text(stringResource(R.string.expose_title))
+                            }
                         }
                     }
                 }
             }
         }
         }
-
-        if (showSettings) SettingsDialog(onDismiss = { showSettings = false })
 
         // 收藏项重命名弹窗（X9）。
         if (renameFavoriteUri != null) {
@@ -1906,13 +2056,23 @@ private fun AboutScreen(onBack: () -> Unit) {
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // ---- 品牌头：无衬线大标题 + 副标题 + 一句话简介，居中 ----
+            // ---- 品牌头：Logo 图标 + 无衬线大标题 + 副标题 + 一句话简介，居中 ----
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 16.dp, bottom = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
+                // 应用 Logo：盾牌+挂锁酒红图标，圆形裁切 + 深酒红底，模拟桌面图标效果。
+                Image(
+                    painter = painterResource(R.drawable.ic_launcher_foreground),
+                    contentDescription = stringResource(R.string.home_title),
+                    modifier = Modifier
+                        .size(96.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(androidx.compose.ui.graphics.Color(0xFF3D1215)),
+                )
+                Spacer(Modifier.height(12.dp))
                 Text(
                     text = stringResource(R.string.home_title),
                     style = MaterialTheme.typography.displaySmall,

@@ -54,6 +54,74 @@ object FatFormatter {
         }
     }
 
+    /**
+     * 返回 FAT 根目录区在数据区内的（逻辑偏移, 字节数），供 [VolumeCreator] 在
+     * randomFill 后显式清零用。
+     *
+     * 背景：[buildEmptyFat] 只写引导扇区 + FAT 表首扇区，不显式写根目录区
+     * （FAT16 固定根目录区 / FAT32 根目录簇2），依赖数据区本就全零的假设。
+     * 当 randomFill=true 用随机字节铺满数据区后，该假设不成立，根目录区残留
+     * 随机字节会被 FAT 解析成幽灵目录项（如"随机文件1"）。故需在 randomFill 后
+     * 对根目录区写零（走 VolumeReader.write，经 XTS 加密）。
+     *
+     * - FAT16：固定根目录区位于 FAT2 之后、数据簇之前，大小 = RootDirEntries * 32。
+     * - FAT32：根目录首簇（簇2）位于簇堆起点，大小 = bytesPerCluster。
+     *
+     * 参数计算须与 [buildFat16] / [buildFat32] 保持一致，改其一须同步改本处。
+     *
+     * @return 根目录区（偏移, 大小）；仅 FAT16/FAT32 有效。
+     */
+    fun rootDirRegion(volumeSizeBytes: Long, clusterSize: Int = 0): Pair<Long, Int> {
+        require(volumeSizeBytes % SECTOR == 0L) { "数据区须 512 对齐：$volumeSizeBytes" }
+        val totalSectors = volumeSizeBytes / SECTOR
+        val overrideSpc: Int? = if (clusterSize <= 0) null else {
+            require(clusterSize % SECTOR == 0) { "簇大小须 512 倍数：$clusterSize" }
+            val spc = clusterSize / SECTOR
+            require(spc in 1..128) { "簇大小越界（1..128 扇区）：$spc" }
+            spc
+        }
+        return if (volumeSizeBytes < FAT32_THRESHOLD) {
+            rootDirRegionFat16(totalSectors, overrideSpc)
+        } else {
+            rootDirRegionFat32(totalSectors, overrideSpc)
+        }
+    }
+
+    private fun rootDirRegionFat16(totalSectors: Long, overrideSpc: Int?): Pair<Long, Int> {
+        val volumeSizeBytes = totalSectors * SECTOR
+        val sectorsPerCluster = overrideSpc ?: when {
+            volumeSizeBytes < 16L * 1024 * 1024 -> 4     // <16MB: 2KB 簇
+            volumeSizeBytes < 128L * 1024 * 1024 -> 8    // <128MB: 4KB 簇
+            else -> 16                                   // 8KB 簇
+        }
+        val reservedSectors = 1
+        val numFats = 2
+        val rootEntries = 512                            // FAT16 惯例 512 项
+        val rootDirSectors = (rootEntries * 32 + SECTOR - 1) / SECTOR
+        val dataSectorsApprox = totalSectors - reservedSectors - rootDirSectors
+        val clustersApprox = dataSectorsApprox / sectorsPerCluster
+        val fatSectors = (((clustersApprox + 2) * 2) + SECTOR - 1) / SECTOR
+        val rootDirOffset = (reservedSectors + numFats * fatSectors) * SECTOR
+        val rootDirSize = rootDirSectors * SECTOR
+        return rootDirOffset to rootDirSize
+    }
+
+    private fun rootDirRegionFat32(totalSectors: Long, overrideSpc: Int?): Pair<Long, Int> {
+        val volumeSizeBytes = totalSectors * SECTOR
+        val sectorsPerCluster = overrideSpc ?: when {
+            volumeSizeBytes < 8L * 1024 * 1024 * 1024 -> 8    // <8GB: 4KB 簇
+            else -> 16                                        // 8KB 簇
+        }
+        val reservedSectors = 32                         // FAT32 惯例 32
+        val numFats = 2
+        val dataSectorsApprox = totalSectors - reservedSectors
+        val clustersApprox = dataSectorsApprox / sectorsPerCluster
+        val fatSectors = (((clustersApprox + 2) * 4) + SECTOR - 1) / SECTOR   // FAT32 每项 4 字节
+        val cluster2Offset = (reservedSectors + numFats * fatSectors) * SECTOR
+        val clusterSizeBytes = sectorsPerCluster * SECTOR
+        return cluster2Offset to clusterSizeBytes
+    }
+
     // ================================================================
     //  FAT16
     // ================================================================

@@ -313,4 +313,30 @@
     <string name="expose_progress">सिंक कर रहे हैं: %1$s</string>
     <string name="expose_done">%1$d फ़ाइलें प्रकट की गईं</string>
     <string name="expose_failed">प्रकट करना विफल: %1$s</string>
+
+    <!-- Language switcher -->
+    <string name="lang_follow_system">सिस्टम का पालन करें</string>
+    <string name="lang_title">भाषा</string>
+
+    <!-- v0.2 新增字符串 -->
+    <string name="favorites_add">पसंदीदा</string>
+    <string name="favorites_favorited">पसंदीदा में जोड़ा गया</string>
+    <string name="exit_press_again">बाहर निकलने के लिए फिर से वापस दबाएँ</string>
+    <string name="tools_volume_group">वॉल्यूम उपकरण</string>
+    <string name="tools_utils_group">उपयोगिताएँ</string>
+    <string name="unlock_keyfiles_title">कुंजी फ़ाइलें</string>
+    <string name="unlock_keyfiles_add">कुंजी फ़ाइल जोड़ें</string>
+    <string name="unlock_keyfiles_remove">हटाएँ</string>
+    <string name="create_show_password">पासवर्ड दिखाएँ</string>
+    <string name="create_password_warn">पासवर्ड सादे टेक्स्ट में दिखाया जाएगा। अपने आसपास का ध्यान रखें।</string>
+    <string name="create_random_pool">यादृच्छिक पूल</string>
+    <string name="create_random_pool_hint">विस्तार/संक्षिप्त करने के लिए टैप करें</string>
+
+    <!-- Benchmark -->
+    <string name="benchmark_title">बेंचमार्क</string>
+    <string name="benchmark_start">प्रारंभ करें</string>
+    <string name="benchmark_running">%1$s परीक्षण कर रहा है…</string>
+    <string name="benchmark_entry">बेंचमार्क</string>
+    <string name="benchmark_unit">MB/s</string>
+    <string name="settings_theme_color">थीम का रंग</string>
 </resources>

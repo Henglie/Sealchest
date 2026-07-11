@@ -35,6 +35,10 @@ class NtfsFileSystem private constructor(
     private val bytesPerCluster = boot.bytesPerCluster
     private val mftRecordSize = boot.fileRecordSize
 
+    /** $LogFile LSN 单调递增计数器（本层不写 $LogFile 日志，但 Windows 期望 FILE 记录 LSN 非零且递增）。 */
+    private var currentLsn = 0L
+    private fun nextLsn(): Long { currentLsn++; return currentLsn }
+
     companion object {
         fun mount(reader: VolumeReader): NtfsFileSystem {
             val boot = NtfsBoot.parse(reader.read(0, 512))
@@ -52,6 +56,7 @@ class NtfsFileSystem private constructor(
         const val ATTR_STANDARD_INFO = 0x10L
         const val ATTR_FILE_NAME = 0x30L
         const val ATTR_VOLUME_NAME = 0x60L
+        const val ATTR_VOLUME_INFO = 0x70L
         const val ATTR_DATA = 0x80L
         const val ATTR_INDEX_ROOT = 0x90L
         const val ATTR_INDEX_ALLOCATION = 0xA0L
@@ -63,6 +68,9 @@ class NtfsFileSystem private constructor(
         // FILE 记录标志（记录头偏移 0x16）。
         const val FLAG_IN_USE = 0x0001
         const val FLAG_DIRECTORY = 0x0002
+
+        // $VOLUME_INFORMATION 属性（0x70，驻留）偏移 0x08 的 flags 字节位。
+        const val VOLUME_FLAG_DIRTY = 0x01
 
         // 索引项标志。
         const val INDEX_ENTRY_HAS_SUBNODE = 0x01
@@ -403,18 +411,26 @@ class NtfsFileSystem private constructor(
 
     // ---- 写方向（NTFS 写：受限支持，见下）----
 
-    override fun writeFile(dirFirstCluster: Long, name: String, bytes: ByteArray): Boolean =
-        ntfsWriteFile(if (dirFirstCluster < 16) MFT_ROOT_DIR else dirFirstCluster, name, bytes)
+    override fun writeFile(dirFirstCluster: Long, name: String, bytes: ByteArray): Boolean {
+        val ok = ntfsWriteFile(if (dirFirstCluster < 16) MFT_ROOT_DIR else dirFirstCluster, name, bytes)
+        if (ok) markVolumeDirty()
+        return ok
+    }
 
     override fun overwriteFile(dirFirstCluster: Long, name: String, bytes: ByteArray): Boolean {
         val dir = if (dirFirstCluster < 16) MFT_ROOT_DIR else dirFirstCluster
         // 覆写 = 删旧 + 写新（非崩溃原子，与 FAT/exFAT 同级）。
         if (!ntfsDeleteFile(dir, name)) return false
-        return ntfsWriteFile(dir, name, bytes)
+        val ok = ntfsWriteFile(dir, name, bytes)
+        if (ok) markVolumeDirty()
+        return ok
     }
 
-    override fun deleteFile(dirFirstCluster: Long, name: String): Boolean =
-        ntfsDeleteFile(if (dirFirstCluster < 16) MFT_ROOT_DIR else dirFirstCluster, name)
+    override fun deleteFile(dirFirstCluster: Long, name: String): Boolean {
+        val ok = ntfsDeleteFile(if (dirFirstCluster < 16) MFT_ROOT_DIR else dirFirstCluster, name)
+        if (ok) markVolumeDirty()
+        return ok
+    }
 
     override fun invalidateFsInfo() { /* NTFS 无 FAT32 FSInfo；崩溃一致性靠 chkdsk */ }
 
@@ -477,6 +493,26 @@ class NtfsFileSystem private constructor(
             if (mirrOff != null) reader.write(mirrOff, stamped, 0, stamped.size)
         }
         return true
+    }
+
+    /**
+     * 置 $Volume（MFT 记录3）的 $VOLUME_INFORMATION(0x70) 偏移 0x0A flags 字段（u16 低字节）
+     * 的 VOLUME_FLAG_DIRTY(0x01) 位。Windows 挂载时据此运行 chkdsk 重建 $LogFile +
+     * 校索引一致性——本层不写 $LogFile 日志，靠 dirty 位 + chkdsk 兜底。chkdsk 会清
+     * 该位，故每次写操作成功后都须重置。已脏则免写（减少落盘）。
+     * 注：flags 在属性内容偏移 0x0A（0x08=MajorVersion/0x09=MinorVersion）。
+     */
+    private fun markVolumeDirty() {
+        val rec = readMftRecord(MFT_VOLUME) ?: return
+        val vi = findAttr(parseAttrs(rec), ATTR_VOLUME_INFO) ?: return
+        if (vi.nonResident) return
+        val off = vi.residentValueOffset + 0x0A
+        if (off >= rec.size) return
+        val flags = rec[off].toInt() and 0xFF
+        if ((flags and VOLUME_FLAG_DIRTY) != 0) return
+        val nr = rec.copyOf()
+        nr[off] = (flags or VOLUME_FLAG_DIRTY).toByte()
+        writeMftRecord(MFT_VOLUME, nr)
     }
 
     private var mftMirrRuns: List<DataRun>? = null
@@ -819,7 +855,7 @@ class NtfsFileSystem private constructor(
         rec[0] = 'F'.code.toByte(); rec[1] = 'I'.code.toByte(); rec[2] = 'L'.code.toByte(); rec[3] = 'E'.code.toByte()
         putU16(rec, 4, usaOff)                 // USA 偏移
         putU16(rec, 6, usaCount)               // USA 项数（含 USN）
-        putU64(rec, 8, 0L)                     // $LogFile LSN（不维护，置 0）
+        putU64(rec, 8, nextLsn())              // $LogFile LSN（递增，Windows 期望非零且单调）
         putU16(rec, 16, 1)                     // 序列号
         putU16(rec, 18, 1)                     // 硬链接数
         val firstAttrOff = align8(usaOff + usaCount * 2)
@@ -864,7 +900,7 @@ class NtfsFileSystem private constructor(
         rec[0] = 'F'.code.toByte(); rec[1] = 'I'.code.toByte(); rec[2] = 'L'.code.toByte(); rec[3] = 'E'.code.toByte()
         putU16(rec, 4, usaOff)
         putU16(rec, 6, usaCount)
-        putU64(rec, 8, 0L)
+        putU64(rec, 8, nextLsn())              // $LogFile LSN（递增）
         putU16(rec, 16, 1)
         putU16(rec, 18, 1)
         val firstAttrOff = align8(usaOff + usaCount * 2)
@@ -2041,17 +2077,29 @@ class NtfsFileSystem private constructor(
     // 句柄语义：dirFirstCluster 实为 MFT 记录号（listDir 返回 firstCluster = MFT ref）；
     //   根目录（< 16）映射到 MFT_ROOT_DIR(5)。
 
-    override fun rename(dirFirstCluster: Long, oldName: String, newName: String): Boolean =
-        ntfsRename(normDir(dirFirstCluster), oldName, newName)
+    override fun rename(dirFirstCluster: Long, oldName: String, newName: String): Boolean {
+        val ok = ntfsRename(normDir(dirFirstCluster), oldName, newName)
+        if (ok) markVolumeDirty()
+        return ok
+    }
 
-    override fun mkdir(dirFirstCluster: Long, name: String): Long =
-        ntfsMkDir(normDir(dirFirstCluster), name)
+    override fun mkdir(dirFirstCluster: Long, name: String): Long {
+        val ref = ntfsMkDir(normDir(dirFirstCluster), name)
+        if (ref > 0) markVolumeDirty()
+        return ref
+    }
 
-    override fun rmdir(dirFirstCluster: Long, name: String, recursive: Boolean): Boolean =
-        ntfsRmDir(normDir(dirFirstCluster), name, recursive)
+    override fun rmdir(dirFirstCluster: Long, name: String, recursive: Boolean): Boolean {
+        val ok = ntfsRmDir(normDir(dirFirstCluster), name, recursive)
+        if (ok) markVolumeDirty()
+        return ok
+    }
 
-    override fun move(srcDirFirstCluster: Long, name: String, dstDirFirstCluster: Long): Boolean =
-        ntfsMove(normDir(srcDirFirstCluster), name, normDir(dstDirFirstCluster))
+    override fun move(srcDirFirstCluster: Long, name: String, dstDirFirstCluster: Long): Boolean {
+        val ok = ntfsMove(normDir(srcDirFirstCluster), name, normDir(dstDirFirstCluster))
+        if (ok) markVolumeDirty()
+        return ok
+    }
 
     /** UI 句柄 < 16 视为根目录（与 listDir/writeFile 同一规则）。 */
     private fun normDir(ref: Long): Long = if (ref < 16) MFT_ROOT_DIR else ref
@@ -2094,7 +2142,7 @@ class NtfsFileSystem private constructor(
         rec[0] = 'F'.code.toByte(); rec[1] = 'I'.code.toByte(); rec[2] = 'L'.code.toByte(); rec[3] = 'E'.code.toByte()
         putU16(rec, 4, usaOff)
         putU16(rec, 6, usaCount)
-        putU64(rec, 8, 0L)
+        putU64(rec, 8, nextLsn())              // $LogFile LSN（递增）
         putU16(rec, 16, 1)
         putU16(rec, 18, 1)
         val firstAttrOff = align8(usaOff + usaCount * 2)

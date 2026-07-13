@@ -335,18 +335,18 @@ Java_com_henglie_sealchest_crypto_NativeBridge_nativeRekeyHeaders(
     return static_cast<jint>(err);
 }
 
-// randomPoolSnapshot(out): Int —— 拷当前随机池字节到 out（仅供 UI 可视化，
-// 对齐桌面 VeraCrypt 显示 Random Pool）。只读旁观：不推进读写指针、不消耗熵。
-// 返回实际拷贝字节数。
+// randomPoolSnapshot(out): Int —— 返回当前随机池的 SHA-512 摘要到 out（仅供 UI 可视化）。
+// 修复中危：不再吐池原始 320 字节（可反推主密钥），改为单向 SHA-512 派生 64 字节哈希。
+// 只读旁观：不推进读写指针、不消耗熵。返回实际写入字节数（64），out 须 ≥64。
 JNIEXPORT jint JNICALL
 Java_com_henglie_sealchest_crypto_NativeBridge_nativeRandomPoolSnapshot(
     JNIEnv* env, jobject /*thiz*/, jbyteArray out) {
     if (out == nullptr) return 0;
     jsize len = env->GetArrayLength(out);
-    if (len <= 0) return 0;
+    if (len < 64) return 0;
     jbyte* o = env->GetByteArrayElements(out, nullptr);
     if (o == nullptr) return 0;
-    int n = sc_random_snapshot(reinterpret_cast<uint8_t*>(o), static_cast<int>(len));
+    int n = sc_random_snapshot_sha512(reinterpret_cast<uint8_t*>(o), static_cast<int>(len));
     env->ReleaseByteArrayElements(out, o, 0);   // 回写 Java 数组
     return static_cast<jint>(n);
 }

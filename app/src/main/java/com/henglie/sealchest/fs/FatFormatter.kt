@@ -10,7 +10,9 @@ package com.henglie.sealchest.fs
  * 返回的 [FatImage.sectors] 是「卷内逻辑偏移 → 字节段」的稀疏列表，调用方（VolumeCreator）
  * 逐段经 VolumeReader.write 加密写入。逻辑偏移 0 = 数据区首字节 = FAT 引导扇区第一字节。
  *
- * FAT 类型按数据区大小自动选：< 512MB → FAT16，≥ 512MB → FAT32。FAT12 不做。
+ * FAT 类型按「数据区簇总数」自动选（与 [Bpb.parse] 判型同一阈值）：簇数 < 4085 → FAT12，
+ * < 65525 且 < 512MB → FAT16，≥ 512MB → FAT32。写侧布局必须与读侧判型一致，否则小卷
+ * 写成 FAT16 却被按簇数判为 FAT12，簇链按 12 位错位解析而报废容器。
  *
  * 字节级参照 VeraCrypt Fat.c 的 GetFatParams + PutBoot（已确认编入 cpp/veracrypt），
  * 以及 Microsoft FAT 规范（fatgen103）。判据：桌面 VeraCrypt 挂载后 chkdsk 干净。
@@ -47,10 +49,10 @@ object FatFormatter {
             spc
         }
 
-        return if (volumeSizeBytes < FAT32_THRESHOLD) {
-            buildFat16(totalSectors, overrideSpc)
-        } else {
-            buildFat32(totalSectors, overrideSpc)
+        return when (resolveFatType(totalSectors, overrideSpc)) {
+            FatType.FAT32 -> buildFat32(totalSectors, overrideSpc)
+            FatType.FAT12 -> buildFat12(totalSectors, overrideSpc)
+            FatType.FAT16 -> buildFat16(totalSectors, overrideSpc)
         }
     }
 
@@ -80,10 +82,30 @@ object FatFormatter {
             require(spc in 1..128) { "簇大小越界（1..128 扇区）：$spc" }
             spc
         }
-        return if (volumeSizeBytes < FAT32_THRESHOLD) {
-            rootDirRegionFat16(totalSectors, overrideSpc)
-        } else {
-            rootDirRegionFat32(totalSectors, overrideSpc)
+        return when (resolveFatType(totalSectors, overrideSpc)) {
+            FatType.FAT32 -> rootDirRegionFat32(totalSectors, overrideSpc)
+            FatType.FAT12 -> rootDirRegionFat12(totalSectors, overrideSpc)
+            FatType.FAT16 -> rootDirRegionFat16(totalSectors, overrideSpc)
+        }
+    }
+
+    /**
+     * 返回 FAT 卷所有须清零的元数据区（FAT 表两份 + 根目录区）的 (偏移, 大小) 列表。
+     * 供 [VolumeCreator] 在写文件系统结构前显式清零——Android 创建新文件不保证零填充，
+     * 残留数据会被 FAT 解析成乱码目录项/幽灵簇链。不管 randomFill 开不开都须调。
+     */
+    fun metadataClearRegions(volumeSizeBytes: Long, clusterSize: Int = 0): List<Pair<Long, Int>> {
+        require(volumeSizeBytes % SECTOR == 0L) { "数据区须 512 对齐：$volumeSizeBytes" }
+        val totalSectors = volumeSizeBytes / SECTOR
+        val overrideSpc: Int? = if (clusterSize <= 0) null else {
+            val spc = clusterSize / SECTOR
+            require(spc in 1..128) { "簇大小越界（1..128 扇区）：$spc" }
+            spc
+        }
+        return when (resolveFatType(totalSectors, overrideSpc)) {
+            FatType.FAT32 -> metadataRegionsFat32(totalSectors, overrideSpc)
+            FatType.FAT12 -> metadataRegionsFat12(totalSectors, overrideSpc)
+            FatType.FAT16 -> metadataRegionsFat16(totalSectors, overrideSpc)
         }
     }
 
@@ -122,6 +144,235 @@ object FatFormatter {
         return cluster2Offset to clusterSizeBytes
     }
 
+    // ---- 元数据清零区域（FAT 表两份 + 根目录）----
+    // 参数计算与 rootDirRegionFatXX / buildFatXX 完全一致，改其一须同步。
+
+    private fun metadataRegionsFat12(totalSectors: Long, overrideSpc: Int?): List<Pair<Long, Int>> {
+        val volumeSizeBytes = totalSectors * SECTOR
+        val sectorsPerCluster = overrideSpc ?: when {
+            volumeSizeBytes < 16L * 1024 * 1024 -> 4
+            volumeSizeBytes < 128L * 1024 * 1024 -> 8
+            else -> 16
+        }
+        val reservedSectors = 1
+        val numFats = 2
+        val rootEntries = 512
+        val rootDirSectors = (rootEntries * 32 + SECTOR - 1) / SECTOR
+        val dataSectorsApprox = totalSectors - reservedSectors - rootDirSectors
+        val clustersApprox = dataSectorsApprox / sectorsPerCluster
+        val fatSectors = fatSectors12(clustersApprox)
+        val fatLen = (fatSectors * SECTOR).toInt()
+        val fat1Off = reservedSectors.toLong() * SECTOR
+        val fat2Off = (reservedSectors + fatSectors) * SECTOR
+        val rootOff = (reservedSectors + numFats * fatSectors) * SECTOR
+        val rootLen = rootDirSectors * SECTOR
+        return listOf(fat1Off to fatLen, fat2Off to fatLen, rootOff to rootLen)
+    }
+
+    private fun metadataRegionsFat16(totalSectors: Long, overrideSpc: Int?): List<Pair<Long, Int>> {
+        val volumeSizeBytes = totalSectors * SECTOR
+        val sectorsPerCluster = overrideSpc ?: when {
+            volumeSizeBytes < 16L * 1024 * 1024 -> 4
+            volumeSizeBytes < 128L * 1024 * 1024 -> 8
+            else -> 16
+        }
+        val reservedSectors = 1
+        val numFats = 2
+        val rootEntries = 512
+        val rootDirSectors = (rootEntries * 32 + SECTOR - 1) / SECTOR
+        val dataSectorsApprox = totalSectors - reservedSectors - rootDirSectors
+        val clustersApprox = dataSectorsApprox / sectorsPerCluster
+        val fatSectors = (((clustersApprox + 2) * 2) + SECTOR - 1) / SECTOR
+        val fatLen = (fatSectors * SECTOR).toInt()
+        val fat1Off = reservedSectors.toLong() * SECTOR
+        val fat2Off = (reservedSectors + fatSectors) * SECTOR
+        val rootOff = (reservedSectors + numFats * fatSectors) * SECTOR
+        val rootLen = rootDirSectors * SECTOR
+        return listOf(fat1Off to fatLen, fat2Off to fatLen, rootOff to rootLen)
+    }
+
+    private fun metadataRegionsFat32(totalSectors: Long, overrideSpc: Int?): List<Pair<Long, Int>> {
+        val volumeSizeBytes = totalSectors * SECTOR
+        val sectorsPerCluster = overrideSpc ?: when {
+            volumeSizeBytes < 8L * 1024 * 1024 * 1024 -> 8
+            else -> 16
+        }
+        val reservedSectors = 32
+        val numFats = 2
+        val dataSectorsApprox = totalSectors - reservedSectors
+        val clustersApprox = dataSectorsApprox / sectorsPerCluster
+        val fatSectors = (((clustersApprox + 2) * 4) + SECTOR - 1) / SECTOR
+        val fatLen = (fatSectors * SECTOR).toInt()
+        val fat1Off = reservedSectors.toLong() * SECTOR
+        val fat2Off = (reservedSectors + fatSectors) * SECTOR
+        val cluster2Off = (reservedSectors + numFats * fatSectors) * SECTOR
+        val clusterSizeBytes = sectorsPerCluster * SECTOR
+        return listOf(fat1Off to fatLen, fat2Off to fatLen, cluster2Off to clusterSizeBytes)
+    }
+
+    // ================================================================
+    //  FAT 类型选型（与 Bpb.parse 读侧完全同式，保证写读自洽）
+    // ================================================================
+    /**
+     * 选定 FAT 类型 —— 唯一权威。三处入口（buildEmptyFat / rootDirRegion /
+     * metadataClearRegions）与三个 buildFatXX 全部以本函数为准，杜绝各处判型分裂。
+     *
+     * 核心：写侧判型必须用「按目标类型布局写出后、读侧 [Bpb.parse] 会重算出的簇数」
+     * 来判，否则会出现「写 FAT16 布局却被读成 FAT12/FAT32」的簇链错位报废。
+     * 读侧簇数 = totalSectors − reserved − numFats×fatSectors − rootDirSectors，再 /spc；
+     * 其中 fatSectors 依类型的每项字节数（FAT12=1.5 / FAT16=2 / FAT32=4）不同。
+     *
+     * 判定序（用 FAT16 布局的读侧簇数 c16 为主锚）：
+     *   - 卷 ≥ 512MB           → FAT32（大卷惯例）
+     *   - c16 > 65524          → FAT32（簇太多，FAT16 装不下；如小簇配大卷）
+     *   - c16 ≥ 4085           → FAT16（读回 c16∈[4085,65524]，自洽）
+     *   - 否则                 → FAT12（读回 c12<4085，自洽）
+     * 各 buildFatXX 入口另有 require 兜底：任何越界组合宁可创建失败，绝不写出报废卷。
+     */
+    private fun resolveFatType(totalSectors: Long, overrideSpc: Int?): FatType {
+        val volumeSizeBytes = totalSectors * SECTOR
+        // 逐型自校验：用读侧 Bpb.parse 同款簇数公式（readClustersXX）判每一型是否落在
+        // 其合法区间。选中的型，读侧用同布局重算必落同区间 → 写读判型闭合，杜绝窄带错位。
+        val spc1216 = spcFat1216(volumeSizeBytes, overrideSpc)
+        val c12 = readClusters12(totalSectors, spc1216)
+        if (c12 < 4085) return FatType.FAT12
+        val c16 = readClusters16(totalSectors, spc1216)
+        if (c16 in 4085..65524) return FatType.FAT16
+        val spc32 = spcFat32(volumeSizeBytes, overrideSpc)
+        val c32 = readClusters32(totalSectors, spc32)
+        if (c32 >= 65525) return FatType.FAT32
+        // 落空：该几何无自洽 FAT 类型（典型是极端 override 簇大小）。绝不写出错位容器，
+        // 宁可拒绝创建（VolumeCreator 会把异常转成失败）。
+        error("无自洽 FAT 类型：totalSectors=$totalSectors override=$overrideSpc c12=$c12 c16=$c16 c32=$c32（请换簇大小或容量）")
+    }
+
+    /** FAT12/16 簇大小阶梯（overrideSpc 非空时用用户指定）。 */
+    private fun spcFat1216(volumeSizeBytes: Long, overrideSpc: Int?): Int = overrideSpc ?: when {
+        volumeSizeBytes < 16L * 1024 * 1024 -> 4     // <16MB: 2KB 簇
+        volumeSizeBytes < 128L * 1024 * 1024 -> 8    // <128MB: 4KB 簇
+        else -> 16                                   // 8KB 簇
+    }
+
+    /** FAT32 簇大小阶梯。 */
+    private fun spcFat32(volumeSizeBytes: Long, overrideSpc: Int?): Int = overrideSpc ?: when {
+        volumeSizeBytes < 8L * 1024 * 1024 * 1024 -> 8    // <8GB: 4KB 簇
+        else -> 16                                        // 8KB 簇
+    }
+
+    /** 读侧（Bpb.parse）对「按 FAT16 布局写出的卷」会重算出的数据区簇总数。reserved=1/numFats=2/root=512。 */
+    private fun readClusters16(totalSectors: Long, spc: Int): Int {
+        val rootDirSectors = (512 * 32 + SECTOR - 1) / SECTOR
+        val clustersApprox = (totalSectors - 1 - rootDirSectors) / spc
+        val fatSectors = (((clustersApprox + 2) * 2) + SECTOR - 1) / SECTOR
+        val dataSectors = totalSectors - 1 - 2L * fatSectors - rootDirSectors
+        return (dataSectors / spc).toInt()
+    }
+
+    /** 读侧对「按 FAT12 布局写出的卷」会重算出的数据区簇总数。与 [buildFat12] fatSectors 同式。 */
+    private fun readClusters12(totalSectors: Long, spc: Int): Int {
+        val rootDirSectors = (512 * 32 + SECTOR - 1) / SECTOR
+        val clustersApprox = (totalSectors - 1 - rootDirSectors) / spc
+        val fatSectors = fatSectors12(clustersApprox)
+        val dataSectors = totalSectors - 1 - 2L * fatSectors - rootDirSectors
+        return (dataSectors / spc).toInt()
+    }
+
+    /** 读侧对「按 FAT32 布局写出的卷」会重算出的数据区簇总数。reserved=32/numFats=2/root=0。 */
+    private fun readClusters32(totalSectors: Long, spc: Int): Int {
+        val clustersApprox = (totalSectors - 32) / spc
+        val fatSectors = (((clustersApprox + 2) * 4) + SECTOR - 1) / SECTOR
+        val dataSectors = totalSectors - 32 - 2L * fatSectors
+        return (dataSectors / spc).toInt()
+    }
+
+    /** FAT12 每份 FAT 扇区数：每项 1.5 字节，含首 2 个保留项。ceil((n+2)*3/2) 字节后按扇区上取整。 */
+    private fun fatSectors12(clustersApprox: Long): Long {
+        val fatBytes = ((clustersApprox + 2) * 3 + 1) / 2   // ceil((n+2)*1.5)
+        return (fatBytes + SECTOR - 1) / SECTOR
+    }
+
+    // ================================================================
+    //  FAT12
+    // ================================================================
+    private fun rootDirRegionFat12(totalSectors: Long, overrideSpc: Int?): Pair<Long, Int> {
+        val volumeSizeBytes = totalSectors * SECTOR
+        val sectorsPerCluster = overrideSpc ?: when {
+            volumeSizeBytes < 16L * 1024 * 1024 -> 4
+            volumeSizeBytes < 128L * 1024 * 1024 -> 8
+            else -> 16
+        }
+        val reservedSectors = 1
+        val numFats = 2
+        val rootEntries = 512
+        val rootDirSectors = (rootEntries * 32 + SECTOR - 1) / SECTOR
+        val dataSectorsApprox = totalSectors - reservedSectors - rootDirSectors
+        val clustersApprox = dataSectorsApprox / sectorsPerCluster
+        val fatSectors = fatSectors12(clustersApprox)
+        val rootDirOffset = (reservedSectors + numFats * fatSectors) * SECTOR
+        val rootDirSize = rootDirSectors * SECTOR
+        return rootDirOffset to rootDirSize.toInt()
+    }
+
+    /**
+     * 生成空 FAT12 镜像。严格镜像 [buildFat16]，仅三处按 FAT12 规范改：
+     *  1. BS_FilSysType 写 "FAT12   "（0x36）。
+     *  2. FAT[0]/[1] 保留项按 12 位布局：F8 FF FF（首项 0xFF8=媒体字节，次项 0xFFF=EOC，
+     *     两项共 3 字节交错）。
+     *  3. 每份 FAT 扇区数按 12 位（1.5 字节/项）算。
+     * 其余（reserved=1、numFats=2、rootEntries=512、簇大小阶梯、BPB 公共字段）与 FAT16 相同。
+     */
+    private fun buildFat12(totalSectors: Long, overrideSpc: Int? = null): FatImage {
+        val sectors = mutableListOf<Pair<Long, ByteArray>>()
+
+        val volumeSizeBytes = totalSectors * SECTOR
+        val sectorsPerCluster = overrideSpc ?: when {
+            volumeSizeBytes < 16L * 1024 * 1024 -> 4     // <16MB: 2KB 簇
+            volumeSizeBytes < 128L * 1024 * 1024 -> 8    // <128MB: 4KB 簇
+            else -> 16                                   // 8KB 簇
+        }
+        val reservedSectors = 1
+        val numFats = 2
+        val rootEntries = 512                            // 与 FAT16 惯例一致
+        val rootDirSectors = (rootEntries * 32 + SECTOR - 1) / SECTOR
+
+        // 估算数据簇数，反推每份 FAT 扇区数（FAT12 每项 1.5 字节，含首 2 个保留项）。
+        val dataSectorsApprox = totalSectors - reservedSectors - rootDirSectors
+        val clustersApprox = dataSectorsApprox / sectorsPerCluster
+        val fatSectors = fatSectors12(clustersApprox)
+
+        // 兜底：读侧 Bpb.parse 重算的簇数必须 <4085 才是合法 FAT12，否则写读判型分裂 → 报废。
+        // 正常路径 resolveFatType 已保证；这里再挡一层，越界宁可创建失败绝不写坏卷。
+        val readCount = readClusters12(totalSectors, sectorsPerCluster)
+        require(readCount in 1 until 4085) {
+            "FAT12 簇数越界：$readCount（须 1..4084，请换簇大小/容量）"
+        }
+
+        // ---- 引导扇区（BPB）----
+        val boot = ByteArray(SECTOR)
+        writeBpbCommon(boot, sectorsPerCluster, reservedSectors, numFats, totalSectors)
+        putShort(boot, 0x11, rootEntries)                // BPB_RootEntCnt
+        putShort(boot, 0x16, fatSectors.toInt())         // BPB_FATSz16
+        boot[0x15] = 0xF8.toByte()                       // 媒体类型（固定盘）
+        // FAT12 扩展引导记录（与 FAT16 同在 0x24 起）
+        boot[0x24] = 0x80.toByte()                       // BS_DrvNum
+        boot[0x26] = 0x29                                // BS_BootSig
+        writeFsType(boot, 0x36, "FAT12   ")              // BS_FilSysType
+        boot[0x1FE] = 0x55                               // 引导扇区签名
+        boot[0x1FF] = 0xAA.toByte()
+        sectors.add(0L to boot)
+
+        // ---- FAT 表首扇区：前 2 项为保留项（12 位交错布局）----
+        // FAT12: 首项=0xFF8（媒体字节），次项=0xFFF（EOC）。两项共 3 字节：F8 FF FF。
+        val fat0 = ByteArray(SECTOR)
+        fat0[0] = 0xF8.toByte(); fat0[1] = 0xFF.toByte(); fat0[2] = 0xFF.toByte()
+        val fat1Start = reservedSectors.toLong() * SECTOR
+        val fat2Start = (reservedSectors + fatSectors) * SECTOR
+        sectors.add(fat1Start to fat0)
+        sectors.add(fat2Start to fat0.copyOf())
+
+        return FatImage(SECTOR, sectors)
+    }
+
     // ================================================================
     //  FAT16
     // ================================================================
@@ -144,6 +395,13 @@ object FatFormatter {
         val dataSectorsApprox = totalSectors - reservedSectors - rootDirSectors
         val clustersApprox = dataSectorsApprox / sectorsPerCluster
         val fatSectors = (((clustersApprox + 2) * 2) + SECTOR - 1) / SECTOR
+
+        // 兜底：读侧簇数必须落在 FAT16 合法区间，否则宁可创建失败（绝不写出被读成
+        // FAT12/FAT32 的错位卷）。resolveFatType 已保证正常路径到此，此为纵深防御。
+        val readCnt = readClusters16(totalSectors, sectorsPerCluster)
+        require(readCnt in 4085..65524) {
+            "FAT16 簇数越界：$readCnt（合法 4085..65524，请换簇大小或容量）"
+        }
 
         // ---- 引导扇区（BPB）----
         val boot = ByteArray(SECTOR)

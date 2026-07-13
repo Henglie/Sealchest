@@ -343,4 +343,7 @@
     <string name="benchmark_entry">벤치마크</string>
     <string name="benchmark_unit">MB/s</string>
     <string name="settings_theme_color">테마 색상</string>
+<string name="settings_theme_mode">테마 모드</string>
+    <string name="theme_mode_light">밝게</string>
+    <string name="theme_mode_dark">어둡게</string>
 </resources>

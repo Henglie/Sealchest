@@ -343,4 +343,7 @@
     <string name="benchmark_entry">ベンチマーク</string>
     <string name="benchmark_unit">MB/s</string>
     <string name="settings_theme_color">テーマカラー</string>
+<string name="settings_theme_mode">テーマモード</string>
+    <string name="theme_mode_light">ライト</string>
+    <string name="theme_mode_dark">ダーク</string>
 </resources>

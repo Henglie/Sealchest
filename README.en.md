@@ -1,8 +1,32 @@
-# Sealchest
+<p align="center">
+  <img src="assets/logo.svg" width="120" height="120" alt="Sealchest logo" />
+</p>
 
-> An Android tool to open VeraCrypt encrypted containers without root. Pure user space, nothing ever hits the disk in plaintext.
+<h1 align="center">Sealchest</h1>
 
-[中文版 README](README.md)
+<p align="center">
+  An Android tool to open VeraCrypt / TrueCrypt encrypted containers <b>without root</b>. Pure user space, nothing ever hits the disk in plaintext.
+</p>
+
+<p align="center">
+  <a href="https://github.com/Henglie/Sealchest/stargazers"><img src="https://img.shields.io/github/stars/Henglie/Sealchest?style=flat-square" alt="GitHub stars" /></a>
+  <a href="https://github.com/Henglie/Sealchest/network/members"><img src="https://img.shields.io/github/forks/Henglie/Sealchest?style=flat-square" alt="GitHub forks" /></a>
+  <a href="https://github.com/Henglie/Sealchest/releases"><img src="https://img.shields.io/github/v/release/Henglie/Sealchest?style=flat-square" alt="GitHub release" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/Henglie/Sealchest?style=flat-square" alt="License" /></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/Henglie/Sealchest/issues"><img src="https://img.shields.io/github/issues/Henglie/Sealchest?style=flat-square" alt="GitHub issues" /></a>
+  <a href="https://github.com/Henglie/Sealchest/pulls"><img src="https://img.shields.io/github/issues-pr/Henglie/Sealchest?style=flat-square" alt="GitHub pull requests" /></a>
+  <img src="https://img.shields.io/badge/Android-6.0%2B-3DDC84?style=flat-square&logo=android&logoColor=white" alt="Android 6.0+" />
+</p>
+
+<p align="center">
+  <a href="README.md">中文版 README</a>
+</p>
+
+> [!WARNING]
+> A significant portion of this project's code is AI-assisted, refined through continuous human integration and refactoring, yet it may still have gaps, insufficient edge-case handling, or behavior that does not fully match expectations. Trust in an encryption tool rests on interoperability — always verify Sealchest-written containers in **desktop VeraCrypt**, and back up important data first. If you hit a bug, compatibility issue, or unexpected behavior, please open an Issue with reproduction steps, logs, screenshots, and your system version.
 
 Sealchest (Chinese name 匿匣) is an Android app that lets you open VeraCrypt / TrueCrypt encrypted containers on a phone **without root**, and browse the files inside.
 
@@ -16,24 +40,38 @@ Desktop VeraCrypt relies on a kernel driver to mount the container as a virtual 
 
 Sectors are decrypted on demand — only the sector being read is decrypted. The whole container is never written out or unpacked to disk. That is the core of the no-root approach.
 
+## Guiding principle
+
+Sealchest is a strict Android parser for VeraCrypt containers. Its crypto and volume-format behavior must be **byte-for-byte identical** to desktop VeraCrypt, and the only criterion is **interoperability**: containers written by Sealchest open in desktop VeraCrypt, and containers written by desktop VeraCrypt read in Sealchest. The cryptographic implementation uses only upstream VeraCrypt C sources — never self-written, never modified. Only the volume-format spec (keyfile mixing, header layout, file-system structures) is reimplemented in Kotlin, with the upstream source noted in comments.
+
 ## Current capabilities
 
-- Open containers **read + write** (write-back interoperability with desktop VeraCrypt)
-- Inner file system: FAT12 / FAT16 / FAT32 (exFAT and NTFS are on the roadmap)
-- Ciphers: AES, Serpent, Twofish, Camellia, Kuznyechik and their cascades (all compiled in)
-- Hash / KDF: SHA-256, SHA-512, Whirlpool, Streebog, BLAKE2s, Argon2id
-- Built-in file browser: navigate, preview (image / text), export, open-with
-- Also exposed to the system through SAF for any SAF-aware app
+- **Open containers** — read + write (create / overwrite / delete files, changes are encrypted back into the container and open cleanly in desktop VeraCrypt)
+- **Inner file systems** — FAT12 / FAT16 / FAT32 · exFAT · NTFS (all self-implemented read/write, no third-party FS library)
+- **Ciphers** — AES, Serpent, Twofish, Camellia, Kuznyechik and their cascades (all compiled in)
+- **Hash / KDF** — SHA-256, SHA-512, Whirlpool, Streebog, BLAKE2s, Argon2id
+- **Volume operations** — create new containers (entropy collection + finger painting + random-pool visualization), change password / PIM / PRF / keyfiles, hidden-volume unlock and creation, header backup & restore (rescue), volume expansion
+- **Keyfile unlock** — byte-for-byte reimplementation of VeraCrypt KeyFilesApply
+- **Built-in file browser** — directory navigation, image / text preview, encrypted gallery and media playback, export to phone, open-with
+- **SAF exposure** — any SAF-aware app can read files inside the container
+- **Security hardening** — Argon2id PIN gate, Panic PIN instant wipe, biometric unlock, auto-lock (timeout / screen-off / background), foreground service to stay alive while mounted
+- **UI** — Material You dynamic color + optional accent color + dark mode; **16 languages** (Chinese, English, French, German, Spanish, Japanese, Korean, Russian, Italian, Portuguese, Dutch, Arabic, Hindi, Turkish, Polish, Vietnamese — including Arabic RTL)
 
 ## Compatibility
 
 - Minimum Android 6.0 (API 23), covering devices from 2015 onward
 - ABIs: arm64-v8a, armeabi-v7a, x86_64 (emulator)
-- UI languages: Chinese and English (Chinese system locale → Chinese, everything else → English)
+
+## Out of scope (Android form-factor boundary)
+
+- Hidden operating system / pre-boot authentication of the system disk: the Android boot chain is fundamentally different from desktop, so this is excluded.
+- Kernel-level mounting (dm-crypt / FUSE kernel module): impossible from a pure app layer.
 
 ## Crypto core and license
 
-Sealchest's crypto core is ported from the open-source [VeraCrypt](https://www.veracrypt.fr/) (the pure-C implementation under `src/Crypto`, `src/Volume`, `src/Common`), under its dual license:
+Sealchest's own code is licensed under **Apache License 2.0** — full text in [`LICENSE`](LICENSE) at the repo root.
+
+The crypto core is ported from the open-source [VeraCrypt](https://www.veracrypt.fr/) (the pure-C implementation under `src/Crypto`, `src/Volume`, `src/Common`), under its original dual license:
 
 - **Apache License 2.0** (AM Crypto modifications)
 - **TrueCrypt License 3.0** (inherited from TrueCrypt 7.1a)
@@ -43,3 +81,7 @@ Sealchest is an independent product. It is not affiliated with, and does not imp
 ## Author
 
 Henglie / EternalBlaze — <https://github.com/Henglie/Sealchest>
+
+## Stargazers over time
+
+[![Stargazers over time](https://starchart.cc/Henglie/Sealchest.svg?variant=adaptive)](https://starchart.cc/Henglie/Sealchest)

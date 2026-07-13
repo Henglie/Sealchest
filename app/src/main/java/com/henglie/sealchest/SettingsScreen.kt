@@ -6,6 +6,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
@@ -59,6 +61,7 @@ import kotlinx.coroutines.withContext
 
 /** 主题色预设：(ARGB, 显示名)。默认酒红排第一，与 Settings.themeColor 默认值一致。 */
 private val THEME_COLOR_OPTIONS: List<Pair<Int, String>> = listOf(
+    0 to "跟随系统",
     0xFF8B2D35.toInt() to "酒红",
     0xFF1A5276.toInt() to "深蓝",
     0xFF1E5631.toInt() to "森林绿",
@@ -86,8 +89,8 @@ fun SettingsScreen(onBack: () -> Unit) {
     var timeoutMenuOpen by remember { mutableStateOf(false) }
     var defMountWritable by remember { mutableStateOf(Settings.defaultMountWritable(context)) }
     var defPrfIndex by remember { mutableStateOf(Settings.defaultPrfIndex(context)) }
-    var ntfsExp by remember { mutableStateOf(Settings.ntfsExperimental(context)) }
     var currentThemeColor by remember { mutableStateOf(Settings.themeColor(context)) }
+    var currentThemeMode by remember { mutableStateOf(Settings.themeMode(context)) }
     var pinSet by remember { mutableStateOf(PinManager.isPinSet(context)) }
     var showSetPin by remember { mutableStateOf(false) }
     var showClearPin by remember { mutableStateOf(false) }
@@ -302,19 +305,59 @@ fun SettingsScreen(onBack: () -> Unit) {
                 }
             }
 
-            // ===== 主题色 =====
-            SettingsCard(title = stringResource(R.string.settings_theme_color)) {
+            // ===== 夜间模式 =====
+            SettingsCard(title = stringResource(R.string.settings_theme_mode)) {
+                val modeLabels = listOf(
+                    stringResource(R.string.lang_follow_system),
+                    stringResource(R.string.theme_mode_light),
+                    stringResource(R.string.theme_mode_dark),
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    modeLabels.forEachIndexed { idx, label ->
+                        val selected = idx == currentThemeMode
+                        OutlinedButton(
+                            onClick = {
+                                currentThemeMode = idx
+                                Settings.setThemeMode(context, idx)
+                                (context as? Activity)?.recreate()
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = if (selected)
+                                androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                )
+                            else androidx.compose.material3.ButtonDefaults.outlinedButtonColors(),
+                        ) {
+                            Text(label, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
+
+            // ===== 主题色 =====
+            //   argb==0 = 跟随系统（动态取色 / 兜底整套一致，不叠加固定色）。该 swatch 用当前
+            //   primary 实色圈 + 内环标记表示「随系统」；其余项用各自预设纯色。
+            SettingsCard(title = stringResource(R.string.settings_theme_color)) {
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     THEME_COLOR_OPTIONS.forEach { (argb, _) ->
                         val selected = argb == currentThemeColor
+                        val followSystem = argb == 0
+                        val swatchColor =
+                            if (followSystem) MaterialTheme.colorScheme.primary else Color(argb)
                         Box(
+                            contentAlignment = Alignment.Center,
                             modifier = Modifier
                                 .size(40.dp)
                                 .clip(CircleShape)
-                                .background(Color(argb))
+                                .background(swatchColor)
                                 .clickable {
                                     currentThemeColor = argb
                                     Settings.setThemeColor(context, argb)
@@ -324,29 +367,21 @@ fun SettingsScreen(onBack: () -> Unit) {
                                     if (selected) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
                                     else Modifier
                                 ),
-                        )
+                        ) {
+                            // 「跟随系统」项：内画一个空心环，区别于纯预设色实心圈。
+                            if (followSystem) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.surface)
+                                )
+                            }
+                        }
                     }
                 }
             }
 
-            // ===== 高级 =====
-            SettingsCard(title = stringResource(R.string.settings_ntfs_exp)) {
-                Text(
-                    stringResource(R.string.settings_ntfs_exp_desc),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                SettingsSwitchRow(
-                    label = stringResource(R.string.settings_ntfs_exp),
-                    checked = ntfsExp,
-                    onCheckedChange = {
-                        ntfsExp = it
-                        Settings.setNtfsExperimental(context, it)
-                    },
-                )
-            }
-
-            Spacer(Modifier.height(24.dp))
         }
     }
 

@@ -343,4 +343,7 @@
     <string name="benchmark_entry">Бенчмарк</string>
     <string name="benchmark_unit">MB/s</string>
     <string name="settings_theme_color">Цвет темы</string>
+<string name="settings_theme_mode">Режим темы</string>
+    <string name="theme_mode_light">Светлая</string>
+    <string name="theme_mode_dark">Тёмная</string>
 </resources>

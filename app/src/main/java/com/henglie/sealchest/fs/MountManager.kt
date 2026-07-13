@@ -191,9 +191,6 @@ object MountManager {
             //   「NTFS 实验」开关才挂 NtfsFileSystem——供恒烈真机 chkdsk 验收。验收纪律见测试手册：
             //   先挂只读（本次 writable=false 时只跑读路径，零写风险）验证读；读通过再开可写验写。
             val boot0 = reader.read(0, 512)
-            if (NtfsBoot.isNtfs(boot0) && !Settings.ntfsExperimental(context)) {
-                throw UnsupportedContainerException("检测到 NTFS 文件系统容器，当前版本暂不支持（NTFS 读写实验开关未开启）")
-            }
             val fs: VolumeFs = when {
                 NtfsBoot.isNtfs(boot0) -> NtfsFileSystem.mount(reader)
                 ExFatBoot.isExFat(boot0) -> ExFatFileSystem.mount(reader)
@@ -208,6 +205,10 @@ object MountManager {
             com.henglie.sealchest.saf.SafNotify.rootsChanged(context.applicationContext)
             // 通知挂载状态变化回调（替代 SealchestApp 轮询）。
             runCatching { onMountStateChanged?.invoke(true) }
+            // 修 M1：解锁成功后同样抹掉本地口令明文副本（原仅 catch 分支抹，成功路径漏抹→
+            //   原始密码明文常驻内存，与「锁了就看不见」的威胁模型相悖）。effective 已在上方
+            //   finally 抹过；此处抹的是入参 password 本体。
+            password.fill(0)
             return mount
         } catch (t: Throwable) {
             // 失败：清掉本次半成品，绝不动 current。
@@ -220,11 +221,20 @@ object MountManager {
         }
     }
 
-    /** 上锁：关闭并清除当前挂载。销毁密钥。[context] 用于通知 SAF 根消失。 */
+    /** 上锁：关闭并清除当前挂载。销毁密钥。[context] 用于通知 SAF 根消失 + 清明文缓存。
+     *  清明文缓存（cacheDir/export/ 与 cacheDir/encrypted_media_tmp/）收口于此，使任何触发
+     *  上锁——自动锁（超时/切后台/息屏，见 AutoLock）、手动锁、Panic、服务销毁——都必然清缓存，
+     *  兑现「锁了就看不见」。原仅 MainActivity 手动锁清 export/，自动锁漏清（高危）。 */
     fun lock(context: Context? = null) = synchronized(lock) {
         val had = current != null
         current?.close()
         current = null
+        // 清明文缓存：导出目录 + 媒体临时目录。runCatching 包裹——清缓存失败不阻断上锁
+        //   主流程（密钥已销毁才是关键），且与下方回调 / SafNotify 的容错风格一致。
+        context?.applicationContext?.let { ctx ->
+            runCatching { com.henglie.sealchest.browse.FileExport.clearExportCache(ctx) }
+            runCatching { com.henglie.sealchest.browse.cleanMediaTempDir(ctx) }
+        }
         // 通知系统根消失（从有根变无根），文件管理器里的入口随之消失。
         if (had) context?.applicationContext?.let {
             com.henglie.sealchest.saf.SafNotify.rootsChanged(it)
@@ -252,15 +262,31 @@ object MountManager {
         val m = current ?: return null
         if (m.closed || !m.writable) return null
         // M3 修复：block 抛异常时也必须 flush + invalidateFsInfo，否则已写脏页留在 channel、
-        //   FSInfo 未失效 → 进程被杀后 FAT 半写、chkdsk 可能报不一致。try/finally 保证落盘收口，
-        //   异常照常上抛（调用方感知失败）。flush/invalidate 各自 runCatching，互不阻断。
+        //   FSInfo 未失效 → 进程被杀后 FAT 半写、chkdsk 可能报不一致。异常照常上抛（调用方感知失败）。
+        //
+        // NTFS「别 chkdsk」两次 flush 提交协议（clearDirtyFlag 对 FAT/exFAT 是空操作）：
+        //   ① 成功路径：先 invalidateFsInfo + flush（持久化数据 + NTFS dirty=1），再 clearDirtyFlag
+        //      + 第二次 flush（持久化 clean 状态）。仅事务完整落盘后才清脏 → 卸载后 Windows 看到
+        //      clean 卷、免 chkdsk。
+        //   ② 失败路径：仍 invalidateFsInfo + flush 落盘已写脏页（崩溃安全），但**不**清 dirty →
+        //      卷停在 dirty=1，Windows 挂载时 chkdsk 补一致性。第一次 flush 与清脏之间任何崩溃同理
+        //      停在 dirty=1，故清脏永不会先于数据落盘（dirty-first 不变式）。
         try {
-            block(m.fs)
-        } finally {
-            // 写后让 FAT32 FSInfo 空闲计数失效（置 unknown，OS 重算），避免桌面 VC/chkdsk
-            // 报「空闲空间不符」。FAT12/16 或无 FSInfo 时空操作。放 flush 之前，一并落盘。
+            val result = block(m.fs)
             runCatching { m.fs.invalidateFsInfo() }
-            runCatching { m.reader.flush() }
+            // flush① 必须确认 fsync 成功才能清脏：否则数据可能未落盘而 clean 状态先落盘 →
+            //   Windows 不跑 chkdsk 的静默不一致。flushChecked 返回 false（force 抛异常，如
+            //   SAF/FUSE PFD 不支持 fsync）时跳过清脏，卷停在 dirty=1 退化 chkdsk 兜底。
+            val flushed = runCatching { m.reader.flushChecked() }.getOrDefault(false)
+            if (flushed) {
+                runCatching { m.fs.clearDirtyFlag() }   // 仅 flush① 确认落盘后才清脏
+                runCatching { m.reader.flush() }         // flush②：clean 状态落盘
+            }
+            result
+        } catch (t: Throwable) {
+            runCatching { m.fs.invalidateFsInfo() }
+            runCatching { m.reader.flush() }         // 落盘已写脏页，dirty=1 保留 → chkdsk 兜底
+            throw t
         }
     }
 

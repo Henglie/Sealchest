@@ -343,4 +343,7 @@
     <string name="benchmark_entry">Đo hiệu suất</string>
     <string name="benchmark_unit">MB/s</string>
     <string name="settings_theme_color">Màu chủ đề</string>
+<string name="settings_theme_mode">Chế độ giao diện</string>
+    <string name="theme_mode_light">Sáng</string>
+    <string name="theme_mode_dark">Tối</string>
 </resources>

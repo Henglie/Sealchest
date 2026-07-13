@@ -67,6 +67,12 @@ void sc_random_wipe(void);
  * 返回实际拷贝字节数。 */
 int sc_random_snapshot(uint8_t* out, int len);
 
+/* 池快照的 SHA-512 单向摘要（修复中危：吐池原始字节可反推主密钥）。
+ * 内部取 320 字节原始池快照 → SHA-512 → 写 64 字节摘要到 out（out 须 ≥64）。
+ * 单向派生：UI 拿到的是不可逆摘要，仍有视觉反馈但无法还原池状态/主密钥。
+ * 只读旁观：不推进读写指针、不消耗熵。返回实际写入字节数（64），失败返回 0。 */
+int sc_random_snapshot_sha512(uint8_t* out, int out_len);
+
 /* 生成一对 VeraCrypt 卷头（主头 + 备份头，共享同一随机主密钥、各用独立随机盐）。
  * 调官方 CreateVolumeHeaderInMemory，字节级与桌面 VC 一致。
  *   out_primary / out_backup：各收 512B 有效头（调用方保证 ≥512B）。

@@ -115,10 +115,6 @@ object BlockDeviceUnlocker {
 
             // FS 分发（与 MountManager 一致，NTFS 同样受实验开关控制）。
             val boot0 = reader.read(0, 512)
-            if (NtfsBoot.isNtfs(boot0) && !Settings.ntfsExperimental(context)) {
-                reader.close()
-                throw UnsupportedOperationException("检测到 NTFS 文件系统，NTFS 实验开关未开启")
-            }
             val fs: VolumeFs = when {
                 NtfsBoot.isNtfs(boot0) -> NtfsFileSystem.mount(reader)
                 ExFatBoot.isExFat(boot0) -> ExFatFileSystem.mount(reader)

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 匿匣 Sealchest 图标：盾牌 + 挂锁，酒红。由 app adaptive icon 矢量 1:1 转出。 -->
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 108 108">
+  <!-- 深酒红圆角底 -->
+  <rect x="0" y="0" width="108" height="108" rx="24" ry="24" fill="#3D1215"/>
+  <!-- 盾牌主体 -->
+  <path fill="#8B2D35" d="M54,26 L78,34 L78,56 C78,72 67,82 54,88 C41,82 30,72 30,56 L30,34 Z"/>
+  <!-- 盾牌顶部高光带 -->
+  <path fill="#B0454E" d="M54,26 L78,34 L78,39 L54,31 L30,39 L30,34 Z"/>
+  <!-- 锁梁（U形弧） -->
+  <path fill="none" stroke="#4A1518" stroke-width="5" stroke-linecap="round"
+        d="M47,52 C47,43 61,43 61,52"/>
+  <!-- 锁体 -->
+  <path fill="#4A1518" d="M43,50 L65,50 L65,68 C65,72 62,75 58,75 L50,75 C46,75 43,72 43,68 Z"/>
+  <!-- 锁孔（圆 + 下方梯形） -->
+  <path fill="#F5E6E8" d="M54,59 m-2.8,0 a2.8,2.8 0 1 0 5.6,0 a2.8,2.8 0 1 0 -5.6,0 Z"/>
+  <path fill="#F5E6E8" d="M52.2,60.5 L55.8,60.5 L54.8,67 L53.2,67 Z"/>
+</svg>

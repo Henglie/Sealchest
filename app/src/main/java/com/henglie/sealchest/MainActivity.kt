@@ -5,12 +5,13 @@ import android.net.Uri
 import java.io.File
 import android.os.Bundle
 import android.provider.DocumentsContract
-import androidx.fragment.app.FragmentActivity
+import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -45,6 +46,7 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -80,7 +82,6 @@ import androidx.compose.ui.unit.dp
 import androidx.core.os.LocaleListCompat
 import com.henglie.sealchest.benchmark.BenchmarkScreen
 import com.henglie.sealchest.browse.BrowserScreen
-import com.henglie.sealchest.browse.FileExport
 import com.henglie.sealchest.crypto.NativeBridge
 import com.henglie.sealchest.fs.VolumeFs
 import com.henglie.sealchest.core.AutoLock
@@ -93,7 +94,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class MainActivity : FragmentActivity() {
+class MainActivity : AppCompatActivity() {
     // 任何触摸/滑动都重置自动锁定计时（见 AutoLock）。挂载时才真正计时。
     override fun onUserInteraction() {
         super.onUserInteraction()
@@ -105,7 +106,13 @@ class MainActivity : FragmentActivity() {
         enableEdgeToEdge()
         setContent {
             val ctx = LocalContext.current
-            SealchestTheme(primaryColor = Settings.themeColor(ctx)) {
+            // 夜间模式：0=跟随系统 1=浅 2=深。跟随系统时用 isSystemInDarkTheme()。
+            val dark = when (Settings.themeMode(ctx)) {
+                1 -> false
+                2 -> true
+                else -> isSystemInDarkTheme()
+            }
+            SealchestTheme(darkTheme = dark, primaryColor = Settings.themeColor(ctx)) {
                 // 顶层在「主屏」与「内置浏览器」之间切换。内置浏览器不依赖系统
                 // DocumentsUI —— 老安卓（7/9）自带文件管理器多半不认第三方 SAF，
                 // 内置浏览器保证任何机型都能浏览容器。
@@ -859,8 +866,8 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
                     // 系统文件管理器（SAF，额外入口）。老安卓文件管理器可能不认。
                     onBrowseSaf = { launchBrowse(context) },
                     onLock = {
+                        // 清明文缓存已收进 MountManager.lock()，使自动锁/手动锁/Panic 都必然清。
                         MountManager.lock(context)
-                        FileExport.clearExportCache(context)
                         mountToken++
                         pickedUri = null
                         password = ""
@@ -1017,18 +1024,22 @@ private fun HomeScreen(onBrowse: () -> Unit, onCreateVolume: () -> Unit) {
 
                     // 可写挂载开关。默认关（只读，第一版行为）。仅当源 URI 拿到写
                     // 权限（uriWritable）时可勾；勾上后解锁以 "rw" 打开，改动会加密写回真实容器。
-                    FilterChip(
-                        selected = mountWritable,
-                        onClick = { if (uriWritable) mountWritable = !mountWritable },
-                        enabled = uriWritable,
-                        label = {
-                            Text(
-                                if (uriWritable) stringResource(R.string.mount_writable_on)
-                                else stringResource(R.string.mount_writable_off)
-                            )
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = uriWritable) { mountWritable = !mountWritable },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(
+                            checked = mountWritable,
+                            onCheckedChange = { if (uriWritable) mountWritable = it },
+                            enabled = uriWritable,
+                        )
+                        Text(
+                            if (uriWritable) stringResource(R.string.mount_writable_on)
+                            else stringResource(R.string.mount_writable_off)
+                        )
+                    }
 
                     // Keyfile 管理（对齐 VC 桌面版密钥文件管理框）：
                     // 列表显示已添加的 keyfile（文件名 + 单项移除）+ 添加按钮 + 全部清空。

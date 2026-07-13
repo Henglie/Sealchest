@@ -305,6 +305,9 @@
     <string name="settings_ntfs_exp">启用 NTFS（实验）</string>
     <string name="settings_ntfs_exp_desc">NTFS 读写未经真机验证，只用废容器测试。关闭时 NTFS 容器一律拒绝挂载。</string>
     <string name="settings_theme_color">主题色</string>
+<string name="settings_theme_mode">夜间模式</string>
+    <string name="theme_mode_light">浅色</string>
+    <string name="theme_mode_dark">深色</string>
     <!-- 块设备解锁（F2）-->
     <string name="block_device_unlock">解锁</string>
     <string name="block_device_unlocking">解锁中…</string>

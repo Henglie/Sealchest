@@ -23,8 +23,11 @@ object NativeBridge {
     /** PRF 选择：0 = 依次尝试全部（推荐，兼容任意容器）。 */
     const val PRF_AUTO = 0
 
-    /** native 随机池大小（字节），对齐 VeraCrypt RNG_POOL_SIZE = 320。仅供 UI 快照展示。 */
+    /** native 随机池大小（字节），对齐 VeraCrypt RNG_POOL_SIZE = 320。内部池尺寸，非快照返回尺寸。 */
     const val RANDOM_POOL_SIZE = 320
+
+    /** 随机池快照返回尺寸（字节）：池的 SHA-512 单向摘要 = 64。仅供 UI 可视化，不可逆推主密钥。 */
+    const val RANDOM_POOL_SNAPSHOT_SIZE = 64
 
     /** native 库是否成功加载且自检通过。 */
     @JvmStatic
@@ -73,7 +76,7 @@ object NativeBridge {
     /** 追加熵：手指滑动采集的坐标/时间戳等物理熵混入池（等价桌面 VC 晃鼠标）。 */
     private external fun nativeAddEntropy(entropy: ByteArray)
 
-    /** 拷当前随机池字节到 [out]（仅供 UI 可视化）。只读旁观，不消耗熵。返回拷贝字节数。 */
+    /** 写当前随机池的 SHA-512 摘要到 [out]（仅供 UI 可视化）。只读旁观，不消耗熵。返回写入字节数（64）。 */
     private external fun nativeRandomPoolSnapshot(out: ByteArray): Int
 
     /**
@@ -173,15 +176,16 @@ object NativeBridge {
 
     /**
      * 随机池快照（仅供创建页可视化，对齐桌面 VeraCrypt 显示 Random Pool）。
-     * 拷当前 native 随机池的原始字节到返回数组（最多 [RANDOM_POOL_SIZE] 字节）。
+     * 返回当前 native 随机池的 **SHA-512 单向摘要**（[RANDOM_POOL_SNAPSHOT_SIZE] = 64 字节），
+     * 而非池原始字节——修复中危：原始池可反推主密钥，单向哈希不可逆。
      * 只读旁观：不推进读写指针、不搅拌、不消耗熵——纯展示，绝不影响真实取数。
-     * native 不可用时返回空数组。未灌种也能看（此时是交互熵累积的中间态）。
+     * native 不可用时返回空数组。未灌种也能看（此时是交互熵累积的中间态的摘要）。
      */
     fun randomPoolSnapshot(): ByteArray {
         if (!isAvailable) return ByteArray(0)
-        val out = ByteArray(RANDOM_POOL_SIZE)
+        val out = ByteArray(RANDOM_POOL_SNAPSHOT_SIZE)
         val n = nativeRandomPoolSnapshot(out)
-        return if (n == RANDOM_POOL_SIZE) out else out.copyOf(n.coerceAtLeast(0))
+        return if (n == RANDOM_POOL_SNAPSHOT_SIZE) out else out.copyOf(n.coerceAtLeast(0))
     }
 
     /**

@@ -339,4 +339,7 @@
     <string name="benchmark_entry">اختبار الأداء</string>
     <string name="benchmark_unit">MB/s</string>
     <string name="settings_theme_color">لون السمة</string>
+<string name="settings_theme_mode">وضع السمة</string>
+    <string name="theme_mode_light">فاتح</string>
+    <string name="theme_mode_dark">داكن</string>
 </resources>

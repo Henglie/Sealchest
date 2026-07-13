@@ -91,12 +91,22 @@ object Settings {
         prefs(context).edit().putString(KEY_LANG, tag).apply()
 
     // ---- 主题色（用户可自由调整的强调色，覆盖 MaterialTheme 的 primary）。----
-    //   存 ARGB int，默认酒红色 0xFF8B2D35。仅行为偏好，非敏感。
+    //   存 ARGB int。默认 0 = 跟随系统（动态取色 Material You，不覆盖 primary）；
+    //   非 0 = 用户选的固定预设色（关动态取色，纯色主题）。两者互斥，不叠加。
     private const val KEY_THEME_COLOR = "theme_color"
+    /** 主题色 ARGB；返回 0 表示「跟随系统」（用动态取色 / 兜底配色，不覆盖 primary）。 */
     fun themeColor(context: Context): Int =
-        prefs(context).getInt(KEY_THEME_COLOR, 0xFF8B2D35.toInt())
+        prefs(context).getInt(KEY_THEME_COLOR, 0)
     fun setThemeColor(context: Context, argb: Int) =
         prefs(context).edit().putInt(KEY_THEME_COLOR, argb).apply()
+
+    // ---- 夜间模式（0=跟随系统 1=浅色 2=深色）。仅行为偏好，非敏感。----
+    private const val KEY_THEME_MODE = "theme_mode"
+    /** 0=跟随系统 1=浅色 2=深色。 */
+    fun themeMode(context: Context): Int =
+        prefs(context).getInt(KEY_THEME_MODE, 0)
+    fun setThemeMode(context: Context, mode: Int) =
+        prefs(context).edit().putInt(KEY_THEME_MODE, mode).apply()
 
     // ---- 收藏容器（多容器快速切换，E 阶段）。仅存 URI+名字+时间，绝不存密码/密钥。----
     private const val KEY_FAVORITES = "favorite_containers"

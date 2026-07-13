@@ -36,7 +36,10 @@ object NtfsFormatter {
     internal const val ATTRDEF_SIZE = 2560           // 16 条 × 160B
     internal const val BOOT_SIZE = 8192              // 引导区 8KB（16 扇区）
     internal const val MIN_NTFS_SIZE = 8L * 1024 * 1024
-    internal const val MFT_INITIAL_RECORDS = 32
+    // MFT 初始记录数：256 × 1024B = 256KB。扣除元数据 0..11 + NTFS 保留 12..23（allocMftRecord
+    //   从 24 起扫），余 232 个用户文件/目录额度（原 32 仅余 8，测试手册「塞 50+ 文件」第 9 个即失败）。
+    //   256KB 对任何 2 的幂簇大小（512..64K = 2^9..2^16）都整除（256KB=2^18），mftClusters 恒整。
+    internal const val MFT_INITIAL_RECORDS = 256
     internal const val MFT_MIRR_RECORDS = 4
 
     internal const val ATTR_STANDARD_INFO = 0x10L
@@ -117,7 +120,14 @@ object NtfsFormatter {
         val totalMftRecords = (mftClusters * bytesPerCluster) / MFT_RECORD_SIZE
         val mftBitmapRealSize = (totalMftRecords + 7) / 8
         val mftBitmapClusters = (mftBitmapRealSize + bytesPerCluster - 1) / bytesPerCluster
-        val mftBitmapLcn = attrDefLcn + attrDefClusters
+        // $Secure 的 $SDS 数据流：共享 SD + 0x40000 镜像。放 attrDef 之后、mftBitmap 之前。
+        //   sdsRealSize 非簇对齐无妨（稀疏写，簇内余量为加密零）。hash 只算一次，多处复用。
+        val sharedSd = NtfsSecure.buildSharedSd()
+        val sdsHash = NtfsSecure.securityHash(sharedSd)
+        val sdsRealSize = NtfsSecure.sdsDataSize(sharedSd)
+        val sdsClusters = (sdsRealSize + bytesPerCluster - 1) / bytesPerCluster
+        val sdsLcn = attrDefLcn + attrDefClusters
+        val mftBitmapLcn = sdsLcn + sdsClusters
         val lastMetaLcn = mftBitmapLcn + mftBitmapClusters - 1
 
         val mftMirrBytes = MFT_MIRR_RECORDS.toLong() * MFT_RECORD_SIZE
@@ -131,11 +141,17 @@ object NtfsFormatter {
         }
         require(lastMetaLcn < totalClusters) { "NTFS 元数据越界：lastMetaLcn=$lastMetaLcn" }
 
+        // H2：卷尾备份引导扇区（sector totalSectors-1）所在簇必须在 $Bitmap 标 used，
+        //   否则该簇空闲 → 写文件时被 allocContiguousClusters 分出去 → 覆盖备份 VBR，
+        //   chkdsk 报「备份引导扇区无效」。lcn=(totalSectors-1)/spc（整除时=totalClusters-1）。
+        val backupVbrLcn = (totalSectors - 1) / sectorsPerCluster
         val usedLcns = listOf(
             bootLcn to bootClusters, mftLcn to mftClusters, logFileLcn to logFileClusters,
             bitmapLcn to bitmapClusters, upcaseLcn to upcaseClusters,
             attrDefLcn to attrDefClusters, mftBitmapLcn to mftBitmapClusters,
+            sdsLcn to sdsClusters,
             mftMirrLcn to mftMirrClusters,
+            backupVbrLcn to 1L,
         )
 
         val serial = randomSerial()
@@ -144,7 +160,8 @@ object NtfsFormatter {
 
         val sectors = ArrayList<Pair<Long, ByteArray>>()
 
-        sectors.add(0L to buildBootRegion(sectorsPerCluster, totalSectors, mftLcn, mftMirrLcn, serial))
+        val boot = buildBootRegion(sectorsPerCluster, totalSectors, mftLcn, mftMirrLcn, serial)
+        sectors.add(0L to boot)
 
         val mftRecords = Array(MFT_INITIAL_RECORDS) { ByteArray(MFT_RECORD_SIZE) }
         mftRecords[0] = buildMftRecord(
@@ -159,7 +176,7 @@ object NtfsFormatter {
         mftRecords[6] = buildBitmapRecord(bitmapLcn, bitmapClusters, bytesPerCluster, bitmapBytes, now, rootRef)
         mftRecords[7] = buildBootFileRecord(bootLcn, bootClusters, bytesPerCluster, now, rootRef)
         mftRecords[8] = buildBadClusRecord(totalClusters, bytesPerCluster, volumeSizeBytes, now, rootRef)
-        mftRecords[9] = buildSecureRecord(now, rootRef)
+        mftRecords[9] = buildSecureRecord(now, rootRef, bytesPerCluster, sdsLcn, sdsClusters, sharedSd, sdsHash)
         mftRecords[10] = buildUpcaseFileRecord(upcaseLcn, upcaseClusters, bytesPerCluster, now, rootRef)
         mftRecords[11] = buildExtendRecord(now, rootRef, bytesPerCluster)
 
@@ -185,6 +202,9 @@ object NtfsFormatter {
         for ((start, count) in usedLcns) {
             for (c in 0L until count) {
                 val lcn = start + c
+                // 卷外簇跳过：totalSectors 非簇整数倍时 backupVbrLcn 可能 = totalClusters
+                // （落在卷尾不足一簇的尾部，超出有效簇编号）——此时不占任何 LCN，不标、防越界。
+                if (lcn >= totalClusters) continue
                 val byteIdx = (lcn / 8).toInt()
                 val bit = (lcn % 8).toInt()
                 bitmapData[byteIdx] = (bitmapData[byteIdx].toInt() or (1 shl bit)).toByte()
@@ -211,6 +231,16 @@ object NtfsFormatter {
         }
         sectors.add(mftBitmapLcn * bytesPerCluster to mftBitmapData)
 
+        // $Secure 的 $SDS 数据流：primary@0 + mirror@0x40000，两份 header 都记 primary offset=0。
+        //   稀疏区（0..0x40000）在密文里是加密零，chkdsk 不读，只读两个 entry。
+        val sdsStream = NtfsSecure.buildSdsStream(sharedSd, NtfsSecure.FIRST_SECURITY_ID, sdsHash)
+        sectors.add(sdsLcn * bytesPerCluster to sdsStream)
+
+        // 卷尾备份引导扇区（NTFS 规范：最末扇区 sector N-1 存 VBR 副本，chkdsk 据此校验
+        //   「备份引导扇区」）。内容 = buildBootRegion 前 512 字节（VBR+BPB）的拷贝。
+        //   偏移 (totalSectors-1)*SECTOR 与 BPB.TotalSectors=N-1 自洽。
+        sectors.add((totalSectors - 1) * SECTOR to boot.copyOfRange(0, SECTOR))
+
         return FatFormatter.FatImage(bytesPerSector = SECTOR, sectors = sectors)
     }
 
@@ -227,7 +257,9 @@ object NtfsFormatter {
         boot[0x15] = 0xF8.toByte()       // media
         putU16(boot, 0x16, 0); putU16(boot, 0x18, 63); putU16(boot, 0x1A, 255)
         putU32(boot, 0x1C, 0L); putU32(boot, 0x20, 0L); putU32(boot, 0x24, 0x80008000L)
-        putU64(boot, 0x28, totalSectors)
+        // BPB.TotalSectors = N-1：NTFS 规范规定该字段不含最末扇区（备份引导扇区所在），
+        // 卷真实扇区数为 N，BPB 声明 N-1。写满值会让 chkdsk 误判卷大小并报备份引导扇区无效。
+        putU64(boot, 0x28, totalSectors - 1)
         putU64(boot, 0x30, mftLcn)
         putU64(boot, 0x38, mftMirrLcn)
         boot[0x40] = (-10).toByte()      // ClustersPerFileRecordSegment: 1024=2^10 → -10

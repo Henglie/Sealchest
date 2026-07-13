@@ -65,6 +65,14 @@ interface VolumeFs {
      */
     fun invalidateFsInfo()
 
+    /**
+     * 写事务**整体成功落盘后**调：清「卷脏」标记，使卸载后 Windows 挂载看到 clean 卷、
+     * 免触发 chkdsk。仅 NTFS 覆盖（清 $Volume dirty 位）；FAT/exFAT 无此概念，默认空实现。
+     * 崩溃安全：写事务开头 [invalidateFsInfo] 前已置脏并随数据一起 flush，任何中途崩溃
+     * 卷都停在脏态 → Windows 仍 chkdsk。只有完整落盘后才清位（本方法须再 flush 持久化）。
+     */
+    fun clearDirtyFlag() { /* 默认空：仅 NTFS 有卷脏位 */ }
+
     // ---- 目录操作（W12 · 可选能力，默认不支持）----
 
     /**

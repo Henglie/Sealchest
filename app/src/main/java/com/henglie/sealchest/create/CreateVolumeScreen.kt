@@ -561,8 +561,8 @@ private fun CreateFormPage(
  *   ② 加速度传感器晃动——x/y/z 读数 + 纳秒时间戳。无加速度计的机型静默跳过（不影响创建）。
  *
  * 实时显示 native 随机池快照（[NativeBridge.randomPoolSnapshot]）的 hex 网格，每 ~80ms 刷新，
- * 让用户直观看到「加密流」在跳动（对齐桌面 VeraCrypt 的 Random Pool 显示）。快照是只读旁观，
- * 不消耗熵、不影响真实取数。
+ * 让用户直观看到「加密流」在跳动（对齐桌面 VeraCrypt 的 Random Pool 显示）。快照是池的
+ * SHA-512 单向摘要（非原始字节，不可逆推主密钥），只读旁观，不消耗熵、不影响真实取数。
  *
  * 进度以涂抹触点计（[ENTROPY_TARGET]）；传感器熵是持续增强，不单独计入放行门槛，但同样入池。
  */

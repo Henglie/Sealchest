@@ -127,7 +127,11 @@ class VolumeReader(
             var pos = unitNo * UNIT
             while (bb.hasRemaining()) {
                 val n = channel.write(bb, pos)
-                if (n < 0) break
+                // 短写/写 0 不能静默 break：那会让上层以为整段写成功，实则容器只写了一半
+                // → 加密单元残缺 → 桌面 VC 打不开或 chkdsk 报错。宁可抛，让写操作明确失败回滚。
+                if (n <= 0) throw java.io.IOException(
+                    "写回容器失败：channel.write 返回 $n（pos=$pos, remaining=${bb.remaining()}），设备可能已满或不可写"
+                )
                 pos += n
             }
             // 缓存持有的仍是最新明文（plain 已就地更新），无需动。
@@ -200,6 +204,13 @@ class VolumeReader(
     fun flush() {
         runCatching { channel.force(false) }
     }
+
+    /**
+     * 落盘并返回 fsync 是否确认成功。NTFS 两次 flush 提交协议用它判定：
+     * flush① 成功才允许清脏（dirty-first 不变式的物理前提）。force 抛异常
+     * （SAF/FUSE 某些 PFD 不支持 fsync）时返回 false，调用方须保留 dirty=1 退化 chkdsk 兜底。
+     */
+    fun flushChecked(): Boolean = runCatching { channel.force(false) }.isSuccess
 
     override fun close() {
         cache.clear()

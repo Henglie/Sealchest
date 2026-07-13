@@ -110,6 +110,10 @@ internal fun buildStdInfo(now: Long, isDir: Boolean = false): ByteArray {
     val b = ByteArray(72)
     putU64(b, 0x00, now); putU64(b, 0x08, now); putU64(b, 0x10, now); putU64(b, 0x18, now)
     putU32(b, 0x20, if (isDir) NtfsFormatter.FILE_ATTR_DIR_SYSTEM else NtfsFormatter.FILE_ATTR_SYSTEM)
+    // security_id 在内容偏移 0x34（72 字节 NTFS 3.x 版 $STANDARD_INFORMATION）。指向 $Secure
+    //   共享描述符 0x100，使每个文件/目录都有可解析的安全描述符 → 手动 chkdsk 不报「缺失安全描述符」。
+    //   owner_id(0x30)/quota(0x38)/usn(0x40) 留 0（空盘无配额、无 USN 日志）。
+    putU32(b, 0x34, NtfsSecure.FIRST_SECURITY_ID.toLong())
     return b
 }
 
@@ -133,7 +137,10 @@ internal fun buildFileNameContent(
 internal fun buildVolumeInfoContent(): ByteArray {
     val b = ByteArray(12)
     b[0x08] = 3; b[0x09] = 1
-    putU16(b, 0x0A, 0x0001L)
+    // flags=0：卷出生即 clean。空盘 = 0xFF $LogFile（空日志）+ dirty=0，与 ntfs-3g mkfs 产物
+    //   一致 → Windows 挂载不触发 chkdsk（兑现「别 chkdsk」）。原来出生即 dirty=1 → 每次挂载必跑
+    //   chkdsk。写操作期间由 markVolumeDirty 置脏、事务成功落盘后 clearVolumeDirty 复位。
+    putU16(b, 0x0A, 0x0000L)
     return b
 }
 
@@ -255,11 +262,38 @@ internal fun buildBadClusRecord(totalClusters: Long, bpc: Int, volumeSizeBytes: 
     return rb.end()
 }
 
-internal fun buildSecureRecord(now: Long, rootRef: Long): ByteArray {
-    val rb = RecBuilder(4096)
-    rb.resident(NtfsFormatter.ATTR_STANDARD_INFO, buildStdInfo(now, isDir = true))
+/**
+ * $Secure（记录 9）：安全描述符仓库。原为空壳（无 $SDS/$SDH/$SII，所有文件 security_id=0，
+ * 手动 chkdsk 会逐文件补 ACL）。现按 ntfs-3g/mkntfs 规范建最小可用体：单个共享 SD
+ * （security_id=0x100，Everyone:FullControl），$SDS 数据流（主副本@0 + 镜像@0x40000）+
+ * $SDH/$SII 视图索引各一项。每个文件/目录的 $STANDARD_INFORMATION.security_id 都指 0x100
+ * → 手动 chkdsk 对安全项静默。
+ *
+ * $Secure 非 $I30 目录（用 $SDH/$SII 视图索引，不用文件名索引）→ 不置 FLAG_DIRECTORY，
+ * 与真实 NTFS 一致。属性按 type 升序、同 type 按名序：
+ *   $STD(0x10) < $FILE_NAME(0x30) < $DATA"$SDS"(0x80) < $INDEX_ROOT"$SDH" < $INDEX_ROOT"$SII"(0x90)。
+ * $SDH/$SII 各仅一项，驻留 $INDEX_ROOT 足够，无需 $INDEX_ALLOCATION/$BITMAP。
+ */
+internal fun buildSecureRecord(
+    now: Long, rootRef: Long, bytesPerCluster: Int,
+    sdsLcn: Long, sdsClusters: Long, sd: ByteArray, hash: Int,
+): ByteArray {
+    val rb = RecBuilder(bytesPerCluster)
+    rb.resident(NtfsFormatter.ATTR_STANDARD_INFO, buildStdInfo(now))
     rb.resident(NtfsFormatter.ATTR_FILE_NAME, buildFileNameContent(rootRef, "\$Secure", now))
-    rb.flags(NtfsFormatter.FLAG_IN_USE or NtfsFormatter.FLAG_DIRECTORY)
+    // $DATA 命名流 "$SDS"（非驻留，指向分配的簇）。realSize = 镜像跨距 + 一条对齐项。
+    val sdsRuns = encodeSingleRun(sdsClusters, sdsLcn) + byteArrayOf(0)
+    rb.nonResident(
+        NtfsFormatter.ATTR_DATA, 0L, sdsClusters - 1, sdsRuns,
+        NtfsSecure.sdsDataSize(sd), name = "\$SDS",
+    )
+    // $INDEX_ROOT 命名视图索引 "$SDH"（hash,id）与 "$SII"（id），各一项 + END，驻留。
+    val secId = NtfsSecure.FIRST_SECURITY_ID
+    rb.resident(NtfsFormatter.ATTR_INDEX_ROOT,
+        NtfsSecure.buildSdhIndexRoot(secId, hash, sd.size, bytesPerCluster), name = "\$SDH")
+    rb.resident(NtfsFormatter.ATTR_INDEX_ROOT,
+        NtfsSecure.buildSiiIndexRoot(secId, hash, sd.size, bytesPerCluster), name = "\$SII")
+    rb.flags(NtfsFormatter.FLAG_IN_USE)
     return rb.end()
 }
 

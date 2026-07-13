@@ -307,6 +307,9 @@
     <string name="settings_ntfs_exp">Enable NTFS (experimental)</string>
     <string name="settings_ntfs_exp_desc">NTFS read/write is unverified on device. Use throwaway containers only. Off = NTFS containers refuse to mount.</string>
     <string name="settings_theme_color">Theme color</string>
+<string name="settings_theme_mode">Theme mode</string>
+    <string name="theme_mode_light">Light</string>
+    <string name="theme_mode_dark">Dark</string>
     <!-- 块设备解锁（F2）-->
     <string name="block_device_unlock">Unlock</string>
     <string name="block_device_unlocking">Unlocking…</string>

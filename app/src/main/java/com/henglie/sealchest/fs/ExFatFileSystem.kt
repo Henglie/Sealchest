@@ -281,8 +281,18 @@ class ExFatFileSystem private constructor(
         val want = (end - start).toInt()
         if (want <= 0) return ByteArray(0)
 
-        val hint = chainHint[firstCluster]
-        val noFatChain = hint?.noFatChain ?: false
+        // chainHint 由 parseDir 填充；但 SAF openDocument 按 docId 直接读、不经 listDir，
+        // 此时 hint 缺失。若退化为 noFatChain=false 走 FAT 链，桌面 VC 连续分配的 NoFatChain
+        // 大文件（FAT 项为 0）会在首簇 nextFatEntry 返回 0 时立即 break，只读到首簇 →
+        // 从第二簇起全读成零（读出错误数据）。故 hint 缺失时探测首簇 FAT 项推断布局。
+        val noFatChain = chainHint[firstCluster]?.noFatChain ?: run {
+            // hint 缺失（SAF openDocument 直接按 docId 定位，不经 listDir）：探测首簇 FAT 项。
+            // NoFatChain 连续分配文件的 FAT 项为 0（不使用 FAT）；真 FAT 链首簇指向有效后继(>=2)或 EOC。
+            if (firstCluster < 2) false else {
+                val firstFat = nextFatEntry(firstCluster)
+                firstFat < 2 && firstFat != EOC
+            }
+        }
         val chain = clusterChain(firstCluster, noFatChain, fileSize)
 
         val out = ByteArray(want)
@@ -617,8 +627,8 @@ class ExFatFileSystem private constructor(
     /**
      * 扩展目录簇链（W2）：在 [ctx] 链尾追加一个新簇（alloc -> 挂 FAT -> 清零），返回刷新后的 ctx。
      * 失败（无空闲簇）返回 null。新簇全 0 = EndOfDir 标记，findFreeSlots 视为空闲槽。
-     * 注：仅 root 目录场景（root 无 stream extension，链长即真长）；subdir 扩展另需更新其
-     * 流扩展 DataLength，留 W9 exFAT mkdir 同批处理（当前 writeFile 只写 root/既有目录）。
+     * 子目录扩簇后同步更新其 0xC0 流扩展项（在父目录中）：清 NoFatChain、DataLength/ValidDataLength
+     * = 新簇数×簇大小、重算 SetChecksum、同步 chainHint。root 无 0xC0 项（引导扇区描述），跳过。
      */
     private fun expandDir(ctx: DirCtx): DirCtx? {
         val tail = ctx.chain.lastOrNull() ?: return null
@@ -630,8 +640,66 @@ class ExFatFileSystem private constructor(
         reader.write(boot.clusterToOffset(newC), ByteArray(bytesPerCluster), 0, bytesPerCluster)
         val newChain = clusterChain(ctx.chain.first(), noFatChain = false, dataLength = 0)
         val newBuf = readChain(newChain, -1)
+        // 子目录扩簇后须更新其 0xC0 流扩展项（在父目录中），否则 NoFatChain=true 与新 FAT 链矛盾
+        // （chkdsk 判错）、DataLength 仍一簇（桌面 VC 只读首簇）、chainHint 漏记新簇（freeChain 簇泄漏）。
+        val firstC = ctx.chain.first()
+        if (firstC != boot.rootCluster) {
+            val newDataLen = newChain.size.toLong() * bytesPerCluster
+            chainHint[firstC] = ChainHint(false, newDataLen)   // 同步 chainHint：NoFatChain=false, N 簇
+            fixSubDirStreamExt(boot.rootCluster, firstC, newDataLen)
+        }
         return DirCtx(newChain, newBuf)
     }
+
+    /**
+     * 从 [dirFirstCluster] 起递归查找首簇为 [targetFirstCluster] 的子目录项组，
+     * read-modify-write 其 0xC0 流扩展项：清 NoFatChain 位、ValidDataLength/DataLength=[newDataLen]、
+     * 重算 SetChecksum 并逐项落盘。找不到时返回 false（chainHint 已在 expandDir 更新，freeChain 不泄漏）。
+     */
+    private fun fixSubDirStreamExt(dirFirstCluster: Long, targetFirstCluster: Long, newDataLen: Long): Boolean {
+        val chain = clusterChain(dirFirstCluster, noFatChain = false, dataLength = 0)
+        if (chain.isEmpty()) return false
+        val buf = readChain(chain, -1)
+        val ctx = DirCtx(chain, buf)
+        var i = 0
+        while (i + ENTRY_SIZE <= buf.size) {
+            val type = buf[i].toInt() and 0xFF
+            if (type == 0x00) break
+            if (type == TYPE_FILE) {
+                val secondaryCount = buf[i + 1].toInt() and 0xFF
+                val totalEntries = secondaryCount + 1
+                if (i + totalEntries * ENTRY_SIZE <= buf.size) {
+                    val s = i + ENTRY_SIZE
+                    if ((buf[s].toInt() and 0xFF) == TYPE_STREAM_EXT) {
+                        val fc = u32(buf, s + 20)
+                        val attr = u16(buf, i + 4)
+                        val isDir = (attr and ATTR_DIRECTORY) != 0
+                        if (isDir && fc == targetFirstCluster) {
+                            // 命中：read-modify-write 0xC0 流扩展项
+                            val oldFlags = buf[s + 1].toInt() and 0xFF
+                            buf[s + 1] = (oldFlags and FLAG_NO_FAT_CHAIN.inv()).toByte()  // 清 NoFatChain
+                            putU64(buf, s + 8, newDataLen)    // ValidDataLength
+                            putU64(buf, s + 24, newDataLen)   // DataLength
+                            val entryBytes = buf.copyOfRange(i, i + totalEntries * ENTRY_SIZE)
+                            putU16(entryBytes, 2, setChecksum(entryBytes))  // 重算 SetChecksum
+                            for (e in 0 until totalEntries) {  // 逐项落盘（可能跨簇边界）
+                                reader.write(dirLogical(ctx, i + e * ENTRY_SIZE), entryBytes, e * ENTRY_SIZE, ENTRY_SIZE)
+                            }
+                            return true
+                        }
+                        if (isDir && fc >= 2 && fc != targetFirstCluster && fc != dirFirstCluster) {
+                            if (fixSubDirStreamExt(fc, targetFirstCluster, newDataLen)) return true
+                        }
+                    }
+                }
+                i += totalEntries * ENTRY_SIZE
+                continue
+            }
+            i += ENTRY_SIZE
+        }
+        return false
+    }
+
     override fun writeFile(dirFirstCluster: Long, name: String, bytes: ByteArray): Boolean {
         if (name.isEmpty() || bitmapChain.isEmpty()) return false
         val ctx = openDir(dirFirstCluster)

@@ -54,26 +54,29 @@ private val DarkColors = darkColorScheme(
 
 /**
  * 匿匣主题。谷歌原生 M3：
- *  - Android 12（API 31）+ 走动态取色（Material You，跟随壁纸）；
- *  - 以下走上面的靛蓝兜底配色。
+ *  - [primaryColor] == 0（跟随系统）：Android 12（API 31）+ 走动态取色（Material You，
+ *    跟随壁纸）；以下走靛蓝兜底配色。整套配色一致，不叠加固定强调色。
+ *  - [primaryColor] != 0（用户选了固定预设色）：关动态取色，用兜底配色 + 该色覆盖 primary。
+ *    避免「动态取色其余角色 + 固定 primary」两套色同时存在的割裂。
  */
 @Composable
 fun SealchestTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
-    primaryColor: Int? = null,
+    primaryColor: Int = 0,
     content: @Composable () -> Unit,
 ) {
+    val followSystemColor = primaryColor == 0
     val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+        // 跟随系统 + API 31+：动态取色，整套一致。
+        followSystemColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val ctx = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(ctx) else dynamicLightColorScheme(ctx)
         }
         darkTheme -> DarkColors
         else -> LightColors
     }
-    // 用户自定义主题色覆盖 primary（其余 M3 配色保留），null 则用原配色 / 动态取色。
-    val finalScheme = if (primaryColor != null) colorScheme.copy(primary = Color(primaryColor)) else colorScheme
+    // 用户选了固定预设色 → 仅覆盖 primary，其余保留兜底配色（此时未走动态取色，无割裂）。
+    val finalScheme = if (!followSystemColor) colorScheme.copy(primary = Color(primaryColor)) else colorScheme
 
     MaterialTheme(
         colorScheme = finalScheme,

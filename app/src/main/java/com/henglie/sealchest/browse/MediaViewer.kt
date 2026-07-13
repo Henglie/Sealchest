@@ -335,8 +335,9 @@ private fun writeMediaTemp(context: Context, entry: FsEntry): File {
     return tmp
 }
 
-/** 清空媒体临时目录里的明文文件。关闭查看器 / 兜底时调用。 */
-private fun cleanMediaTempDir(context: Context) {
+/** 清空媒体临时目录里的明文文件。关闭查看器 / 上锁兜底时调用。
+ *  internal：供 [com.henglie.sealchest.fs.MountManager.lock] 收口清明文缓存。 */
+internal fun cleanMediaTempDir(context: Context) {
     val dir = File(context.cacheDir, "encrypted_media_tmp")
     runCatching { dir.listFiles()?.forEach { it.delete() } }
 }

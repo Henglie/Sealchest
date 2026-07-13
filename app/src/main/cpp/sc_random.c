@@ -226,3 +226,29 @@ int sc_random_snapshot(unsigned char* out, int len)
     pthread_mutex_unlock(&sc_rand_lock);
     return n;
 }
+
+/* 池快照的 SHA-512 单向摘要（修复中危 bug：sc_random_snapshot 把池原始 320 字节
+ * 直吐 UI，而本移植无桌面 VC 的 FastPoll 持续搅入系统熵，快照后若未再灌熵，被
+ * 截屏/录屏/肩窥的原始池可离线反推主密钥）。改为对原始池做 SHA-512，返回 64 字节
+ * 摘要——单向派生不可逆，UI 仍有跳动的 hex 视觉反馈，但无法还原池状态。
+ * 原始池仅在栈上短暂存在，哈希完立即抹零，缩短暴露窗口。 */
+int sc_random_snapshot_sha512(unsigned char* out, int out_len)
+{
+    unsigned char pool[SC_RNG_POOL_SIZE];
+    unsigned char digest[SC_SHA512_DIGEST];
+    int i, n;
+    if (!out || out_len < SC_SHA512_DIGEST) return 0;
+
+    n = sc_random_snapshot(pool, SC_RNG_POOL_SIZE);
+    /* 池恒为 320 字节，n 应恒为 SC_RNG_POOL_SIZE；稳妥起见不足则补零再哈希。 */
+    if (n != SC_RNG_POOL_SIZE) {
+        for (i = n; i < SC_RNG_POOL_SIZE; i++) pool[i] = 0;
+    }
+    sha512(digest, pool, (uint_64t) SC_RNG_POOL_SIZE);
+
+    /* 抹掉栈上原始池副本，不泄露给调用方 / 不残留于栈帧。 */
+    for (i = 0; i < SC_RNG_POOL_SIZE; i++) pool[i] = 0;
+
+    for (i = 0; i < SC_SHA512_DIGEST; i++) out[i] = digest[i];
+    return SC_SHA512_DIGEST;
+}

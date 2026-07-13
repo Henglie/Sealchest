@@ -339,4 +339,7 @@
     <string name="benchmark_entry">Kıyaslama</string>
     <string name="benchmark_unit">MB/s</string>
     <string name="settings_theme_color">Tema rengi</string>
+<string name="settings_theme_mode">Tema modu</string>
+    <string name="theme_mode_light">Açık</string>
+    <string name="theme_mode_dark">Koyu</string>
 </resources>

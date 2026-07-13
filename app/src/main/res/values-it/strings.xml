@@ -343,4 +343,7 @@
     <string name="benchmark_entry">Benchmark</string>
     <string name="benchmark_unit">MB/s</string>
     <string name="settings_theme_color">Colore del tema</string>
+<string name="settings_theme_mode">Modalità tema</string>
+    <string name="theme_mode_light">Chiaro</string>
+    <string name="theme_mode_dark">Scuro</string>
 </resources>

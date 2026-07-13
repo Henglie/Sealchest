@@ -105,11 +105,21 @@
 | 隐藏卷/改密/扩容 | ✅ 编译 | HiddenVolumeCreator/PasswordChanger/VolumeExpander |
 | root 增强 | ◐ PoC | 块设备枚举/解锁（BlockDeviceUnlocker），只读优先 |
 | i18n 16 语言 | ✅ 编译，未真机 | 根因修复：AppCompatActivity + AppCompat 主题（需求③）|
-| UI（可写多选框/主题色/基准） | ✅ 编译 | 可写挂载 Checkbox（需求②）；自动锁/前台服务保活 |
+| UI（可写多选框/主题色/夜间模式/基准） | ✅ 编译 | 可写挂载 Checkbox（需求②）；主题色加「跟随系统」项(argb=0)消除系统色/预设色叠加；夜间模式三选卡片(跟随/浅/深, themeMode 持久化 + recreate 即时生效)；自动锁/前台服务保活 |
 | 许可证 | ✅ | 自身 Apache 2.0（LICENSE + README）|
+| README/logo | ✅ 已推送 | 中英 README 界面化（居中 logo + shields 徽章 star/fork/release/license/issues/PR/Android + WARNING + starchart 星标图）；assets/logo.svg 由 app 图标矢量 1:1 转出 |
 
 ### 仍待处理（下一步）
-- **未做真机回验**：本轮 A-E + ①-④ + H1/H2/短写/M1 + NTFS P1/P2/P3 全部只到编译/出 APK，需真机+桌面 VC+chkdsk 回验。i18n 尤其需真机切语言验证（AppCompatActivity 改动运行时才最终确认）；H1/H2 需近满容器场景专项验；**NTFS 三阶段需真机建 NTFS 容器→桌面 VC 挂载→确认 Windows 零 chkdsk 弹窗 + 手动 chkdsk 干净**
+
+**git 状态（2026-07-13）**：仓库已删库重建（原库含 Co-Authored-By: Claude trailer 污染贡献者列表，force-push 清不干净 → 恒烈删库，gh 重建同名 public 库 + 干净历史推送）。远程 28 提交全署名 Henglie，零 Claude 痕迹。今后 commit 一律不带任何 Co-Authored-By trailer。
+
+**唯一剩余 = 真机物理验证**（代码侧全部编译过 + 出 APK，无待写代码）：
+- 本轮 A-E + ①-④ + H1/H2/短写/M1 + NTFS P1/P2/P3 + BUG-1/BUG-2 + 主题/夜间模式全部只到编译，需真机+桌面 VC+chkdsk 回验
+- **NTFS「一次通过」关键**：BUG-2（writeFileNameAttr flags/instance 错位）是上轮漏网致命项，不修真机每建文件必触发 chkdsk。验证路径：真机建 NTFS 容器→桌面 VC 挂载→确认 Windows 零 chkdsk 弹窗→手动 chkdsk 干净
+- i18n 需真机切语言（AppCompatActivity 改动运行时才最终确认）
+- 主题/夜间模式需真机验：切浅/深即时生效、「跟随系统」项无系统色/预设色叠加
+- H1/H2 需近满容器场景专项验
+- README 徽章/starchart/logo 需 GitHub 页面确认渲染（已推送，等缓存刷新）
 
 ## ▍技术栈红线（本机实测组合，照搬 KarmaWitness，勿擅改）
 

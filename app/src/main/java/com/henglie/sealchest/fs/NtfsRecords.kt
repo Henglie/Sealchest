@@ -340,7 +340,9 @@ internal fun buildSecureRecord(
         NtfsSecure.buildSdhIndexRoot(secId, hash, sd.size, bytesPerCluster), name = "\$SDH")
     rb.resident(NtfsFormatter.ATTR_INDEX_ROOT,
         NtfsSecure.buildSiiIndexRoot(secId, hash, sd.size, bytesPerCluster), name = "\$SII")
-    rb.flags(NtfsFormatter.FLAG_IN_USE)
+    // $Secure 用 $SDH/$SII 视图索引（非 $I30 目录）→ flags = IN_USE|IS_VIEW_INDEX(0x09)，
+    //   与真·Windows 一致。仅 IN_USE(0x01) → chkdsk 报「Flags for file record segment 9 are incorrect」。
+    rb.flags(NtfsFormatter.FLAG_IN_USE or NtfsFormatter.FLAG_IS_VIEW_INDEX)
     return rb.end()
 }
 

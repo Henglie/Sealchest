@@ -54,6 +54,9 @@ object NtfsFormatter {
 
     internal const val FLAG_IN_USE = 0x0001
     internal const val FLAG_DIRECTORY = 0x0002
+    // $Secure(记录9) 用 $SDH/$SII 视图索引而非 $I30 文件名索引 → 记录头须置 IS_VIEW_INDEX(0x08)，
+    //   与真·Windows 一致（flags=0x09）。漏置 → chkdsk 报「Flags for file record segment 9 are incorrect」。
+    internal const val FLAG_IS_VIEW_INDEX = 0x0008
 
     /**
      * NTFS 索引记录（index block）字节大小。mkntfs 规则：max(4096, 簇大小)——索引块绝不小于一簇。

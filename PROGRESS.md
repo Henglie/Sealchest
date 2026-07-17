@@ -1086,3 +1086,48 @@ NTFS 核心（最难单件）已 10/10 CLEAN 互通。是否升 0.3 取决于是
 2. 版本 0.3 决策：NTFS 核心（普通 NTFS 10/10 CLEAN）已达成，keyfile+NTFS 受限于 app UI
    不支持创建，非 formatter bug。是否以普通 NTFS 10/10 为准升 0.3，待恒烈确认。
 3. git commit（无 AI trailer，作者 Henglie）。
+
+### 后续验证（2026-07-17，接手 AI 会话续）
+
+**Bug1 修复**：MFT#9（$Secure）记录头 flags 从 `FLAG_IN_USE(0x01)` 改为
+`FLAG_IN_USE|FLAG_IS_VIEW_INDEX(0x09)`。$Secure 用 $SDH/$SII 视图索引（非 $I30 文件名索引），
+真·Windows 同样置 IS_VIEW_INDEX 位。漏置 → chkdsk 报「Flags for file record segment 9 are incorrect」。
+新增常量 `FLAG_IS_VIEW_INDEX=0x0008`（NtfsFormatter.kt），buildSecureRecord 改用
+`FLAG_IN_USE or FLAG_IS_VIEW_INDEX`（NtfsRecords.kt）。
+
+**VHD 测试方法改进**：旧方法（手写 MBR + 分区）对多数簇大小挂载失败（Error 1392/3）。
+根因：bin 的 boot sector `HiddenSectors(0x1C)=0`（为 VeraCrypt 容器设计，无分区偏移），
+但 VHD 分区在 sector 2048 需 HiddenSectors=2048。新方法用 diskpart `create vdisk` +
+`create partition primary` + `format quick fs=ntfs` 先建正确 MBR/分区表，再 detach/reattach
+后 raw write 覆盖 NTFS 内容（patch HiddenSectors=2048 + 备份引导扇区同步）。
+脚本 C:\Temp\test_vhd_all.py，9 簇矩阵全量验证。
+
+**9/9 CLEAN 验证结果**（HEAD + Bug1 修复，VHD format+overwrite 方法）：
+
+| 簇大小 | chkdsk rc | 结果 |
+|--------|-----------|------|
+| 512b | 0 | CLEAN |
+| 1k | 0 | CLEAN |
+| 2k | 0 | CLEAN |
+| 4k | 0 | CLEAN |
+| 8k | 0 | CLEAN |
+| 16k | 0 | CLEAN |
+| 32k | 0 | CLEAN |
+| 64k | 0 | CLEAN |
+| auto | 0 | CLEAN |
+
+全部 9 簇 chkdsk 只读 rc=0，"Windows has scanned the file system and found no problems"。
+256 file records / 278 index entries / 0 bad / 0 orphan / 0 reparse。
+
+**Bug2/Bug3 回退结论**：此前曾尝试 Bug2（root $I30 大索引 + INDX 叶子块）和 Bug3（创建
+MFT#12-15 $ObjId/$Reparse/$Quota/$UsnJrnl），均导致 VHD 挂载失败。逐项回退后发现：
+base 配置（空小索引 root $I30 + 仅 12 条元数据记录）+ Bug1 修复 = 9/9 CLEAN。
+**Bug2/Bug3 的"修复"不需要**——chkdsk 只读模式对空 root $I30 和缺失 MFT#12-15 均不报错。
+已撤销 Bug2/Bug3 全部改动，仅保留 Bug1 修复（3 行常量 + 3 行 flags 改动）。
+
+**ces15 诊断更正**：原诊断称"普通 NTFS 10/10 CLEAN"基于 HEAD 提交（Bug1 未修复）的 VeraCrypt
+容器测试。但 HEAD 的 buildSecureRecord flags=0x01（仅 IN_USE），严格说应触发 chkdsk 报
+MFT#9 flags 错误。可能是 VeraCrypt 挂载的容器在某些 chkdsk 版本下不强制检查此字段。
+VHD format+overwrite 方法更严格，Bug1 修复后 9/9 CLEAN 确认修复正确。keyfile+NTFS 2/2 FAIL
+的错误特征（MFT#9 flags + $UpCase + orphan）与旧容器（2026-07-15 生成，Bug1/Bug4 修复前）
+完全一致，支持"旧代码生成"假设。

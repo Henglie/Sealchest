@@ -48,6 +48,7 @@ object NtfsFormatter {
     internal const val ATTR_VOLUME_INFO = 0x70L
     internal const val ATTR_DATA = 0x80L
     internal const val ATTR_INDEX_ROOT = 0x90L
+    internal const val ATTR_INDEX_ALLOCATION = 0xA0L
     internal const val ATTR_BITMAP = 0xB0L
     internal const val ATTR_END = 0xFFFFFFFFL
 
@@ -55,18 +56,29 @@ object NtfsFormatter {
     internal const val FLAG_DIRECTORY = 0x0002
 
     /**
-     * H4：把 [INDEX_RECORD_SIZE]（固定 4096）按 [bytesPerCluster] 编成 NTFS
-     * ClustersPerIndexBuffer 字节（boot[0x44] 与 $INDEX_ROOT+0x0C 同一编码，见 NtfsBoot.recordSize）：
-     *   簇 ≤ 4096 → 正数簇计（4096/簇：512→8、1024→4、2048→2、4096→1）；
-     *   簇 > 4096 → 负数字节计（-log2(4096) = -12 → 0xF4）。
-     * 原实现写死 1，只有默认 4KB 簇自洽，非默认簇下与 BPB 声明冲突、目录解析崩、chkdsk 报索引大小不符。
+     * NTFS 索引记录（index block）字节大小。mkntfs 规则：max(4096, 簇大小)——索引块绝不小于一簇。
+     *   簇 ≤ 4096 → 索引块固定 4096（可跨多簇：512→8 簇…4096→1 簇）；
+     *   簇 > 4096 → 索引块 = 一簇（8K/16K/32K/64K 各自等于簇大小）。
+     * 旧实现把索引块写死 4096：大簇下 boot.indexRecordSize(4096) < 簇 → 运行时 rebuildDirIndex
+     *   的 2 层多叶构建被 `indexRecordSize < clusterSize` 判据拒绝，NTFS 8K+ 簇目录一旦超出驻留
+     *   $INDEX_ROOT 就无法增长（批量 50 文件必失败）；且「索引块 < 簇」本身是非法布局，chkdsk 报错。
+     */
+    internal fun indexRecordSize(bytesPerCluster: Int): Int =
+        maxOf(INDEX_RECORD_SIZE, bytesPerCluster)
+
+    /**
+     * ClustersPerIndexBuffer 字节（boot[0x44] 与 $INDEX_ROOT+0x0C 同一编码，见 NtfsBoot.recordSize）。
+     * 索引块 = max(4096,簇) ≥ 簇 恒成立 → 恒正数簇计：簇≤4096 为 4096/簇（512→8…4096→1），
+     *   簇>4096 恒 1（索引块 = 一簇）。不再出现「索引块 < 簇」的负数编码（那是非法布局）。
      */
     internal fun indexBufferCode(bytesPerCluster: Int): Int =
-        if (INDEX_RECORD_SIZE >= bytesPerCluster) INDEX_RECORD_SIZE / bytesPerCluster
-        else -(Integer.numberOfTrailingZeros(INDEX_RECORD_SIZE))
-    internal const val FILE_ATTR_SYSTEM = 0x06L          // HIDDEN|SYSTEM
-    internal const val FILE_ATTR_DIR_SYSTEM = 0x16L      // DIR|HIDDEN|SYSTEM
-    internal const val NS_WIN32_AND_DOS = 3
+        indexRecordSize(bytesPerCluster) / bytesPerCluster
+    internal const val FILE_ATTR_SYSTEM = 0x06L               // HIDDEN|SYSTEM
+    // NTFS 目录位是 file_attributes 的 0x10000000(I30_INDEX_PRESENT)，非 DOS 的 0x10。
+    //   chkdsk 交叉校验：记录头 FLAG_DIRECTORY(0x16 位)、带 $I30 $INDEX_ROOT、$FILE_NAME/
+    //   $STD_INFO 的 0x10000000 三者须一致，缺则报「文件属性不一致」并重写。旧值 0x16 用错 DOS 位。
+    internal const val FILE_ATTR_I30_INDEX_PRESENT = 0x10000000L
+    internal const val FILE_ATTR_DIR_SYSTEM = 0x10000006L     // I30_INDEX_PRESENT|HIDDEN|SYSTEM
     internal const val INDEX_ENTRY_LAST = 0x02
 
     /**
@@ -94,7 +106,10 @@ object NtfsFormatter {
         val totalSectors = volumeSizeBytes / SECTOR
         val totalClusters = totalSectors / sectorsPerCluster
 
-        val bootClusters = BOOT_SIZE.toLong() / bytesPerCluster
+        // 引导区 8KB 固定，但簇 > 8KB 时 8192/bpc 向下取整 = 0 → mftLcn=bootLcn+0=0
+        //   → 后写的 MFT 镜像覆盖偏移 0 的引导扇区 → NTFS 签名被冲掉 → 挂载分发落到 FAT
+        //   解析器报「非 FAT 引导扇区」（16K/32K/64K 大簇必炸）。引导区至少占 1 簇：ceil。
+        val bootClusters = (BOOT_SIZE.toLong() + bytesPerCluster - 1) / bytesPerCluster
         val bootLcn = 0L
         val mftBytes = MFT_INITIAL_RECORDS.toLong() * MFT_RECORD_SIZE
         val mftClusters = mftBytes / bytesPerCluster
@@ -175,10 +190,21 @@ object NtfsFormatter {
         mftRecords[5] = buildRootDirRecord(now, rootRef, bytesPerCluster)
         mftRecords[6] = buildBitmapRecord(bitmapLcn, bitmapClusters, bytesPerCluster, bitmapBytes, now, rootRef)
         mftRecords[7] = buildBootFileRecord(bootLcn, bootClusters, bytesPerCluster, now, rootRef)
-        mftRecords[8] = buildBadClusRecord(totalClusters, bytesPerCluster, volumeSizeBytes, now, rootRef)
+        mftRecords[8] = buildBadClusRecord(totalClusters, bytesPerCluster, now, rootRef)
         mftRecords[9] = buildSecureRecord(now, rootRef, bytesPerCluster, sdsLcn, sdsClusters, sharedSd, sdsHash)
         mftRecords[10] = buildUpcaseFileRecord(upcaseLcn, upcaseClusters, bytesPerCluster, now, rootRef)
         mftRecords[11] = buildExtendRecord(now, rootRef, bytesPerCluster)
+
+        // Bug4：记录头 0x2C(本记录 MFT 号，NTFS 3.1 字段)。RecBuilder 不知自身号，此处统一补。
+        //   0x2C..2F 不落在任一扇区末 2 字节(USA 保护位)，stampUsa 后改它安全。运行时侧
+        //   NtfsDataOps 建记录时已写此字段，仅造盘 12 条元数据缺，补齐三方一致。
+        // 序列号(0x10)同理统一补：真·Windows rec1..15 的 seq=记录号(rec0=1)。RecBuilder 硬编码 1，
+        //   使 rec2..11 头 seq(=1)≠记录号 + 子记录 $FILE_NAME.parentSeq 与根目录 seq 对不上 →
+        //   chkdsk 报「检测到不正确的信息」。0x10..11 也不在扇区末 USA 保护位，stampUsa 后改安全。
+        for (i in 0 until 12) {
+            putU32(mftRecords[i], 0x2C, i.toLong())
+            putU16(mftRecords[i], 0x10, mftSeqOf(i.toLong()))
+        }
 
         val mftImage = ByteArray((mftClusters * bytesPerCluster).toInt())
         for (i in 0 until MFT_INITIAL_RECORDS) {

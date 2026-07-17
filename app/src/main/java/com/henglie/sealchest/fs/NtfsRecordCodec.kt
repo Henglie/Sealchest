@@ -90,7 +90,10 @@ class NtfsRecordCodec(private val boot: NtfsBoot) {
         const val ATTR_END = 0xFFFFFFFFL
 
         // ---- $FILE_NAME 命名空间（偏移 0x41 处 1 字节）----
+        const val NS_POSIX = 0               // POSIX（大小写敏感，可含除 NUL/ '/' 外任意字符）
+        const val NS_WIN32 = 1               // Win32 长名（非 8.3 名须配 ns=2 DOS 短名孪生项）
         const val NS_DOS = 2                 // 纯 DOS 短名（8.3），列目录时跳过
+        const val NS_WIN32_AND_DOS = 3       // 既是 Win32 又是 DOS 名（合法 8.3 名单项用此）
 
         // ---- FILE 记录标志（记录头偏移 0x16）----
         const val FLAG_IN_USE = 0x0001
@@ -315,7 +318,9 @@ class NtfsRecordCodec(private val boot: NtfsBoot) {
             if (isLast) flags = flags or INDEX_ENTRY_LAST
             putU16(entry, 12, flags)
             if (contentLen > 0) System.arraycopy(fnContent, 0, entry, 0x10, contentLen)
-            if (hasSubnode) putU64(entry, 0x10 + contentLen, subnodeVcn)
+            // 子节点 VCN 必须落在 entryLen-8（与 Windows 一致）。写在 0x10+contentLen 仅当 contentLen
+            //   8 字节对齐时正确；否则 Windows 读 entryLen-8 处读到 0 → B+树子节点定位失败。
+            if (hasSubnode) putU64(entry, entryLen - 8, subnodeVcn)
             return entry
         }
 
@@ -369,7 +374,9 @@ class NtfsRecordCodec(private val boot: NtfsBoot) {
             System.arraycopy(leafEntry, 0, out, 0, 0x10 + contentLen)
             putU16(out, 8, entryLen)
             putU16(out, 12, INDEX_ENTRY_HAS_SUBNODE)
-            putU64(out, 0x10 + contentLen, subnodeVcn)
+            // 子节点 VCN 落 entryLen-8：contentLen 非 8 对齐时 0x10+contentLen ≠ entryLen-8，
+            //   Windows 读 entryLen-8 处得 0 → 子节点定位失败（大目录 B+树遍历坏）。
+            putU64(out, entryLen - 8, subnodeVcn)
             return out
         }
 
@@ -394,12 +401,22 @@ class NtfsRecordCodec(private val boot: NtfsBoot) {
          * 造「索引项用的 $FILE_NAME 内容体」（也复用作 $FILE_NAME 属性内容）。
          * 布局：parentRef(8) + 4×时间(32) + allocSize(8) + realSize(8) + flags(4) + reparse(4)
          *       + nameLen(1) + namespace(1) + name(UTF-16LE)。
+         * [ns] 命名空间：合法 8.3 名传 [NS_WIN32_AND_DOS]（单项 link=1）；非 8.3 名的长名传
+         *   [NS_WIN32]、其 DOS 短名传 [NS_DOS]（双项 link=2）。默认 [NS_WIN32] 仅为兼容旧调用方，
+         *   新调用方应通过 [planFileNames] 规划后显式传 ns。
          */
         fun buildFileNameForIndex(mftRefUnused: Long, parentRef: Long, name: String,
-                                  realSize: Long, allocSize: Long, isDir: Boolean): ByteArray {
+                                  realSize: Long, allocSize: Long, isDir: Boolean,
+                                  ns: Int = NS_WIN32): ByteArray {
             val contentLen = 0x42 + name.length * 2
             val b = ByteArray(contentLen)
-            putU64(b, 0, parentRef and 0x0000FFFFFFFFFFFFL or (1L shl 48))  // 父引用 + 序列号1
+            // 父引用：低 48 位记录号 + 高 16 位父记录序列号。系统记录（<16）序列号 = 记录号
+            //   （rec0 例外=1），运行时新建记录（≥24）序列号=1。根目录(rec5)序列号必为 5，
+            //   否则 chkdsk 校验「$FILE_NAME.parentRef 序列号 == 父目录实际序列号」失败 → 报
+            //   「文件记录段检测到不正确的信息」。父记录号 = parentRef 低 48 位。
+            val parentNo = parentRef and 0x0000FFFFFFFFFFFFL
+            val parentSeq = if (parentNo in 1 until 16L) parentNo else 1L
+            putU64(b, 0, parentNo or (parentSeq shl 48))
             val now = msToNtfsTime(System.currentTimeMillis())
             putU64(b, 0x08, now); putU64(b, 0x10, now); putU64(b, 0x18, now); putU64(b, 0x20, now)
             putU64(b, 0x28, allocSize)
@@ -407,9 +424,73 @@ class NtfsRecordCodec(private val boot: NtfsBoot) {
             putU32(b, 0x38, if (isDir) 0x10000000L else 0x20L)  // flags
             putU32(b, 0x3C, 0L)                                 // reparse
             b[0x40] = name.length.toByte()                      // 名字符数
-            b[0x41] = 1                                          // namespace = 1 (Win32)
+            b[0x41] = ns.toByte()                               // namespace（8.3=3 / 长名=1 / DOS 短名=2）
             for (k in name.indices) putU16(b, 0x42 + k * 2, name[k].code)
             return b
         }
+
+        // ---- DOS 8.3 短名策略 ----
+        //
+        // 与真实 Windows 一致：合法 8.3 名 → 单项 ns=3(link=1)；非 8.3 名 → ns=1 长名 + ns=2 生成的
+        //   DOS 短名(link=2，双 $FILE_NAME、双 $I30 项)。chkdsk 阶段2 校验「ns=1 须有 ns=2 孪生、
+        //   ns=3 须为合法 8.3」；旧码硬编码 ns=1 却从不生成短名 → 报「索引项不正确」+「文件名错误」。
+
+        /** DOS 8.3 合法字符（大写字母、数字、部分符号）。小写字母不算——DOS 名一律存大写。 */
+        private const val DOS_LEGAL_CHARS =
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!#\$%&'()-@^_`{}~"
+
+        private fun isDosLegalChar(c: Char): Boolean = DOS_LEGAL_CHARS.indexOf(c) >= 0
+
+        /**
+         * 判断 [name] 是否为合法 DOS 8.3 名（→ 单项 ns=3）：至多一个点、基名 1-8、扩展 0-3、
+         * 仅大写字母/数字/允许符号。小写、多点、超长、含其他字符 → false（须生成短名）。
+         */
+        fun isLegalDosName(name: String): Boolean {
+            if (name.isEmpty() || name.length > 12) return false
+            if (name.count { it == '.' } > 1) return false
+            val dot = name.lastIndexOf('.')
+            val base = if (dot < 0) name else name.substring(0, dot)
+            val ext = if (dot < 0) "" else name.substring(dot + 1)
+            if (base.isEmpty() || base.length > 8) return false
+            if (ext.length > 3) return false
+            for (c in base) if (!isDosLegalChar(c)) return false
+            for (c in ext) if (!isDosLegalChar(c)) return false
+            return true
+        }
+
+        /**
+         * 生成 DOS 8.3 短名（~N 查重）：大写化 → 按末点定 base/ext → 去非法字符 → ext 截 3 →
+         * base 截到 8-len("~N") → 尾接 ~N。N 从 1 递增至不与 [existing] 冲突（大小写不敏感）。
+         * [existing] 应含目录内已有 DOS 短名(ns=2)与合法 8.3 长名(ns=3)。
+         */
+        fun generateDosShortName(name: String, existing: Set<String>): String {
+            val upper = name.uppercase()
+            val dot = upper.lastIndexOf('.')
+            var base = if (dot < 0) upper else upper.substring(0, dot)
+            var ext = if (dot < 0) "" else upper.substring(dot + 1)
+            base = base.filter { isDosLegalChar(it) }
+            ext = ext.filter { isDosLegalChar(it) }
+            if (base.isEmpty()) base = "_"          // 全非法字符兜底
+            ext = ext.take(3)
+            var n = 1
+            while (n <= 999999) {
+                val suffix = "~$n"
+                val baseTrunc = base.take(8 - suffix.length)
+                val cand = if (ext.isEmpty()) "$baseTrunc$suffix" else "$baseTrunc$suffix.$ext"
+                if (existing.none { it.equals(cand, ignoreCase = true) }) return cand
+                n++
+            }
+            return if (ext.isEmpty()) "${base.take(2)}~1" else "${base.take(2)}~1.$ext"
+        }
+
+        /**
+         * 规划一个文件名应落盘的 (名, namespace) 列表：
+         *   合法 8.3 名 → [(name, NS_WIN32_AND_DOS)]（单项，link=1）；
+         *   非 8.3 名  → [(name, NS_WIN32), (短名, NS_DOS)]（双项，link=2）。
+         * [existingShortNames] 为目录内已有 DOS 短名/合法 8.3 长名集合，用于 ~N 查重。
+         */
+        fun planFileNames(name: String, existingShortNames: Set<String>): List<Pair<String, Int>> =
+            if (isLegalDosName(name)) listOf(name to NS_WIN32_AND_DOS)
+            else listOf(name to NS_WIN32, generateDosShortName(name, existingShortNames) to NS_DOS)
     }
 }

@@ -14,8 +14,8 @@ import com.henglie.sealchest.fs.NtfsRecordCodec.Companion.MFT_ROOT_DIR
 import com.henglie.sealchest.fs.NtfsRecordCodec.Companion.MFT_VOLUME
 import com.henglie.sealchest.fs.NtfsRecordCodec.Companion.align8
 import com.henglie.sealchest.fs.NtfsRecordCodec.Companion.align8Long
-import com.henglie.sealchest.fs.NtfsRecordCodec.Companion.attrOffsetOf
 import com.henglie.sealchest.fs.NtfsRecordCodec.Companion.buildFileNameForIndex
+import com.henglie.sealchest.fs.NtfsRecordCodec.Companion.planFileNames
 import com.henglie.sealchest.fs.NtfsRecordCodec.Companion.decodeRuns
 import com.henglie.sealchest.fs.NtfsRecordCodec.Companion.encodeMultiRun
 import com.henglie.sealchest.fs.NtfsRecordCodec.Companion.encodeSingleRun
@@ -96,16 +96,19 @@ class NtfsDataOps(
         // 名已存在则拒绝（覆写走 overwrite）。
         if (index.listDirEntries(dirRef).any { it.name.equals(name, ignoreCase = false) }) return false
 
+        // 规划 1~2 个 $FILE_NAME（合法 8.3 → 单项 ns=3；非 8.3 → 长名 ns=1 + DOS 短名 ns=2）。
+        val existingShortNames = index.listDosShortNamesWithRef(dirRef).map { it.first }.toSet()
+        val plan = planFileNames(name, existingShortNames)
+
         // 分配新 MFT 记录号。
         val newRef = mftMgr.allocMftRecord()
         if (newRef < 0) return false
 
         // 决定 $DATA 驻留 / 非驻留：能塞进记录剩余空间就驻留，否则连续分配簇。
-        // 记录布局预算：头(56) + $STD_INFO(约72) + $FILE_NAME(约 90+2*len) + $DATA头 + $END(8)。
-        val fnContentLen = 0x42 + name.length * 2
-        val fnAttrLen = align8(0x18 + fnContentLen)          // 属性头16 + 名字属性头0x08 ... 见构建
+        // 记录布局预算：头(56) + $STD_INFO(约72) + 1~2×$FILE_NAME + $DATA头 + $END(8)。
+        val totalFnAttrLen = plan.sumOf { align8(0x18 + 0x42 + it.first.length * 2) }
         val stdAttrLen = align8(0x18 + 0x48)                 // $STANDARD_INFORMATION 常规 0x48 内容
-        val headerAndFixed = 0x38 + 8 /*USA*/ + stdAttrLen + fnAttrLen + 8 /*$END*/
+        val headerAndFixed = 0x38 + 8 /*USA*/ + stdAttrLen + totalFnAttrLen + 8 /*$END*/
         val residentDataMax = recordSize - headerAndFixed - 0x18 /*$DATA 头*/ - 8
         val resident = bytes.size <= residentDataMax && residentDataMax > 0
 
@@ -123,10 +126,11 @@ class NtfsDataOps(
         }
 
         // 构建 FILE 记录明文（未打 USA，writeMftRecord 内部打）。W6：多段走 buildFileRecordMulti。
+        val allocSize = allocForIndex(resident, bytes.size.toLong(), dataClusters)
         val rec = if (multiRuns != null) {
-            buildFileRecordMulti(newRef, dirRef, name, bytes, multiRuns, bytes.size.toLong())
+            buildFileRecordMulti(newRef, dirRef, plan, bytes, multiRuns, bytes.size.toLong())
         } else {
-            buildFileRecord(newRef, dirRef, name, bytes, resident, dataLcn, dataClusters)
+            buildFileRecord(newRef, dirRef, plan, bytes, resident, dataLcn, dataClusters)
         }
         if (rec == null) {
             if (dataLcn >= 0) mftMgr.freeClusters(dataLcn, dataClusters)
@@ -135,10 +139,20 @@ class NtfsDataOps(
             return false
         }
 
-        // 先把索引项插进父目录（可能因放不下而拒绝——此时回滚，不留孤儿记录）。
-        val fnEntry = buildFileNameForIndex(newRef, dirRef, name, bytes.size.toLong(),
-            allocForIndex(resident, bytes.size.toLong(), dataClusters), false)
-        if (!index.insertIndexEntry(dirRef, fnEntry, newRef)) {
+        // 先把索引项插进父目录（1~2 项，可能因放不下而拒绝——此时回滚，不留孤儿记录）。
+        val inserted = ArrayList<String>()
+        var allInserted = true
+        for ((nm, ns) in plan) {
+            val fnEntry = buildFileNameForIndex(newRef, dirRef, nm, bytes.size.toLong(), allocSize, false, ns)
+            if (!index.insertIndexEntry(dirRef, fnEntry, newRef)) {
+                allInserted = false
+                break
+            }
+            inserted.add(nm)
+        }
+        if (!allInserted) {
+            // 回滚已插入的索引项（removeIndexEntry 按 mftRef 删全部孪生项）。
+            for (nm in inserted) index.removeIndexEntry(dirRef, nm)
             if (dataLcn >= 0) mftMgr.freeClusters(dataLcn, dataClusters)
             if (multiRuns != null) mftMgr.freeMultiClusters(multiRuns)
             mftMgr.freeMftRecord(newRef)
@@ -148,7 +162,7 @@ class NtfsDataOps(
         // 索引插入成功后再落 FILE 记录（顺序：先索引可回滚，记录落盘即生效）。
         if (!mftMgr.writeMftRecord(newRef, rec)) {
             // 记录写失败：尽力回滚索引 + 资源。
-            index.removeIndexEntry(dirRef, name)
+            for (nm in inserted) index.removeIndexEntry(dirRef, nm)
             if (dataLcn >= 0) mftMgr.freeClusters(dataLcn, dataClusters)
             if (multiRuns != null) mftMgr.freeMultiClusters(multiRuns)
             mftMgr.freeMftRecord(newRef)
@@ -166,11 +180,12 @@ class NtfsDataOps(
         if (resident) align8Long(size) else clusters * clusterSize
 
     /**
-     * 组装一条 FILE 记录（明文，含 $STD_INFO + $FILE_NAME + $DATA + $END）。
+     * 组装一条 FILE 记录（明文，含 $STD_INFO + 1~2×$FILE_NAME + $DATA + $END）。
+     * [plan] 由 [planFileNames] 生成：合法 8.3 名 → 单项 ns=3(link=1)；非 8.3 → 长名+DOS短名(link=2)。
      * [resident]=true 时 $DATA 驻留（数据在记录内）；否则非驻留（单 run 指向 [dataLcn]）。
      */
     private fun buildFileRecord(
-        recordNo: Long, parentRef: Long, name: String, bytes: ByteArray,
+        recordNo: Long, parentRef: Long, plan: List<Pair<String, Int>>, bytes: ByteArray,
         resident: Boolean, dataLcn: Long, dataClusters: Long,
     ): ByteArray? {
         val rec = ByteArray(recordSize)
@@ -183,20 +198,20 @@ class NtfsDataOps(
         putU16(rec, 6, usaCount)               // USA 项数（含 USN）
         putU64(rec, 8, mftMgr.nextLsn())              // $LogFile LSN（递增，Windows 期望非零且单调）
         putU16(rec, 16, 1)                     // 序列号
-        putU16(rec, 18, 1)                     // 硬链接数
+        putU16(rec, 18, plan.size)             // 硬链接数 = $FILE_NAME 属性数（1 或 2）
         val firstAttrOff = align8(usaOff + usaCount * 2)
         putU16(rec, 20, firstAttrOff)          // 首属性偏移
         putU16(rec, 22, FLAG_IN_USE)           // 标志：使用中（非目录）
-        putU16(rec, 0x28, 7)   // next-attr-id (> max used id=6: STD=0/FILE_NAME=1/DATA=6)
+        putU16(rec, 0x28, 7)   // next-attr-id (> max used id=6: STD=0/FN=1..2/DATA=6)
         putU16(rec, 0x2A, 0)
         putU32(rec, 0x2C, recordNo)            // 本记录号
 
         var off = firstAttrOff
         // --- $STANDARD_INFORMATION (0x10, 驻留) ---
         off = writeStdInfo(rec, off)
-        // --- $FILE_NAME (0x30, 驻留) ---
-        off = writeFileNameAttr(rec, off, parentRef, name, bytes.size.toLong(),
-            if (resident) align8Long(bytes.size.toLong()) else dataClusters * clusterSize)
+        // --- $FILE_NAME (0x30, 驻留, 1~2 个) ---
+        off = writeFileNameAttrs(rec, off, parentRef, plan, bytes.size.toLong(),
+            if (resident) align8Long(bytes.size.toLong()) else dataClusters * clusterSize, isDir = false)
         if (off < 0) return null
         // --- $DATA (0x80) ---
         off = if (resident) writeResidentData(rec, off, bytes)
@@ -216,7 +231,7 @@ class NtfsDataOps(
      * [runs] 为绝对 LCN 段列表；[realSize] 为真实字节；总簇数 = runs 之和。
      */
     private fun buildFileRecordMulti(
-        recordNo: Long, parentRef: Long, name: String, bytes: ByteArray,
+        recordNo: Long, parentRef: Long, plan: List<Pair<String, Int>>, bytes: ByteArray,
         runs: List<DataRun>, realSize: Long,
     ): ByteArray? {
         val rec = ByteArray(recordSize)
@@ -228,7 +243,7 @@ class NtfsDataOps(
         putU16(rec, 6, usaCount)
         putU64(rec, 8, mftMgr.nextLsn())              // $LogFile LSN（递增）
         putU16(rec, 16, 1)
-        putU16(rec, 18, 1)
+        putU16(rec, 18, plan.size)             // 硬链接数 = $FILE_NAME 属性数（1 或 2）
         val firstAttrOff = align8(usaOff + usaCount * 2)
         putU16(rec, 20, firstAttrOff)
         putU16(rec, 22, FLAG_IN_USE)
@@ -238,7 +253,7 @@ class NtfsDataOps(
         var off = firstAttrOff
         off = writeStdInfo(rec, off)
         val totalClusters = runs.sumOf { it.length }
-        off = writeFileNameAttr(rec, off, parentRef, name, realSize, totalClusters * clusterSize)
+        off = writeFileNameAttrs(rec, off, parentRef, plan, realSize, totalClusters * clusterSize, isDir = false)
         if (off < 0) return null
         off = writeNonResidentDataMulti(rec, off, runs, realSize)
         if (off < 0) return null
@@ -249,8 +264,8 @@ class NtfsDataOps(
         return rec
     }
 
-    /** 写 $STANDARD_INFORMATION，返回下一属性偏移。 */
-    private fun writeStdInfo(rec: ByteArray, off: Int): Int {
+    /** 写 $STANDARD_INFORMATION，返回下一属性偏移。[isDir]=true 时置目录位 0x10000000。 */
+    private fun writeStdInfo(rec: ByteArray, off: Int, isDir: Boolean = false): Int {
         val contentLen = 0x48
         val hdr = 0x18
         val total = align8(hdr + contentLen)
@@ -265,17 +280,37 @@ class NtfsDataOps(
         putU64(rec, off + hdr + 0x08, now)     // Altered
         putU64(rec, off + hdr + 0x10, now)     // MFT changed
         putU64(rec, off + hdr + 0x18, now)     // Read
-        putU32(rec, off + hdr + 0x20, 0x20L)   // FILE_ATTRIBUTE_ARCHIVE
+        // 目录 = I30_INDEX_PRESENT(0x10000000)；文件 = ARCHIVE(0x20)。目录写 ARCHIVE 与记录头
+        //   FLAG_DIRECTORY + $I30 矛盾 → chkdsk 报「文件属性不一致」并重写。与 $FILE_NAME 0x38 同步。
+        putU32(rec, off + hdr + 0x20, if (isDir) NtfsFormatter.FILE_ATTR_I30_INDEX_PRESENT else 0x20L)
         // security_id（内容偏移 0x34）指向 $Secure 的共享 SD（0x100）→ 运行时新建文件也带可解析
         //   安全描述符，手动 chkdsk 不再逐个补 ACL。owner_id/quota/usn 留 0（合法）。
         putU32(rec, off + hdr + 0x34, NtfsSecure.FIRST_SECURITY_ID.toLong())
         return off + total
     }
 
-    /** 写 $FILE_NAME 属性，返回下一属性偏移；越界返回 -1。 */
+    /**
+     * 写 1~2 个 $FILE_NAME 属性（由 [plan] 决定）。返回下一属性偏移；越界返回 -1。
+     * 每个属性的 attr-instance-id 从 1 递增（STD=0, FN=1, FN2=2, DATA=6）。
+     */
+    private fun writeFileNameAttrs(rec: ByteArray, off: Int, parentRef: Long,
+                                   plan: List<Pair<String, Int>>,
+                                   realSize: Long, allocSize: Long, isDir: Boolean): Int {
+        var p = off
+        var attrId = 1
+        for ((nm, ns) in plan) {
+            p = writeFileNameAttr(rec, p, parentRef, nm, realSize, allocSize, isDir, ns, attrId)
+            if (p < 0) return -1
+            attrId++
+        }
+        return p
+    }
+
+    /** 写单个 $FILE_NAME 属性，返回下一属性偏移；越界返回 -1。 */
     private fun writeFileNameAttr(rec: ByteArray, off: Int, parentRef: Long, name: String,
-                                  realSize: Long, allocSize: Long): Int {
-        val fn = buildFileNameForIndex(parentRef, 0L, name, realSize, allocSize, false)
+                                  realSize: Long, allocSize: Long, isDir: Boolean,
+                                  ns: Int, attrId: Int): Int {
+        val fn = buildFileNameForIndex(0L, parentRef, name, realSize, allocSize, isDir, ns)
         // buildFileNameForIndex 造的是「索引项里的 $FILE_NAME 内容」，这里作属性内容用同一体。
         val contentLen = fn.size
         val hdr = 0x18
@@ -286,8 +321,8 @@ class NtfsDataOps(
         rec[off + 8] = 0                       // 驻留
         rec[off + 9] = 0                       // 名长 0（属性名，非文件名）
         putU16(rec, off + 10, 0)
-        putU16(rec, off + 12, 0)               // flags（0x0C，非压缩/加密/稀疏）——旧码误把 attr-id 写这里
-        putU16(rec, off + 14, 1)               // attr instance id（0x0E），唯一：STD=0 / $FILE_NAME=1 / $DATA=6
+        putU16(rec, off + 12, 0)               // flags（0x0C，非压缩/加密/稀疏）
+        putU16(rec, off + 14, attrId)          // attr instance id（0x0E）
         putU32(rec, off + 0x10, contentLen.toLong())
         putU16(rec, off + 0x14, hdr)
         rec[off + 0x16] = 1                    // indexed flag（$FILE_NAME 常置 1）
@@ -386,8 +421,8 @@ class NtfsDataOps(
     // ================= 文件删 =================
 
     /**
-     * 删除目录 [dirRef] 下的文件 [name]。释放其数据簇 + MFT 记录 + 父目录索引项。
-     * 仅支持 $INDEX_ROOT 内的项（与 insert 对称）；其余拒绝。
+     * 删除目录 [dirRef] 下的文件 [name]。释放其数据簇 + MFT 记录 + 父目录索引项（含孪生 DOS 短名项）。
+     * removeIndexEntry 按 mftRef 删全部孪生项，无需改造。
      */
     internal fun ntfsDeleteFile(dirRef: Long, name: String): Boolean {
         // 先找到目标 MFT 记录号。
@@ -433,19 +468,33 @@ class NtfsDataOps(
 
     /**
      * 建子目录 [name] 于 [dirRef]。成功返回新目录 MFT 记录号（>0）；失败返回 0。
-     * 流程：allocMftRecord → buildDirRecord（含 $INDEX_ROOT 空树）→ writeMftRecord
-     *   → insertIndexEntry（复用 W4）。任何步骤失败回滚已分配的 MFT 记录。
+     * 流程：planFileNames → allocMftRecord → buildDirRecord（含 $INDEX_ROOT 空树）
+     *   → writeMftRecord → insertIndexEntry（1~2 项）。任何步骤失败回滚已分配的 MFT 记录。
      */
     internal fun ntfsMkDir(dirRef: Long, name: String): Long {
         if (name.isEmpty() || name.length > 255) return 0L
         if (index.listDirEntries(dirRef).any { it.name.equals(name, ignoreCase = false) }) return 0L
+        val existingShortNames = index.listDosShortNamesWithRef(dirRef).map { it.first }.toSet()
+        val plan = planFileNames(name, existingShortNames)
         val newRef = mftMgr.allocMftRecord()
         if (newRef < 0) return 0L
-        val rec = buildDirRecord(newRef, dirRef, name)
+        val rec = buildDirRecord(newRef, dirRef, plan)
         if (rec == null) { mftMgr.freeMftRecord(newRef); return 0L }
         if (!mftMgr.writeMftRecord(newRef, rec)) { mftMgr.freeMftRecord(newRef); return 0L }
-        val fnContent = buildFileNameForIndex(0L, dirRef, name, 0L, 0L, isDir = true)
-        if (!index.insertIndexEntry(dirRef, fnContent, newRef)) {
+        // 插入 1~2 个索引项（长名 + DOS 短名孪生项）。
+        val inserted = ArrayList<String>()
+        var allInserted = true
+        for ((nm, ns) in plan) {
+            val fnContent = buildFileNameForIndex(0L, dirRef, nm, 0L, 0L, isDir = true, ns = ns)
+            if (!index.insertIndexEntry(dirRef, fnContent, newRef)) {
+                allInserted = false
+                break
+            }
+            inserted.add(nm)
+        }
+        if (!allInserted) {
+            // 回滚已插入索引项 + 标记记录未用。
+            for (nm in inserted) index.removeIndexEntry(dirRef, nm)
             val bad = rec.copyOf()
             putU16(bad, 0x16, u16(rec, 0x16) and FLAG_IN_USE.inv())
             putU16(bad, 16, (u16(rec, 16) + 1) and 0xFFFF)
@@ -458,10 +507,10 @@ class NtfsDataOps(
 
     /**
      * 组建目录 FILE 记录：FILE 头（FLAG_IN_USE|FLAG_DIRECTORY）+ $STANDARD_INFORMATION
-     *   + $FILE_NAME（isDir）+ $INDEX_ROOT 空树（$I30，末项 LAST）+ $END。
+     *   + 1~2×$FILE_NAME（isDir）+ $INDEX_ROOT 空树（$I30，末项 LAST）+ $END。
      * 与 [buildFileRecord] 区别：无 $DATA，多 $INDEX_ROOT；记录头标志含 DIRECTORY。
      */
-    private fun buildDirRecord(recordNo: Long, parentRef: Long, name: String): ByteArray? {
+    private fun buildDirRecord(recordNo: Long, parentRef: Long, plan: List<Pair<String, Int>>): ByteArray? {
         val rec = ByteArray(recordSize)
         val sectorCount = recordSize / codec.bootSectorSize()
         val usaCount = sectorCount + 1
@@ -471,7 +520,7 @@ class NtfsDataOps(
         putU16(rec, 6, usaCount)
         putU64(rec, 8, mftMgr.nextLsn())              // $LogFile LSN（递增）
         putU16(rec, 16, 1)
-        putU16(rec, 18, 1)
+        putU16(rec, 18, plan.size)             // 硬链接数 = $FILE_NAME 属性数（1 或 2）
         val firstAttrOff = align8(usaOff + usaCount * 2)
         putU16(rec, 20, firstAttrOff)
         putU16(rec, 22, FLAG_IN_USE or FLAG_DIRECTORY)
@@ -479,8 +528,8 @@ class NtfsDataOps(
         putU16(rec, 0x2A, 0)
         putU32(rec, 0x2C, recordNo)
         var off = firstAttrOff
-        off = writeStdInfo(rec, off)
-        off = writeFileNameAttr(rec, off, parentRef, name, 0L, 0L)
+        off = writeStdInfo(rec, off, isDir = true)
+        off = writeFileNameAttrs(rec, off, parentRef, plan, 0L, 0L, isDir = true)
         if (off < 0) return null
         off = index.writeEmptyIndexRootAttr(rec, off, 2)
         if (off < 0) return null
@@ -493,8 +542,8 @@ class NtfsDataOps(
 
     /**
      * 重命名 [dirRef] 下 [oldName] 为 [newName]。
-     * 改目标 FILE 记录的 $FILE_NAME 属性（保留 parentRef/时间/size，仅换名）
-     *   + 父目录索引项删旧名插新名。保守拒绝：新名已存在 / 名超长 / 记录放不下。
+     * 改目标 FILE 记录的 $FILE_NAME 属性区（保留 parentRef/时间/size，仅换名+ns 策略）
+     *   + 父目录索引项删旧名（含孪生）插新名（1~2 项）。保守拒绝：新名已存在 / 名超长 / 记录放不下。
      */
     internal fun ntfsRename(dirRef: Long, oldName: String, newName: String): Boolean {
         if (newName.isEmpty() || newName.length > 255) return false
@@ -503,22 +552,50 @@ class NtfsDataOps(
         if (index.listDirEntries(dirRef).any { it.name.equals(newName, ignoreCase = false) }) return false
         val rec = mftMgr.readMftRecord(target) ?: return false
         val attrs = parseAttrs(rec)
-        val fnAttr = findAttr(attrs, ATTR_FILE_NAME) ?: return false
-        val newRec = rewriteFileNameAttr(rec, fnAttr, newName) ?: return false
-        if (!mftMgr.writeMftRecord(target, newRec)) return false
-        if (!index.removeIndexEntry(dirRef, oldName)) {
-            val rolled = rewriteFileNameAttr(newRec, findAttr(parseAttrs(newRec), ATTR_FILE_NAME)!!, oldName)
-            if (rolled != null) mftMgr.writeMftRecord(target, rolled)
-            return false
-        }
         val realSize = readDataRealSize(attrs)
         val allocSize = readDataAllocSize(attrs)
         val isDir = (u16(rec, 0x16) and FLAG_DIRECTORY) != 0
-        val fnContent = buildFileNameForIndex(0L, dirRef, newName, realSize, allocSize, isDir)
-        if (!index.insertIndexEntry(dirRef, fnContent, target)) {
-            val oldFn = buildFileNameForIndex(0L, dirRef, oldName, realSize, allocSize, isDir)
-            index.insertIndexEntry(dirRef, oldFn, target)
-            val rolled = rewriteFileNameAttr(newRec, findAttr(parseAttrs(newRec), ATTR_FILE_NAME)!!, oldName)
+
+        // 保留旧 plan 供回滚。
+        val oldPlan = readFileNamePlan(rec)
+
+        // 规划新名（排除自身的 DOS 短名，避免 ~N 碰撞自身旧短名）。
+        val existingShortNames = index.listDosShortNamesWithRef(dirRef)
+            .filter { it.second != target }
+            .map { it.first }.toSet()
+        val newPlan = planFileNames(newName, existingShortNames)
+
+        // 重写 FN 区（1~2 旧 → 1~2 新，平移后续属性，更新 link count）。
+        val newRec = rewriteFileNameSection(rec, dirRef, newPlan, realSize, allocSize, isDir) ?: return false
+        if (!mftMgr.writeMftRecord(target, newRec)) return false
+
+        // 删旧索引项（removeIndexEntry 按 mftRef 删全部孪生）。
+        if (!index.removeIndexEntry(dirRef, oldName)) {
+            // 回滚记录。
+            val rolled = rewriteFileNameSection(newRec, dirRef, oldPlan, realSize, allocSize, isDir)
+            if (rolled != null) mftMgr.writeMftRecord(target, rolled)
+            return false
+        }
+
+        // 插新索引项（1~2 项）。
+        val inserted = ArrayList<String>()
+        var allInserted = true
+        for ((nm, ns) in newPlan) {
+            val fnContent = buildFileNameForIndex(0L, dirRef, nm, realSize, allocSize, isDir, ns)
+            if (!index.insertIndexEntry(dirRef, fnContent, target)) {
+                allInserted = false
+                break
+            }
+            inserted.add(nm)
+        }
+        if (!allInserted) {
+            // 回滚：删已插新项 → 重插旧项 → 回滚记录。
+            for (nm in inserted) index.removeIndexEntry(dirRef, nm)
+            for ((nm, ns) in oldPlan) {
+                val fnContent = buildFileNameForIndex(0L, dirRef, nm, realSize, allocSize, isDir, ns)
+                index.insertIndexEntry(dirRef, fnContent, target)
+            }
+            val rolled = rewriteFileNameSection(newRec, dirRef, oldPlan, realSize, allocSize, isDir)
             if (rolled != null) mftMgr.writeMftRecord(target, rolled)
             return false
         }
@@ -526,24 +603,41 @@ class NtfsDataOps(
     }
 
     /**
-     * 重写 $FILE_NAME 属性内容为 [newName]（保留 parentRef/4 时间戳/allocSize/realSize/flags/reparse）。
-     * 名字长度变化 → 属性总长变化 → 后续属性整体平移 + 记录 used size 更新。放不下返回 null。
+     * 重写 $FILE_NAME 属性区：移除所有旧 $FILE_NAME（1~2 个），写入 [plan] 指定的新 FN 属性，
+     * 平移后续属性（$DATA/$INDEX_ROOT 等），更新硬链接数（=plan.size）。放不下返回 null。
+     * 保留 parentRef / 4 时间戳 / allocSize / realSize / flags / reparse（由 [plan] 的 ns 决定 namespace）。
      */
-    private fun rewriteFileNameAttr(rec: ByteArray, fnAttr: Attr, newName: String): ByteArray? {
-        val fnOff = attrOffsetOf(rec, ATTR_FILE_NAME, "") ?: return null
-        val hdr = u16(rec, fnOff + 0x14)
-        val oldContentLen = u32(rec, fnOff + 0x10).toInt()
-        val oldTotal = u32(rec, fnOff + 4).toInt()
-        val contentStart = fnOff + hdr
-        if (oldContentLen < 0x42) return null
-        val preserved = rec.copyOfRange(contentStart, contentStart + 0x40)
-        val newContentLen = 0x42 + newName.length * 2
-        val newTotal = align8(hdr + newContentLen)
-        val delta = newTotal - oldTotal
+    private fun rewriteFileNameSection(
+        rec: ByteArray, parentRef: Long, plan: List<Pair<String, Int>>,
+        realSize: Long, allocSize: Long, isDir: Boolean,
+    ): ByteArray? {
         val recUsed = u32(rec, 0x18).toInt()
+
+        // 定位 FN 属性区范围（$FILE_NAME 在记录中连续：STD_INFO 之后、$DATA/$INDEX_ROOT 之前）。
+        var firstFnOff = -1
+        var lastFnEnd = -1
+        var off = u16(rec, 0x14)
+        while (off + 8 <= recUsed && off + 8 <= rec.size) {
+            val type = u32(rec, off)
+            if (type == ATTR_END) break
+            val totalLen = u32(rec, off + 4).toInt()
+            if (totalLen <= 0 || off + totalLen > recUsed) break
+            if (type == ATTR_FILE_NAME) {
+                if (firstFnOff < 0) firstFnOff = off
+                lastFnEnd = off + totalLen
+            }
+            off += totalLen
+        }
+        if (firstFnOff < 0) return null
+
+        val newFnTotal = plan.sumOf { align8(0x18 + 0x42 + it.first.length * 2) }
+        val oldFnTotal = lastFnEnd - firstFnOff
+        val delta = newFnTotal - oldFnTotal
         if (recUsed + delta > recordSize) return null
+
         val newRec = rec.copyOf()
-        val afterOff = fnOff + oldTotal
+        // 平移 FN 区后续属性。
+        val afterOff = lastFnEnd
         val moveLen = recUsed - afterOff
         if (moveLen > 0) {
             if (delta > 0) {
@@ -557,19 +651,45 @@ class NtfsDataOps(
                 }
             }
         }
-        putU32(newRec, fnOff + 4, newTotal.toLong())
-        putU32(newRec, fnOff + 0x10, newContentLen.toLong())
-        System.arraycopy(preserved, 0, newRec, contentStart, 0x40)
-        newRec[contentStart + 0x40] = newName.length.toByte()
-        newRec[contentStart + 0x41] = 1
-        for (k in newName.indices) putU16(newRec, contentStart + 0x42 + k * 2, newName[k].code)
+        // 清零旧 FN 区（防止新 FN 比旧短时残留）。
+        for (i in firstFnOff until firstFnOff + newFnTotal) {
+            if (i < recordSize) newRec[i] = 0
+        }
+        // 写新 FN 属性。
+        val writeResult = writeFileNameAttrs(newRec, firstFnOff, parentRef, plan, realSize, allocSize, isDir)
+        if (writeResult < 0) return null
+        // 更新硬链接数。
+        putU16(newRec, 18, plan.size)
+        // 更新已用大小。
         putU32(newRec, 0x18, (recUsed + delta).toLong())
         return newRec
     }
 
+    /** 读记录中所有 $FILE_NAME 属性的 (名, namespace)，保留顺序。供 rename/move 回滚用。 */
+    private fun readFileNamePlan(rec: ByteArray): List<Pair<String, Int>> {
+        val attrs = parseAttrs(rec)
+        val out = ArrayList<Pair<String, Int>>()
+        for (a in attrs) {
+            if (a.type == ATTR_FILE_NAME && a.name.isEmpty() && !a.nonResident) {
+                val v = a.residentValue()
+                if (v.size >= 0x42) {
+                    val nameLen = v[0x40].toInt() and 0xFF
+                    val ns = v[0x41].toInt() and 0xFF
+                    val sb = StringBuilder(nameLen)
+                    for (k in 0 until nameLen) {
+                        if (0x42 + k * 2 + 1 < v.size) sb.append(u16(v, 0x42 + k * 2).toChar())
+                    }
+                    out.add(sb.toString() to ns)
+                }
+            }
+        }
+        return out
+    }
+
     /**
      * 同卷内把 [srcDirRef] 下的 [name] 移到 [dstDirRef]。
-     * 纯目录项操作 + 改 $FILE_NAME 的 parentRef，不搬数据簇。保守拒绝：目标已存在同名。
+     * 改 $FILE_NAME 的 parentRef + 重建 FN 区（DOS 短名可能在目标目录冲突 → 重新规划）
+     *   + 父目录索引项删旧（含孪生）插新（1~2 项）。不搬数据簇。保守拒绝：目标已存在同名。
      */
     internal fun ntfsMove(srcDirRef: Long, name: String, dstDirRef: Long): Boolean {
         if (srcDirRef == dstDirRef) return true
@@ -577,36 +697,52 @@ class NtfsDataOps(
         if (index.listDirEntries(dstDirRef).any { it.name.equals(name, ignoreCase = false) }) return false
         val rec = mftMgr.readMftRecord(target) ?: return false
         val attrs = parseAttrs(rec)
-        val fnAttr = findAttr(attrs, ATTR_FILE_NAME) ?: return false
-        val newRec = rewriteFileNameParentRef(rec, fnAttr, dstDirRef) ?: return false
-        if (!mftMgr.writeMftRecord(target, newRec)) return false
-        if (!index.removeIndexEntry(srcDirRef, name)) {
-            val rolled = rewriteFileNameParentRef(newRec, findAttr(parseAttrs(newRec), ATTR_FILE_NAME)!!, srcDirRef)
-            if (rolled != null) mftMgr.writeMftRecord(target, rolled)
-            return false
-        }
         val realSize = readDataRealSize(attrs)
         val allocSize = readDataAllocSize(attrs)
         val isDir = (u16(rec, 0x16) and FLAG_DIRECTORY) != 0
-        val fnContent = buildFileNameForIndex(0L, dstDirRef, name, realSize, allocSize, isDir)
-        if (!index.insertIndexEntry(dstDirRef, fnContent, target)) {
-            val rolled = rewriteFileNameParentRef(newRec, findAttr(parseAttrs(newRec), ATTR_FILE_NAME)!!, srcDirRef)
+
+        val oldPlan = readFileNamePlan(rec)
+
+        // 在目标目录规划名（DOS 短名可能需重新生成以避免冲突）。
+        val existingShortNames = index.listDosShortNamesWithRef(dstDirRef)
+            .filter { it.second != target }
+            .map { it.first }.toSet()
+        val newPlan = planFileNames(name, existingShortNames)
+
+        // 重写 FN 区（新 parentRef + 新 plan）。
+        val newRec = rewriteFileNameSection(rec, dstDirRef, newPlan, realSize, allocSize, isDir) ?: return false
+        if (!mftMgr.writeMftRecord(target, newRec)) return false
+
+        // 删源目录索引项（含孪生 DOS 短名项）。
+        if (!index.removeIndexEntry(srcDirRef, name)) {
+            val rolled = rewriteFileNameSection(newRec, srcDirRef, oldPlan, realSize, allocSize, isDir)
             if (rolled != null) mftMgr.writeMftRecord(target, rolled)
-            val oldFn = buildFileNameForIndex(0L, srcDirRef, name, realSize, allocSize, isDir)
-            index.insertIndexEntry(srcDirRef, oldFn, target)
+            return false
+        }
+
+        // 插目标目录索引项（1~2 项）。
+        val inserted = ArrayList<String>()
+        var allInserted = true
+        for ((nm, ns) in newPlan) {
+            val fnContent = buildFileNameForIndex(0L, dstDirRef, nm, realSize, allocSize, isDir, ns)
+            if (!index.insertIndexEntry(dstDirRef, fnContent, target)) {
+                allInserted = false
+                break
+            }
+            inserted.add(nm)
+        }
+        if (!allInserted) {
+            // 回滚：删目标已插项 → 重插源项 → 回滚记录。
+            for (nm in inserted) index.removeIndexEntry(dstDirRef, nm)
+            for ((nm, ns) in oldPlan) {
+                val fnContent = buildFileNameForIndex(0L, srcDirRef, nm, realSize, allocSize, isDir, ns)
+                index.insertIndexEntry(srcDirRef, fnContent, target)
+            }
+            val rolled = rewriteFileNameSection(newRec, srcDirRef, oldPlan, realSize, allocSize, isDir)
+            if (rolled != null) mftMgr.writeMftRecord(target, rolled)
             return false
         }
         return true
-    }
-
-    /** 改 $FILE_NAME 内容偏移 0 的 parentRef（保留高 16 位序列号）。 */
-    private fun rewriteFileNameParentRef(rec: ByteArray, fnAttr: Attr, newParent: Long): ByteArray? {
-        val newRec = rec.copyOf()
-        val contentStart = fnAttr.residentValueOffset
-        val orig = u64(newRec, contentStart)
-        val seq = orig and (-1L shl 48)
-        putU64(newRec, contentStart, newParent and 0x0000FFFFFFFFFFFFL or seq)
-        return newRec
     }
 
     /**

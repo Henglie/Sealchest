@@ -12,9 +12,17 @@ package com.henglie.sealchest.fs
 /** NTFS 时间基准：1601-01-01 与 1970-01-01 的毫秒差（同 [NtfsFileSystem.NTFS_EPOCH_DIFF_MS]）。 */
 internal const val NTFS_EPOCH_DIFF_MS = 11644473600000L
 
-/** MFT 引用：低 48 位 = 记录号，高 16 位 = 序列号（默认 1，与新建记录 sequence=1 对齐）。 */
+/**
+ * MFT 记录序列号规约（真·Windows/mkntfs）：rec0=1、rec1=1、rec2..15=记录号，运行时记录(≥16)=1。
+ * 即 n==0→1，1..15→n，其余→1。chkdsk 校验「$FILE_NAME.parentRef 的序列号」==「父目录记录头
+ * 实际序列号」；全硬编码 1 会使 rec2..11 的 parentSeq(=1) ≠ 根目录应有 seq(=5) → 报「检测到不正确的信息」。
+ */
+internal fun mftSeqOf(recordNo: Long): Int =
+    if (recordNo in 1L..15L) recordNo.toInt() else 1
+
+/** MFT 引用：低 48 位 = 记录号，高 16 位 = 序列号（按 [mftSeqOf] 规约）。 */
 internal fun mftRef(recordNo: Long): Long =
-    (recordNo and 0x0000FFFFFFFFFFFFL) or (1L shl 48)
+    (recordNo and 0x0000FFFFFFFFFFFFL) or (mftSeqOf(recordNo).toLong() shl 48)
 
 /** Unix 毫秒 → NTFS 100 纳秒单位（自 1601 起）。 */
 internal fun msToNtfsTime(ms: Long): Long = (ms + NTFS_EPOCH_DIFF_MS) * 10000L
@@ -124,15 +132,16 @@ private fun bytesNeededSignedPositive(v: Long): Int {
 /**
  * 构造 $UpCase 表：65536 个 UTF-16LE 码点（128KB）。
  *
- * mkntfs 做法：identity + ASCII 'a'..'z' → 'A'..'Z'。Windows 挂载后会按自己的表
- * 校验，不一致则重建（对空盘无副作用）。
+ * 全 BMP 大写映射（Character.toUpperCase）：覆盖拉丁/希腊/西里尔/等所有 Unicode
+ *   小写→大写。旧码只映射 ASCII a-z → chkdsk 每次报「大写表损坏-使用系统表」。
+ *   Windows 挂载后按自己的系统表校验，不一致则重建（对空盘无副作用），但补全后
+ *   chkdsk 不再报此项。代理对（D800-DFFF）无大写形式，toUpperCase 返回原值=identity。
  */
 internal fun buildUpcaseTable(): ByteArray {
     val table = ByteArray(65536 * 2)
     var off = 0
     for (i in 0 until 65536) {
-        val up = if (i in 'a'.code..'z'.code) i + ('A' - 'a') else i
-        putU16(table, off, up)
+        putU16(table, off, Character.toUpperCase(i.toChar()).code)
         off += 2
     }
     return table

@@ -26,7 +26,7 @@
 </p>
 
 > [!WARNING]
-> A significant portion of this project's code is AI-assisted, refined through continuous human integration and refactoring, yet it may still have gaps, insufficient edge-case handling, or behavior that does not fully match expectations. Trust in an encryption tool rests on interoperability — always verify Sealchest-written containers in **desktop VeraCrypt**, and back up important data first. If you hit a bug, compatibility issue, or unexpected behavior, please open an Issue with reproduction steps, logs, screenshots, and your system version.
+> Trust in an encryption tool rests on interoperability — always verify Sealchest-written containers in **desktop VeraCrypt**, and back up important data first. If you hit a bug, compatibility issue, or unexpected behavior, please report it promptly — open an Issue with reproduction steps, logs, screenshots, and your system version.
 
 Sealchest (Chinese name 匿匣) is an Android app that lets you open VeraCrypt / TrueCrypt encrypted containers on a phone **without root**, and browse the files inside.
 
@@ -82,6 +82,6 @@ Sealchest is an independent product. It is not affiliated with, and does not imp
 
 Henglie / EternalBlaze — <https://github.com/Henglie/Sealchest>
 
-## Stargazers over time
+## Keywords
 
-[![Stargazers over time](https://starchart.cc/Henglie/Sealchest.svg?variant=adaptive)](https://starchart.cc/Henglie/Sealchest)
+<sub>VeraCrypt Android · TrueCrypt Android · open VeraCrypt on Android · no-root mount · encrypted container · encrypted volume · on-the-fly decryption · userspace filesystem · XTS · PBKDF2 · Argon2id · AES Serpent Twofish Camellia Kuznyechik · SHA-512 Whirlpool Streebog BLAKE2s · FAT exFAT NTFS · hidden volume · plausible deniability · keyfile · SAF DocumentsProvider · no plaintext on disk · Android encryption app · veracrypt mobile · encrypted file manager · privacy</sub>

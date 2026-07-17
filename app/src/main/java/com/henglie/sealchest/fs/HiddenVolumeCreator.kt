@@ -222,6 +222,13 @@ object HiddenVolumeCreator {
             reader = VolumeReader(channel, volume)
             // 隐藏卷数据区大小 = volume.volumeSize（native 头里已是扣掉保留区的 dataAreaSize）。
             val hiddenDataSize = volume.volumeSize
+            // FAT 元数据区清零（与 VolumeCreator 同）。buildEmptyFat 稀疏——只写引导扇区 + 首
+            //   FAT 扇区，FAT 表剩余 + 根目录区靠「背景全零」。但隐藏卷用独立密钥 XTS 加密，
+            //   容器残留字节经隐藏密钥解密是乱码 → 根目录区非零 → FAT 层读到乱码目录 → 全操作失败。
+            //   故写结构前须显式对元数据区写零（经隐藏密钥 XTS 加密落盘）。
+            for ((off, len) in FatFormatter.metadataClearRegions(hiddenDataSize)) {
+                reader.write(off, ByteArray(len), 0, len)
+            }
             val img = FatFormatter.buildEmptyFat(hiddenDataSize)
             for ((logicalOffset, bytes) in img.sectors) {
                 if (bytes.isEmpty()) continue

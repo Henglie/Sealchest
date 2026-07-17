@@ -941,7 +941,11 @@ class ExFatFileSystem private constructor(
     /**
      * W14 删目录：非目录返 false。判空后 freeChain（目录首簇）+ 清父目录该项 InUse。
      * 关键：freeChain 靠 chainHint 判 NoFatChain 算簇数，外部 VC 建的目录无 hint 会漏释放 →
-     * 删前显式登记 chainHint。recursive 未实现：非空恒返 false（保守，留后续）。
+     * 删前显式登记 chainHint。
+     *
+     * [recursive]=false：非空目录拒绝（返 false）。true：先递归清空子项（子目录 rmdir、
+     *   文件 deleteFile，以本目录首簇为父句柄），再删本目录——与 FAT/NTFS 同款先清后删语义。
+     *   任一子项删失败即中止、不硬删父目录（不留孤儿簇）。
      */
     override fun rmdir(dirFirstCluster: Long, name: String, recursive: Boolean): Boolean {
         if (bitmapChain.isEmpty()) return false
@@ -950,12 +954,19 @@ class ExFatFileSystem private constructor(
         val m = readItemMeta(ctx.buf, base)
         if (!m.isDir) return false                               // 不是目录
         if (m.firstCluster >= 2 && !isDirEmpty(m.firstCluster, m.dataLength, m.noFatChain)) {
-            return false                                         // 非空：recursive 未实现，一律拒绝
+            if (!recursive) return false                         // 非空且非递归：拒绝
+            for (child in listDir(m.firstCluster)) {
+                val ok = if (child.isDirectory) rmdir(m.firstCluster, child.name, recursive = true)
+                         else deleteFile(m.firstCluster, child.name)
+                if (!ok) return false                            // 子项删失败即中止，不硬删父
+            }
         }
         if (m.firstCluster >= 2) {
             chainHint[m.firstCluster] = ChainHint(m.noFatChain, m.dataLength)  // 防漏释放
             freeChain(m.firstCluster)
         }
+        // 递归清空后 ctx 快照已过期（子项 clearEntrySet 改了本目录簇），但清的是父目录里
+        //   本条目 base/count（本条目组不随子项增删移动，base 仍有效），无需重定位。
         clearEntrySet(ctx, base, count)
         return true
     }

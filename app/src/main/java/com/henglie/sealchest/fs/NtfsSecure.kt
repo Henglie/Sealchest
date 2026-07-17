@@ -176,7 +176,7 @@ internal object NtfsSecure {
     private fun writeIndexRootHead(b: ByteArray, collation: Long, bytesPerCluster: Int, indexLen: Int) {
         putU32(b, 0x00, 0L)                                  // indexed_attr_type = 0 (view index)
         putU32(b, 0x04, collation)                           // collation rule
-        putU32(b, 0x08, NtfsFormatter.INDEX_RECORD_SIZE.toLong())
+        putU32(b, 0x08, NtfsFormatter.indexRecordSize(bytesPerCluster).toLong())
         b[0x0C] = NtfsFormatter.indexBufferCode(bytesPerCluster).toByte()
         // INDEX_HEADER @0x10
         putU32(b, 0x10, 0x10L)                               // entries_offset (rel to INDEX_HEADER)

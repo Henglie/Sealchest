@@ -8,6 +8,7 @@ import com.henglie.sealchest.fs.NtfsRecordCodec.Companion.INDEX_ENTRY_HAS_SUBNOD
 import com.henglie.sealchest.fs.NtfsRecordCodec.Companion.INDEX_ENTRY_LAST
 import com.henglie.sealchest.fs.NtfsRecordCodec.Companion.MFT_ROOT_DIR
 import com.henglie.sealchest.fs.NtfsRecordCodec.Companion.NS_DOS
+import com.henglie.sealchest.fs.NtfsRecordCodec.Companion.NS_WIN32_AND_DOS
 import com.henglie.sealchest.fs.NtfsRecordCodec.Companion.align8
 import com.henglie.sealchest.fs.NtfsRecordCodec.Companion.attrOffsetOf
 import com.henglie.sealchest.fs.NtfsRecordCodec.Companion.buildFileNameForIndex
@@ -138,12 +139,77 @@ class NtfsIndex(
         ))
     }
 
+    /**
+     * 收集目录 [dirRef] 下所有 DOS 短名(ns=2)与合法 8.3 长名(ns=3)，返回 (名, mftRef) 列表。
+     * 供新建/重命名文件时 [generateDosShortName] 做 ~N 查重——取 .first 即得碰撞名集合。
+     * 遍历逻辑与 [listDirEntries] 同（$INDEX_ROOT + $INDEX_ALLOCATION），仅筛选 ns 不同。
+     */
+    internal fun listDosShortNamesWithRef(dirRef: Long): List<Pair<String, Long>> {
+        val rec = mftMgr.readMftRecord(dirRef) ?: return emptyList()
+        val attrs = parseAttrs(rec)
+        val out = ArrayList<Pair<String, Long>>()
+
+        val root = findAttr(attrs, ATTR_INDEX_ROOT, "\$I30")
+            ?: attrs.firstOrNull { it.type == ATTR_INDEX_ROOT }
+        if (root != null && !root.nonResident) {
+            val body = root.residentValue()
+            val entriesOff = 16 + u32(body, 16).toInt()
+            parseDosNames(body, entriesOff, out)
+        }
+
+        val alloc = findAttr(attrs, ATTR_INDEX_ALLOCATION, "\$I30")
+            ?: attrs.firstOrNull { it.type == ATTR_INDEX_ALLOCATION }
+        if (alloc != null && alloc.nonResident) {
+            val runs = decodeRuns(alloc.recordBuf, alloc.runsOffset)
+            val totalSize = alloc.realSize
+            var pos = 0L
+            val idxSize = boot.indexRecordSize
+            while (pos + idxSize <= totalSize) {
+                val indx = mftMgr.readFromRuns(runs, pos, idxSize)
+                pos += idxSize
+                if (indx == null || indx.size < 4) continue
+                if (indx[0] != 'I'.code.toByte()) continue
+                codec.applyUsaFixup(indx)
+                val entriesOff = 24 + u32(indx, 24).toInt()
+                parseDosNames(indx, entriesOff, out)
+            }
+        }
+        return out
+    }
+
+    /** 解析一段索引项，收集 ns=2/ns=3 的 (名, mftRef) 到 [out]。 */
+    private fun parseDosNames(buf: ByteArray, start: Int, out: ArrayList<Pair<String, Long>>) {
+        var i = start
+        while (i + 16 <= buf.size) {
+            val mftRef = u64(buf, i) and 0x0000FFFFFFFFFFFFL
+            val entryLen = u16(buf, i + 8)
+            val contentLen = u16(buf, i + 10)
+            val flags = u16(buf, i + 12)
+            if (entryLen < 16) break
+            if (flags and INDEX_ENTRY_LAST != 0) break
+            if (contentLen >= 0x42 && i + 16 + contentLen <= buf.size) {
+                val ns = buf[i + 16 + 0x41].toInt() and 0xFF
+                if (ns == NS_DOS || ns == NS_WIN32_AND_DOS) {
+                    val nameLen = buf[i + 16 + 0x40].toInt() and 0xFF
+                    val sb = StringBuilder(nameLen)
+                    var k = 0
+                    while (k < nameLen && i + 16 + 0x42 + k * 2 + 1 < buf.size) {
+                        sb.append(u16(buf, i + 16 + 0x42 + k * 2).toChar()); k++
+                    }
+                    if (sb.isNotEmpty()) out.add(sb.toString() to mftRef)
+                }
+            }
+            i += entryLen
+        }
+    }
+
     // ================= 写侧：B+树整树重建 =================
     //
     // 策略：insert/delete 统一为「collectAllLeafEntries 全树 → 增/删一项 → rebuildDirIndex 从排序表重建」。
     // 一条路径，一处对处处对。支持 2 层 B+树（root 指针节点 + N 个 INDX 叶子）；3 层（需 root 放不下
-    // 全部分隔符）保守拒绝。仅 indexRecordSize>=clusterSize（4096 索引 + 簇<=4096，绝大多数容器）走多叶；
-    // 超大簇(idxRecSize<clusterSize)的多叶 VCN 编码复杂，保守拒绝。
+    // 全部分隔符）保守拒绝。索引块 = max(4096,簇)（indexRecordSize，mkntfs 规则），故 indexRecordSize
+    // >= clusterSize 对全簇矩阵恒真：全部簇（含 8K/16K/32K/64K 大簇）都走多叶，cpr=索引块/簇 参数化
+    // VCN 编码（小簇 cpr>1、大簇 cpr=1），无「超大簇拒绝」死角。
     // NTFS 索引是 B-树：分隔符键项提升到 root（带 HAS_SUBNODE+子节点 VCN），不在叶子重复；
     //   读侧遍历 root 键项 + 全叶子项去重，故收集必须含 root 键项。
 
@@ -255,6 +321,10 @@ class NtfsIndex(
         return idxRecSize - entriesStart - 0x10       // 减 END 叶末项
     }
 
+    /** 从排序项贪心分区成 2 层 B 树叶子 + 分隔符（纯函数，逻辑见 companion.partitionLeaves）。 */
+    private fun partitionLeaves(sorted: List<ByteArray>, cap: Int): LeafPartition? =
+        Companion.partitionLeaves(sorted, cap)
+
     /**
      * 从排序好的叶子项 [sorted] 重建目录 [dirRef] 整棵索引。
      * ① 全驻留（所有项+END 塞进 MFT 记录的 $INDEX_ROOT）→ 小目录 / 删到变小的收缩。
@@ -285,31 +355,17 @@ class NtfsIndex(
             // 放不下 → 落 2 层。
         }
 
-        // ② 2 层：仅 idxRecSize>=clusterSize 支持（超大簇多叶 VCN 编码复杂，拒绝）。
+        // ② 2 层多叶。索引块 = max(4096,簇) ≥ 簇 恒成立（indexRecordSize，mkntfs 规则），
+        //   故此判据恒为假，仅作防御性兜底（防未来改坏 boot 解析产出「索引块<簇」的非法布局）。
         if (boot.indexRecordSize < clusterSize) return false
         val cap = leafEntryCapacity()
         // 单项若超过一个叶子容量（名极长）→ 无法放 → 拒绝。
         if (sorted.any { it.size > cap }) return false
 
-        // 贪心分区：填满一叶就把下一项提升为分隔符，起新叶。
-        val leaves = ArrayList<List<ByteArray>>()
-        val separators = ArrayList<ByteArray>()
-        var cur = ArrayList<ByteArray>()
-        var curBytes = 0
-        for (e in sorted) {
-            if (curBytes + e.size > cap) {
-                leaves.add(cur); separators.add(e)
-                cur = ArrayList(); curBytes = 0
-            } else { cur.add(e); curBytes += e.size }
-        }
-        // 空尾叶修复：若末项被提升为分隔符致尾叶为空，降回前一叶（不产生空 INDX 记录）
-        if (cur.isEmpty() && separators.isNotEmpty()) {
-            val lastLeaf = leaves.removeAt(leaves.lastIndex).toMutableList()
-            lastLeaf.add(separators.removeAt(separators.lastIndex))
-            leaves.add(lastLeaf)
-        } else {
-            leaves.add(cur)
-        }
+        // 贪心分区（抽成可单测的 partitionLeaves）：维持「分隔符数 = 叶数 - 1」、每叶非空且不超 cap。
+        val part = partitionLeaves(sorted, cap) ?: return false
+        val leaves = part.leaves
+        val separators = part.separators
         val numLeaves = leaves.size
 
         // root 大索引内容（分隔符各带子节点 VCN + LAST→末叶 VCN）；放不下 = 需 3 层。
@@ -749,5 +805,57 @@ class NtfsIndex(
             sb.append("[驻留 flags] ").append(if (ok) "PASS" else "FAIL flags=$flags").append("\n")
         }
         return sb.toString()
+    }
+
+    companion object {
+        /** 分区结果：N 个叶子 + (N-1) 个分隔符键项（B 树不变量：分隔符数 = 叶数 - 1）。 */
+        internal class LeafPartition(val leaves: List<List<ByteArray>>, val separators: List<ByteArray>)
+
+        /**
+         * 把已排序项 [sorted] 贪心分区成 2 层 B 树的叶子 + 分隔符。纯函数（无实例状态），供单测直接调。
+         *
+         * B 树不变量（调用方与 buildLargeRootContent 都依赖）：
+         *   ① 分隔符数 = 叶数 - 1（每个分隔符夹在两叶之间，读侧回解序 = leaf0 ++ sep0 ++ leaf1 ++ …）；
+         *   ② 每叶非空（空叶 = 空 INDX 记录，chkdsk 报错 / 浪费簇）；
+         *   ③ 每叶字节 <= [cap]（否则 buildIndxLeafRecord 溢出返 null）。
+         *
+         * 旧「空尾叶修复」的 bug：末项恰好溢出被提升为分隔符、其后再无项 → 尾叶空。旧码把该分隔符
+         *   硬塞回**已装满**的前一叶（正因装满才触发提升）→ 前一叶溢出 cap → buildIndxLeafRecord
+         *   返 null → 整个写操作失败。这是 ≤4K 簇「批量建 50 文件」在第 34 项必失败的根因
+         *   （真机 listed=33）。≥8K 簇叶容量大、50 项塞一叶不分裂，故不触发。
+         *
+         * 正解：悬空分隔符自成独立末叶（单项叶），并从前一满叶末尾借最大项当新分隔符，
+         *   顺序仍单调、维持不变量①。空输入 / 单项超 cap（调用方已挡）返 null。
+         */
+        internal fun partitionLeaves(sorted: List<ByteArray>, cap: Int): LeafPartition? {
+            if (sorted.isEmpty()) return null
+            val leaves = ArrayList<List<ByteArray>>()
+            val separators = ArrayList<ByteArray>()
+            var cur = ArrayList<ByteArray>()
+            var curBytes = 0
+            for (e in sorted) {
+                if (e.size > cap) return null   // 单项超叶容量：无法放（调用方通常已挡）。
+                if (curBytes + e.size > cap) {
+                    leaves.add(cur); separators.add(e)
+                    cur = ArrayList(); curBytes = 0
+                } else { cur.add(e); curBytes += e.size }
+            }
+            if (cur.isEmpty()) {
+                // 末项被提升为分隔符后再无项（cur 空）。旧 bug：把该分隔符塞回**已满**的前一叶
+                //   → 前叶溢出 cap → buildIndxLeafRecord 返 null → 写失败（真机 ≤4K 簇 listed=33）。
+                // 正解：promoted 自成独立末叶（单项叶），并从前一满叶末尾借最大项 x 当新分隔符。
+                //   顺序仍单调（x = 前叶最大 < promoted），且维持「分隔符数 = 叶数 - 1」不变量。
+                val promoted = separators.removeAt(separators.lastIndex)
+                val prev = ArrayList(leaves.removeAt(leaves.lastIndex))
+                if (prev.size < 2) return null   // prev only 1 item: borrowing empties it, reject
+                val borrowed = prev.removeAt(prev.lastIndex)
+                leaves.add(prev)
+                separators.add(borrowed)
+                leaves.add(mutableListOf(promoted))
+            } else {
+                leaves.add(cur)
+            }
+            return LeafPartition(leaves, separators)
+        }
     }
 }

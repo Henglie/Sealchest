@@ -26,7 +26,7 @@
 </p>
 
 > [!WARNING]
-> 本项目相当一部分代码由 AI 辅助生成，经过持续的人工联调与重构，但仍可能存在遗漏、边界情况处理不足或行为与预期不完全一致的问题。加密工具的信任建立在互通验证之上——请务必在**桌面 VeraCrypt** 中回验匿匣写出的容器，重要数据先备份。发现 Bug、兼容性问题或异常行为，欢迎提交 Issue，最好附上复现步骤、日志、截图和系统版本。
+> 加密工具的信任建立在互通验证之上——请务必在**桌面 VeraCrypt** 中回验匿匣写出的容器，重要数据先备份。如果遇到 Bug、兼容性问题或异常行为，请及时反馈，欢迎提交 Issue，最好附上复现步骤、日志、截图和系统版本。
 
 匿匣是一款安卓应用，让你在**没有 root** 的手机上打开 VeraCrypt / TrueCrypt 加密容器，浏览、读写里面的文件。
 
@@ -84,6 +84,6 @@
 
 项目地址：<https://github.com/Henglie/Sealchest>
 
-## Star 趋势
+---
 
-[![Stargazers over time](https://starchart.cc/Henglie/Sealchest.svg?variant=adaptive)](https://starchart.cc/Henglie/Sealchest)
+<sub>关键词 / Keywords：VeraCrypt Android · TrueCrypt Android · 安卓 VeraCrypt · 无 root 挂载 · no-root mount · 加密容器 · encrypted container · XTS · 隐藏卷 hidden volume · keyfile · exFAT NTFS FAT · SAF DocumentsProvider · 明文不落盘 · on-the-fly decryption · 隐私加密 · privacy · Kuznyechik Serpent Twofish Camellia · Argon2id · 移动加密盘 · mobile crypto volume</sub>

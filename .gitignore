@@ -39,3 +39,6 @@ _commit_msg.txt
 .tmp/
 .tmp_*
 *.tmp
+
+# 测试遗留的参考盘片段（非真实镜像，无代码引用）
+*.vhd

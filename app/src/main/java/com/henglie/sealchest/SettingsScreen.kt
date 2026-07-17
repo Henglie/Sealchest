@@ -1,6 +1,8 @@
 package com.henglie.sealchest
 
 import android.app.Activity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -107,6 +109,37 @@ fun SettingsScreen(onBack: () -> Unit) {
 
     fun timeoutLabel(ms: Long): String =
         Settings.TIMEOUT_OPTIONS.firstOrNull { it.first == ms }?.second ?: "$ms ms"
+
+    // Batch self-test state: running / progress / result summary.
+    val batchScope = rememberCoroutineScope()
+    var batchRunning by remember { mutableStateOf(false) }
+    var batchProgress by remember { mutableStateOf("") }
+    var batchResult by remember { mutableStateOf<String?>(null) }
+    val batchDirLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                )
+            }
+            batchRunning = true
+            batchResult = null
+            batchProgress = "..."
+            batchScope.launch {
+                val r = withContext(Dispatchers.IO) {
+                    com.henglie.sealchest.fs.VolumeBatchTest.runFullBatch(context, uri) { msg ->
+                        batchProgress = msg
+                    }
+                }
+                batchRunning = false
+                batchResult = r.summary()
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -379,6 +412,38 @@ fun SettingsScreen(onBack: () -> Unit) {
                             }
                         }
                     }
+                }
+            }
+
+            SettingsCard(title = "Batch Self-Test / 一键批量自检") {
+                Text(
+                    "Auto-create FAT/exFAT/NTFS x all cluster sizes (27) plus VC feature variants " +
+                        "(keyfile / multi-keyfile / Serpent / Twofish / SHA-256 / PIM / dynamic / hidden, 10) = 37 containers " +
+                        "in a chosen folder, mount each writable and run full read/write cases. Containers stay for desktop VeraCrypt + chkdsk re-verification.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (batchRunning) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.height(20.dp), strokeWidth = 2.dp)
+                        Text(batchProgress, style = MaterialTheme.typography.bodySmall)
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick = { batchDirLauncher.launch(null) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Choose folder & start / 选择文件夹开始") }
+                }
+                if (batchResult != null) {
+                    Text(
+                        batchResult!!,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
                 }
             }
 

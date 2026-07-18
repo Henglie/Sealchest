@@ -20,25 +20,25 @@ import java.nio.channels.FileChannel
  * [channel] 覆盖容器密文（SAF PFD 的 FileChannel），[volume] 是已开卷句柄。
  * [close] 只关卷（销毁密钥），不负责关 channel / PFD —— 那归 [MountManager]。
  */
-class VolumeReader(
-    private val channel: FileChannel,
-    private val volume: NativeBridge.Volume,
+open class VolumeReader(
+    private val channel: FileChannel?,
+    private val volume: NativeBridge.Volume?,
 ) : Closeable {
 
-    private val encStart: Long = volume.encryptedAreaStart
+    private val encStart: Long = volume?.encryptedAreaStart ?: 0L
 
     /** 卷数据区字节数（不含头），逻辑偏移上界。 */
-    val dataSize: Long = volume.volumeSize
+    open val dataSize: Long = volume?.volumeSize ?: 0L
 
     // 卷 crypto 元信息转发（X10 容器信息面板）：只读快照，仅供展示，不参与解密路径。
     /** VeraCrypt 加密算法编号（与创建用 EA ID 同套：1=AES 2=Serpent 3=Twofish 4=Camellia 5=Kuznyechik，其余为级联）。 */
-    val encryptionAlgorithm: Int = volume.encryptionAlgorithm
+    val encryptionAlgorithm: Int = volume?.encryptionAlgorithm ?: 0
     /** 派生用 PRF 编号（1=SHA512 2=Whirlpool 3=SHA256 4=BLAKE2s 5=Streebog）。 */
-    val prf: Int = volume.prf
+    val prf: Int = volume?.prf ?: 0
     /** 扇区大小（字节），通常 512。 */
-    val sectorSize: Int = volume.sectorSize
+    val sectorSize: Int = volume?.sectorSize ?: 512
     /** 是否隐藏卷（用隐藏卷头解锁）。 */
-    val isHidden: Boolean = volume.isHidden
+    val isHidden: Boolean = volume?.isHidden ?: false
 
     private companion object {
         const val UNIT = 512
@@ -52,6 +52,20 @@ class VolumeReader(
             size > CACHE_UNITS
     }
 
+    /**
+     * 解密单个单元的明文缓冲（in-place）。生产实现调 native decryptUnits。
+     * 提取为 open fun 供 JVM 测试用恒等加密 override，从而压测 VolumeReader 自身的
+     * 512B 单元 read-modify-write + LRU 缓存逻辑（绕过 native 加密依赖）。
+     */
+    protected open fun decryptUnitData(unitNo: Long, buf: ByteArray) {
+        volume!!.decryptUnits(unitNo, buf, 1)
+    }
+
+    /** 加密单个单元的明文缓冲（in-place），与 [decryptUnitData] 对称。 */
+    protected open fun encryptUnitData(unitNo: Long, buf: ByteArray) {
+        volume!!.encryptUnits(unitNo, buf, 1)
+    }
+
     /** 取（并缓存）绝对单元号 [unitNo] 的解密后 512 字节。越过文件尾则补零。 */
     private fun decryptUnit(unitNo: Long): ByteArray {
         cache[unitNo]?.let { return it }
@@ -59,11 +73,11 @@ class VolumeReader(
         val bb = ByteBuffer.wrap(buf)
         var pos = unitNo * UNIT
         while (bb.hasRemaining()) {
-            val n = channel.read(bb, pos)
+            val n = channel?.read(bb, pos) ?: -1
             if (n < 0) break          // EOF：剩余保持 0
             pos += n
         }
-        volume.decryptUnits(unitNo, buf, 1)
+        decryptUnitData(unitNo, buf)
         cache[unitNo] = buf
         return buf
     }
@@ -72,7 +86,7 @@ class VolumeReader(
      * 读卷内 [logicalOffset] 起 [length] 字节（解密后），返回新数组。
      * 跨单元自动拼接；越过 [dataSize] 的部分为 0。
      */
-    fun read(logicalOffset: Long, length: Int): ByteArray {
+    open fun read(logicalOffset: Long, length: Int): ByteArray {
         val out = ByteArray(length)
         read(logicalOffset, out, 0, length)
         return out
@@ -82,7 +96,7 @@ class VolumeReader(
      * 读卷内 [logicalOffset] 起 [length] 字节到 [dst] 的 [dstOff] 处。
      * 返回实际写入字节数（正常 = [length]）。
      */
-    fun read(logicalOffset: Long, dst: ByteArray, dstOff: Int, length: Int): Int {
+    open fun read(logicalOffset: Long, dst: ByteArray, dstOff: Int, length: Int): Int {
         var written = 0
         var lo = logicalOffset
         while (written < length) {
@@ -107,7 +121,7 @@ class VolumeReader(
      * 写入后必须 [flush] 才落盘（channel.force）。上层（FAT 写）在一批结构改动
      * 完成后统一 flush，减少半写状态。仍是崩溃不原子 —— 二期考虑日志/双写头。
      */
-    fun write(logicalOffset: Long, src: ByteArray, srcOff: Int, length: Int) {
+    open fun write(logicalOffset: Long, src: ByteArray, srcOff: Int, length: Int) {
         var done = 0
         var lo = logicalOffset
         while (done < length) {
@@ -122,11 +136,11 @@ class VolumeReader(
 
             // 加密副本写回：不能加密缓存本身（缓存存明文），拷出来加密。
             val cipher = plain.copyOf()
-            volume.encryptUnits(unitNo, cipher, 1)
+            encryptUnitData(unitNo, cipher)
             val bb = ByteBuffer.wrap(cipher)
             var pos = unitNo * UNIT
             while (bb.hasRemaining()) {
-                val n = channel.write(bb, pos)
+                val n = channel!!.write(bb, pos)
                 // 短写/写 0 不能静默 break：那会让上层以为整段写成功，实则容器只写了一半
                 // → 加密单元残缺 → 桌面 VC 打不开或 chkdsk 报错。宁可抛，让写操作明确失败回滚。
                 if (n <= 0) throw java.io.IOException(
@@ -141,7 +155,7 @@ class VolumeReader(
     }
 
     /** 便捷：整段写。 */
-    fun write(logicalOffset: Long, src: ByteArray) = write(logicalOffset, src, 0, src.size)
+    open fun write(logicalOffset: Long, src: ByteArray) = write(logicalOffset, src, 0, src.size)
 
     /**
      * 加解密往返自测（写入互通的地基，零风险，全程内存操作、绝不写盘）。
@@ -167,7 +181,7 @@ class VolumeReader(
             val bb = ByteBuffer.wrap(c0)
             var p = pos
             while (bb.hasRemaining()) {
-                val n = channel.read(bb, p)
+                val n = channel!!.read(bb, p)
                 if (n < 0) break
                 p += n
             }
@@ -175,17 +189,17 @@ class VolumeReader(
 
         // 往返1：decrypt(C0)=P0，再 encrypt(P0) 应复现 C0。
         val p0 = c0.copyOf()
-        volume.decryptUnits(unitNo, p0, 1)
+        volume!!.decryptUnits(unitNo, p0, 1)
         val encChanges = !p0.contentEquals(c0)
         val recc = p0.copyOf()
-        volume.encryptUnits(unitNo, recc, 1)
+        volume!!.encryptUnits(unitNo, recc, 1)
         val encReproduces = recc.contentEquals(c0)
 
         // 往返2：造可辨识明文 X，encrypt 后 decrypt 必须还原 X。
         val x = ByteArray(UNIT) { (it and 0xFF).toByte() }
         val y = x.copyOf()
-        volume.encryptUnits(unitNo, y, 1)
-        volume.decryptUnits(unitNo, y, 1)
+        volume!!.encryptUnits(unitNo, y, 1)
+        volume!!.decryptUnits(unitNo, y, 1)
         val roundtripLossless = y.contentEquals(x)
 
         return SelfTestResult(encReproduces, encChanges, roundtripLossless)
@@ -201,8 +215,8 @@ class VolumeReader(
     }
 
     /** 落盘。FAT 写在一批结构改动后调用。 */
-    fun flush() {
-        runCatching { channel.force(false) }
+    open fun flush() {
+        runCatching { channel?.force(false) }
     }
 
     /**
@@ -210,10 +224,10 @@ class VolumeReader(
      * flush① 成功才允许清脏（dirty-first 不变式的物理前提）。force 抛异常
      * （SAF/FUSE 某些 PFD 不支持 fsync）时返回 false，调用方须保留 dirty=1 退化 chkdsk 兜底。
      */
-    fun flushChecked(): Boolean = runCatching { channel.force(false) }.isSuccess
+    fun flushChecked(): Boolean = runCatching { channel?.force(false) }.isSuccess
 
     override fun close() {
         cache.clear()
-        volume.close()
+        volume?.close()
     }
 }

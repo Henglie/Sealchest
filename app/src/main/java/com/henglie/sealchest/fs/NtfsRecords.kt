@@ -264,6 +264,9 @@ internal fun buildRootDirRecord(now: Long, rootRef: Long, bpc: Int): ByteArray {
     //   每次写根目录（建文件/建子目录）insertIndexEntry 恒返回 false → 全部写操作失败。
     //   读侧 listDirEntries 有 firstOrNull{type==INDEX_ROOT} 兜底故能读，掩盖了此 bug。
     //   与 buildExtendRecord（Bug8 已修）对齐。
+    // 回退到空 $INDEX_ROOT：预建 $Extend 索引项会引入「segment 5 incorrect information」
+    //   错误（Windows 挂载时发现根目录非空但仍按自己逻辑重写，产出错误）。空根目录让 Windows
+    //   完全自建，小簇下无问题；大簇下的问题需从 Windows 自建路径另寻解法（待研究）。
     rb.resident(NtfsFormatter.ATTR_INDEX_ROOT, buildIndexRootEmpty(bpc), name = "\$I30")
     rb.flags(NtfsFormatter.FLAG_IN_USE or NtfsFormatter.FLAG_DIRECTORY)
     return rb.end()
@@ -361,6 +364,9 @@ internal fun buildExtendRecord(now: Long, rootRef: Long, bpc: Int): ByteArray {
     rb.resident(NtfsFormatter.ATTR_STANDARD_INFO, buildStdInfo(now, isDir = true))
     rb.resident(NtfsFormatter.ATTR_FILE_NAME, buildFileNameContent(rootRef, "\$Extend", now, isDir = true))
     // Bug8：目录索引属性必须名 "$I30"（读侧 findAttr(INDEX_ROOT,"$I30")、chkdsk 均按此名找），旧码无名。
+    // 回退到空 $INDEX_ROOT：预建 $Extend 子目录索引项会引入「segment B/C/D/E/F incorrect
+    //   information」错误（Windows 挂载时发现 $Extend 非空但仍按自己逻辑重写，产出错误）。
+    //   空 $Extend 让 Windows 完全自建，小簇下无问题；大簇下的问题待研究。
     rb.resident(NtfsFormatter.ATTR_INDEX_ROOT, buildIndexRootEmpty(bpc), name = "\$I30")
     rb.flags(NtfsFormatter.FLAG_IN_USE or NtfsFormatter.FLAG_DIRECTORY)
     return rb.end()

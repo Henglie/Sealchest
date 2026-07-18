@@ -100,6 +100,8 @@ android {
     testOptions {
         unitTests.all {
             it.jvmArgs("-Dfile.encoding=UTF-8", "-Dsun.jnu.encoding=UTF-8")
+            // 把宿主的 ntfs.emit.dir 透传给 fork 的 test JVM（NtfsEmitRawTest 用它选输出目录）。
+            System.getProperty("ntfs.emit.dir")?.let { d -> it.systemProperty("ntfs.emit.dir", d) }
         }
     }
 }

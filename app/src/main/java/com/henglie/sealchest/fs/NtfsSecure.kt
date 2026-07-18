@@ -132,7 +132,11 @@ internal object NtfsSecure {
         var o = 0x20
         // SDH entry
         putU16(content, o + 0x00, 0x18)          // data_offset
-        putU16(content, o + 0x02, 0x18)          // data_length
+        // data_length = 0x14（SDS 头 20 字节：hash4+secid4+offset8+len4）。不含尾部 "II"(0x00490049)
+        //   对齐填充——填充只补到 entry_length(0x30)，不属 data。旧值 0x18 把 4 字节填充误算进
+        //   data_length → chkdsk 阶段2 报「文件 9 的索引 $SDH 中检测到错误」（$SII data_length=0x14
+        //   正确故通过，两者对照即铁证）。逐字节对照真·Windows $SDH 叶子项确认。
+        putU16(content, o + 0x02, 0x14)          // data_length
         putU16(content, o + 0x08, entryLen)      // entry_length
         putU16(content, o + 0x0A, 0x08)          // key_length (hash + security_id)
         putU16(content, o + 0x0C, 0)             // flags

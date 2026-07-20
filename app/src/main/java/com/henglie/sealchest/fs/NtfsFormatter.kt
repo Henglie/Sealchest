@@ -59,23 +59,29 @@ object NtfsFormatter {
     internal const val FLAG_IS_VIEW_INDEX = 0x0008
 
     /**
-     * NTFS 索引记录（index block）字节大小。mkntfs 规则：max(4096, 簇大小)——索引块绝不小于一簇。
-     *   簇 ≤ 4096 → 索引块固定 4096（可跨多簇：512→8 簇…4096→1 簇）；
-     *   簇 > 4096 → 索引块 = 一簇（8K/16K/32K/64K 各自等于簇大小）。
-     * 旧实现把索引块写死 4096：大簇下 boot.indexRecordSize(4096) < 簇 → 运行时 rebuildDirIndex
-     *   的 2 层多叶构建被 `indexRecordSize < clusterSize` 判据拒绝，NTFS 8K+ 簇目录一旦超出驻留
-     *   $INDEX_ROOT 就无法增长（批量 50 文件必失败）；且「索引块 < 簇」本身是非法布局，chkdsk 报错。
+     * NTFS 索引记录（index block）字节大小：**恒 4096**（与真·Windows 一致）。
+     *   fsutil 金标准铁证：Windows format 8K/16K/... 簇 NTFS 的「Bytes Per Index Record Segment」
+     *   恒为 4096，即使簇 > 4096（此时 index block < 簇，完全合法，boot[0x44] 用负数编码）。
+     *   旧实现 max(4096,簇) 让大簇 index block=8192/16384/... → root $I30 在 superfloppy（桌面
+     *   VeraCrypt 挂载）下 Windows 无法遍历 → chkdsk /f 判所有系统文件 orphan。逐簇 VeraCrypt
+     *   就地替换验证：4K(idxBlk=4096) 系统文件 0 orphan；8K(idxBlk=8192) 系统文件全 orphan。
      */
-    internal fun indexRecordSize(bytesPerCluster: Int): Int =
-        maxOf(INDEX_RECORD_SIZE, bytesPerCluster)
+    internal fun indexRecordSize(bytesPerCluster: Int): Int = INDEX_RECORD_SIZE
 
     /**
-     * ClustersPerIndexBuffer 字节（boot[0x44] 与 $INDEX_ROOT+0x0C 同一编码，见 NtfsBoot.recordSize）。
-     * 索引块 = max(4096,簇) ≥ 簇 恒成立 → 恒正数簇计：簇≤4096 为 4096/簇（512→8…4096→1），
-     *   簇>4096 恒 1（索引块 = 一簇）。不再出现「索引块 < 簇」的负数编码（那是非法布局）。
+     * ClustersPerIndexBuffer 编码（boot[0x44] 与 $INDEX_ROOT+0x0C 同一编码，见 NtfsBoot.recordSize）。
+     *   簇 ≤ 4096：index block=4096 ≥ 簇 → 正数簇计 4096/簇（512→8…4096→1）。
+     *   簇 > 4096：index block=4096 < 簇 → 负数编码 -log2(4096)=-12（NtfsBoot.recordSize 解析
+     *     负值 v 为 2^(-v) 字节，-12 → 4096）。与真·Windows 8K+ 簇 boot[0x44] 一致。
      */
     internal fun indexBufferCode(bytesPerCluster: Int): Int =
-        indexRecordSize(bytesPerCluster) / bytesPerCluster
+        if (INDEX_RECORD_SIZE >= bytesPerCluster) INDEX_RECORD_SIZE / bytesPerCluster
+        else {
+            var log2 = 0
+            var v = INDEX_RECORD_SIZE
+            while (v > 1) { v = v shr 1; log2++ }
+            -log2
+        }
     internal const val FILE_ATTR_SYSTEM = 0x06L               // HIDDEN|SYSTEM
     // NTFS 目录位是 file_attributes 的 0x10000000(I30_INDEX_PRESENT)，非 DOS 的 0x10。
     //   chkdsk 交叉校验：记录头 FLAG_DIRECTORY(0x16 位)、带 $I30 $INDEX_ROOT、$FILE_NAME/
@@ -146,7 +152,13 @@ object NtfsFormatter {
         val sdsClusters = (sdsRealSize + bytesPerCluster - 1) / bytesPerCluster
         val sdsLcn = attrDefLcn + attrDefClusters
         val mftBitmapLcn = sdsLcn + sdsClusters
-        val lastMetaLcn = mftBitmapLcn + mftBitmapClusters - 1
+        // root $I30 LARGE_INDEX 的 INDX 叶子（VCN=0）。index block 恒 4096（见 indexRecordSize）。
+        //   占簇数 = ceil(4096/簇)：簇≤4096→4096/簇（512→8…4096→1），簇>4096→1 簇（index block
+        //   4096 < 簇，占 1 整簇，簇内后半空闲）。用 ceil 防大簇下整除得 0。
+        val idxRecSize = indexRecordSize(bytesPerCluster)
+        val rootIndxClusters = ((idxRecSize.toLong() + bytesPerCluster - 1) / bytesPerCluster).coerceAtLeast(1)
+        val rootIndxLcn = mftBitmapLcn + mftBitmapClusters
+        val lastMetaLcn = rootIndxLcn + rootIndxClusters - 1
 
         val mftMirrBytes = MFT_MIRR_RECORDS.toLong() * MFT_RECORD_SIZE
         val mftMirrClusters = (mftMirrBytes + bytesPerCluster - 1) / bytesPerCluster
@@ -168,6 +180,7 @@ object NtfsFormatter {
             bitmapLcn to bitmapClusters, upcaseLcn to upcaseClusters,
             attrDefLcn to attrDefClusters, mftBitmapLcn to mftBitmapClusters,
             sdsLcn to sdsClusters,
+            rootIndxLcn to rootIndxClusters,
             mftMirrLcn to mftMirrClusters,
             backupVbrLcn to 1L,
         )
@@ -190,7 +203,7 @@ object NtfsFormatter {
         mftRecords[2] = buildLogFileRecord(logFileLcn, logFileClusters, bytesPerCluster, now, rootRef)
         mftRecords[3] = buildVolumeRecord(volumeLabel, now, rootRef)
         mftRecords[4] = buildAttrDefRecord(attrDefLcn, attrDefClusters, bytesPerCluster, now, rootRef)
-        mftRecords[5] = buildRootDirRecord(now, rootRef, bytesPerCluster)
+        mftRecords[5] = buildRootDirRecord(now, rootRef, bytesPerCluster, rootIndxLcn, rootIndxClusters)
         mftRecords[6] = buildBitmapRecord(bitmapLcn, bitmapClusters, bytesPerCluster, bitmapBytes, now, rootRef)
         mftRecords[7] = buildBootFileRecord(bootLcn, bootClusters, bytesPerCluster, now, rootRef)
         mftRecords[8] = buildBadClusRecord(totalClusters, bytesPerCluster, now, rootRef)
@@ -260,6 +273,25 @@ object NtfsFormatter {
         }
         sectors.add(mftBitmapLcn * bytesPerCluster to mftBitmapData)
 
+        // root $I30 INDX 叶子（VCN=0）：12 个索引项（11 系统文件 + "."），全 ns=3
+        //   (NS_WIN32_AND_DOS)，按 $FILE_NAME 字符字典序排序（参考真实 Windows C: 盘 MFT#5 dump）。
+        val rootFnContents = listOf<Pair<Long, ByteArray>>(
+            mftRef(4L)  to buildFileNameContent(rootRef, "\$AttrDef",  now),
+            mftRef(8L)  to buildFileNameContent(rootRef, "\$BadClus", now),
+            mftRef(6L)  to buildFileNameContent(rootRef, "\$Bitmap",  now),
+            mftRef(7L)  to buildFileNameContent(rootRef, "\$Boot",    now),
+            mftRef(11L) to buildFileNameContent(rootRef, "\$Extend",  now, isDir = true),
+            mftRef(2L)  to buildFileNameContent(rootRef, "\$LogFile", now),
+            mftRef(0L)  to buildFileNameContent(rootRef, "\$MFT",     now),
+            mftRef(1L)  to buildFileNameContent(rootRef, "\$MFTMirr", now),
+            mftRef(9L)  to buildFileNameContent(rootRef, "\$Secure",  now),
+            mftRef(10L) to buildFileNameContent(rootRef, "\$UpCase",  now),
+            mftRef(3L)  to buildFileNameContent(rootRef, "\$Volume",  now),
+            mftRef(5L)  to buildFileNameContent(rootRef, ".",         now, ns = 3, isDir = true),
+        )
+        val rootIndxLeaf = buildRootIndxLeafRecord(bytesPerCluster, 0L, rootFnContents)
+        sectors.add(rootIndxLcn * bytesPerCluster to rootIndxLeaf)
+
         // $Secure 的 $SDS 数据流：primary@0 + mirror@0x40000，两份 header 都记 primary offset=0。
         //   稀疏区（0..0x40000）在密文里是加密零，chkdsk 不读，只读两个 entry。
         val sdsStream = NtfsSecure.buildSdsStream(sharedSd, NtfsSecure.FIRST_SECURITY_ID, sdsHash)
@@ -285,7 +317,13 @@ object NtfsFormatter {
         putU16(boot, 0x0E, 0); boot[0x10] = 0; putU16(boot, 0x11, 0); putU16(boot, 0x13, 0)
         boot[0x15] = 0xF8.toByte()       // media
         putU16(boot, 0x16, 0); putU16(boot, 0x18, 63); putU16(boot, 0x1A, 255)
-        putU32(boot, 0x1C, 0L); putU32(boot, 0x20, 0L); putU32(boot, 0x24, 0x80008000L)
+        putU32(boot, 0x1C, 0L); putU32(boot, 0x20, 0L)
+        // 0x24-0x27：physical drive number(0x80@0x24) + reserved(0x25) + extended boot
+        //   signature(0x80@0x26) + reserved(0x27)。小端 u32 = 0x00800080（逐字节 80 00 80 00），
+        //   与 Windows format 产物一致。旧值 0x80008000 字节序写反（→ 0x24=0,0x26=0），分区模式
+        //   下 Windows 用 MBR 挂载忽略此字段故 chkdsk 不报；但 superfloppy 模式（VeraCrypt 挂载）
+        //   NTFS.sys 直接校验 VBR，ext boot signature(0x26) 缺失 → 拒挂 → 卷报「1392 损坏」。
+        putU32(boot, 0x24, 0x00800080L)
         // BPB.TotalSectors = N-1：NTFS 规范规定该字段不含最末扇区（备份引导扇区所在），
         // 卷真实扇区数为 N，BPB 声明 N-1。写满值会让 chkdsk 误判卷大小并报备份引导扇区无效。
         putU64(boot, 0x28, totalSectors - 1)

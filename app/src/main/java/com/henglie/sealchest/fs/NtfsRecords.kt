@@ -190,6 +190,81 @@ internal fun buildIndexRootEmpty(bytesPerCluster: Int): ByteArray {
     return b
 }
 
+/**
+ * LARGE_INDEX 模式 $INDEX_ROOT 内容（参考真实 Windows MFT#5 dump）。
+ * 仅含 1 个带子节点 VCN=0 的 END 项；真实索引项全在 $INDEX_ALLOCATION 的 INDX 叶子里。
+ */
+internal fun buildIndexRootLarge(bytesPerCluster: Int): ByteArray {
+    // INDEX_ROOT 头(0x10) + INDEX_HEADER(0x10) + END项(0x18, 含 8 字节子节点 VCN) = 0x38。
+    val b = ByteArray(0x38)
+    putU32(b, 0x00, NtfsFormatter.ATTR_FILE_NAME)          // indexed attr type
+    putU32(b, 0x04, 1L)                                    // collation = COLLATION_FILENAME
+    putU32(b, 0x08, NtfsFormatter.indexRecordSize(bytesPerCluster).toLong())
+    b[0x0C] = NtfsFormatter.indexBufferCode(bytesPerCluster).toByte()
+    putU32(b, 0x10, 0x10L)                                 // node header: entries offset
+    putU32(b, 0x14, 0x28L)                                 // node header: index length = 0x10 头 + 0x18 END
+    putU32(b, 0x18, 0x28L)                                 // node header: allocated size
+    putU32(b, 0x1C, 0x1L)                                  // node header: flags = LARGE_INDEX(0x01)
+    putU64(b, 0x20, 0L)                                    // end entry: mftRef = 0
+    putU16(b, 0x28, 0x18)                                  // end entry: entry length = 0x18（含 VCN）
+    putU16(b, 0x2A, 0)                                     // end entry: content length = 0
+    putU16(b, 0x2C, (NtfsFormatter.INDEX_ENTRY_LAST or
+                     NtfsRecordCodec.INDEX_ENTRY_HAS_SUBNODE).toLong())  // flags = LAST|HAS_SUBNODE
+    putU64(b, 0x30, 0L)                                    // subnode VCN = 0（首叶）
+    return b
+}
+
+/**
+ * 构造 root 目录的 INDX 叶子记录（VCN=0），含 12 个索引项（11 系统文件 + "."）+ END。
+ * [fnContents] = [(mftRef, $FILE_NAME 内容), ...]，已按 NTFS 排序规则排好序。
+ * 返回 indexRecordSize 字节的完整 INDX 记录（已打 USA）。
+ */
+internal fun buildRootIndxLeafRecord(
+    bytesPerCluster: Int, vcn: Long, fnContents: List<Pair<Long, ByteArray>>,
+): ByteArray {
+    val idxRecSize = NtfsFormatter.indexRecordSize(bytesPerCluster)
+    val buf = ByteArray(idxRecSize)
+    buf[0] = 'I'.code.toByte(); buf[1] = 'N'.code.toByte()
+    buf[2] = 'D'.code.toByte(); buf[3] = 'X'.code.toByte()
+    val sectorSize = NtfsFormatter.SECTOR
+    val sectorCount = idxRecSize / sectorSize
+    val usaCount = sectorCount + 1
+    val usaOff = 0x28
+    putU16(buf, 4, usaOff)
+    putU16(buf, 6, usaCount)
+    putU64(buf, 8, 0L)          // $LogFile LSN
+    putU64(buf, 0x10, vcn)      // 本记录 VCN
+
+    val nodeHdr = 0x18
+    val entriesOff = align8(usaOff + usaCount * 2) - nodeHdr   // 相对 nodeHdr
+    putU32(buf, nodeHdr + 0x00, entriesOff.toLong())
+
+    var p = nodeHdr + entriesOff
+    for ((mftRef, fnContent) in fnContents) {
+        val contentLen = fnContent.size
+        val bodyLen = 0x10 + contentLen
+        val entryLen = align8(bodyLen)
+        putU64(buf, p, mftRef)
+        putU16(buf, p + 8, entryLen)
+        putU16(buf, p + 10, contentLen)
+        putU16(buf, p + 12, 0)                                 // flags = 0（叶子项）
+        System.arraycopy(fnContent, 0, buf, p + 0x10, contentLen)
+        p += entryLen
+    }
+    // 末项（叶子，无子节点，16 字节）。
+    putU64(buf, p, 0L)
+    putU16(buf, p + 8, 0x10)
+    putU16(buf, p + 10, 0)
+    putU16(buf, p + 12, NtfsFormatter.INDEX_ENTRY_LAST.toLong())
+    p += 0x10
+
+    putU32(buf, nodeHdr + 0x04, (p - nodeHdr).toLong())            // index_length
+    putU32(buf, nodeHdr + 0x08, (idxRecSize - nodeHdr).toLong())   // allocatedSize
+    putU32(buf, nodeHdr + 0x0C, 0L)                                // flags = 叶子
+    stampUsa(buf)
+    return buf
+}
+
 internal fun buildMftRecord(
     mftLcn: Long, mftClusters: Long, bpc: Int, now: Long,
     mftBitmapLcn: Long, mftBitmapClusters: Long, mftBitmapRealSize: Long,
@@ -255,19 +330,25 @@ internal fun buildAttrDefRecord(attrDefLcn: Long, attrDefClusters: Long, bpc: In
     return rb.end()
 }
 
-internal fun buildRootDirRecord(now: Long, rootRef: Long, bpc: Int): ByteArray {
+internal fun buildRootDirRecord(
+    now: Long, rootRef: Long, bpc: Int,
+    indxLcn: Long, indxClusters: Long,
+): ByteArray {
     val rb = RecBuilder(bpc)
     rb.resident(NtfsFormatter.ATTR_STANDARD_INFO, buildStdInfo(now, isDir = true))
     rb.resident(NtfsFormatter.ATTR_FILE_NAME, buildFileNameContent(rootRef, ".", now, ns = 3, isDir = true))
-    // 目录索引属性必须名 "$I30"（真实 NTFS 规范：文件名索引属性统一命名 $I30）。运行时写路径
-    //   insertIndexEntry 硬性 findAttr(INDEX_ROOT,"$I30")、无兜底——根目录 $INDEX_ROOT 无名则
-    //   每次写根目录（建文件/建子目录）insertIndexEntry 恒返回 false → 全部写操作失败。
-    //   读侧 listDirEntries 有 firstOrNull{type==INDEX_ROOT} 兜底故能读，掩盖了此 bug。
-    //   与 buildExtendRecord（Bug8 已修）对齐。
-    // 回退到空 $INDEX_ROOT：预建 $Extend 索引项会引入「segment 5 incorrect information」
-    //   错误（Windows 挂载时发现根目录非空但仍按自己逻辑重写，产出错误）。空根目录让 Windows
-    //   完全自建，小簇下无问题；大簇下的问题需从 Windows 自建路径另寻解法（待研究）。
-    rb.resident(NtfsFormatter.ATTR_INDEX_ROOT, buildIndexRootEmpty(bpc), name = "\$I30")
+    // 目录索引属性必须名 "$I30"。LARGE_INDEX：$INDEX_ROOT 占位 + $INDEX_ALLOCATION INDX 叶子 + $BITMAP。
+    rb.resident(NtfsFormatter.ATTR_INDEX_ROOT, buildIndexRootLarge(bpc), name = "\$I30")
+    val idxRecSize = NtfsFormatter.indexRecordSize(bpc)
+    val runs = encodeSingleRun(indxClusters, indxLcn) + byteArrayOf(0)
+    rb.nonResident(
+        NtfsFormatter.ATTR_INDEX_ALLOCATION, 0L, indxClusters - 1, runs,
+        idxRecSize.toLong(), name = "\$I30",
+    )
+    // $BITMAP $I30：标记 INDX 叶子分配位。1 个叶子 → bit0=1。resident 至少 8 字节。
+    val indxBitmap = ByteArray(8)
+    indxBitmap[0] = 0x01
+    rb.resident(NtfsFormatter.ATTR_BITMAP, indxBitmap, name = "\$I30")
     rb.flags(NtfsFormatter.FLAG_IN_USE or NtfsFormatter.FLAG_DIRECTORY)
     return rb.end()
 }

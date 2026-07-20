@@ -207,9 +207,10 @@ class NtfsIndex(
     //
     // 策略：insert/delete 统一为「collectAllLeafEntries 全树 → 增/删一项 → rebuildDirIndex 从排序表重建」。
     // 一条路径，一处对处处对。支持 2 层 B+树（root 指针节点 + N 个 INDX 叶子）；3 层（需 root 放不下
-    // 全部分隔符）保守拒绝。索引块 = max(4096,簇)（indexRecordSize，mkntfs 规则），故 indexRecordSize
-    // >= clusterSize 对全簇矩阵恒真：全部簇（含 8K/16K/32K/64K 大簇）都走多叶，cpr=索引块/簇 参数化
-    // VCN 编码（小簇 cpr>1、大簇 cpr=1），无「超大簇拒绝」死角。
+    // 全部分隔符）保守拒绝。索引块恒 4096(indexBlockSize)，与簇大小无关：≤4K 簇时块≥簇、8K+ 簇时块<簇，
+    // 两种都走多叶。INDX 块在 $INDEX_ALLOCATION 流内**紧密排布**（第 i 块字节偏移 = i*4096），
+    // INDX.vcn/subnode 指针按 vcnPerIndexBlock 单位编码（≤4K 簇=块/簇，8K+ 簇=块/512=8），
+    // 而属性 highest_vcn/runlist 恒按簇（标准非驻留语义）。无「超大簇拒绝」死角。
     // NTFS 索引是 B-树：分隔符键项提升到 root（带 HAS_SUBNODE+子节点 VCN），不在叶子重复；
     //   读侧遍历 root 键项 + 全叶子项去重，故收集必须含 root 键项。
 
@@ -308,9 +309,23 @@ class NtfsIndex(
         return out
     }
 
-    /** 每个 INDX 记录占的簇数（idxRecSize>=clusterSize 时；否则调用方已拒绝多叶）。 */
-    private fun clustersPerIndexRecord(): Long =
-        ((boot.indexRecordSize + clusterSize - 1) / clusterSize).toLong()
+    /** index block 字节大小（恒 4096，见 NtfsFormatter.indexRecordSize）。 */
+    private val indexBlockSize = boot.indexRecordSize
+
+    /**
+     * 一个 index block 对应的 VCN 增量。NTFS 语义（ntfs-3g libntfs-3g/index.c 的 vcn_size_bits）：
+     *   簇 ≤ index block：VCN 单位 = 簇 → 每块 index_block/簇 个 VCN（512→8…4096→1）。
+     *   簇 > index block：VCN 单位 = 512(NTFS_BLOCK) → 每块 index_block/512 个 VCN（8K+簇恒 8）。
+     * 读侧不靠 VCN 定位（按 4096 字节流式步进），但 Windows/chkdsk 靠 VCN→byte 映射校验，
+     * 故 subnode 指针与 INDX 记录 VCN 必须按此单位，否则 8K+ 簇大目录 chkdsk 报 $I30 错误。
+     */
+    private fun vcnPerIndexBlock(): Long =
+        if (clusterSize <= indexBlockSize) (indexBlockSize / clusterSize).toLong()
+        else (indexBlockSize / boot.bytesPerSector).toLong()
+
+    /** N 个 index block（每块 index_block 字节，紧密排布）占的簇数（ceil）。 */
+    private fun clustersForBlocks(numBlocks: Int): Long =
+        (numBlocks.toLong() * indexBlockSize + clusterSize - 1) / clusterSize
 
     /** INDX 叶子可容纳项的字节上限（idxRecSize - INDX头0x18 - INDEX_HEADER0x10 - USA - END0x10，取对齐后的保守值）。 */
     private fun leafEntryCapacity(): Int {
@@ -355,9 +370,11 @@ class NtfsIndex(
             // 放不下 → 落 2 层。
         }
 
-        // ② 2 层多叶。索引块 = max(4096,簇) ≥ 簇 恒成立（indexRecordSize，mkntfs 规则），
-        //   故此判据恒为假，仅作防御性兜底（防未来改坏 boot 解析产出「索引块<簇」的非法布局）。
-        if (boot.indexRecordSize < clusterSize) return false
+        // ② 2 层多叶。索引块恒 4096(indexBlockSize)，与簇大小无关：可能 < 簇(8K+ 簇)也可能
+        //   ≥ 簇(≤4K 簇)。两种布局统一处理——INDX 块在 $INDEX_ALLOCATION 流内**紧密排布**
+        //   (第 i 块字节偏移 = i*indexBlockSize)，subnode VCN 按 vcnPerIndexBlock 单位编码
+        //   (见其文档)。旧码 `if (indexRecordSize < clusterSize) return false` 把 8K+ 簇多叶
+        //   全拒 → root 造盘已带 12 系统文件项、首次插入即需多叶 → 8K+ 簇所有写操作恒 false。
         val cap = leafEntryCapacity()
         // 单项若超过一个叶子容量（名极长）→ 无法放 → 拒绝。
         if (sorted.any { it.size > cap }) return false
@@ -368,38 +385,41 @@ class NtfsIndex(
         val separators = part.separators
         val numLeaves = leaves.size
 
+        val vcnPerBlock = vcnPerIndexBlock()
         // root 大索引内容（分隔符各带子节点 VCN + LAST→末叶 VCN）；放不下 = 需 3 层。
-        val cpr = clustersPerIndexRecord()
-        val largeRoot = buildLargeRootContent(separators, numLeaves, cpr) ?: return false
+        val largeRoot = buildLargeRootContent(separators, numLeaves, vcnPerBlock) ?: return false
 
         // 组装目录 FILE 记录：非索引属性 + 大 $INDEX_ROOT + $INDEX_ALLOCATION + $BITMAP + END。
-        val totalClusters = numLeaves * cpr
-        val lcn = mftMgr.allocContiguousClusters(totalClusters)
+        //   $INDEX_ALLOCATION 覆盖 numLeaves 个紧密排布的 indexBlockSize 块，占 ceil 簇
+        //   （大簇下一簇含多块；小簇下一块跨多簇）。alloc=簇对齐，real=块字节总数。
+        val allocClusters = clustersForBlocks(numLeaves)
+        val allocRealSize = numLeaves.toLong() * indexBlockSize
+        val lcn = mftMgr.allocContiguousClusters(allocClusters)
         if (lcn < 0) return false
         val newRec = base.copyOf()
         val rootId = origIndexRootId(origRec)
         val allocId = maxOf(u16(origRec, 0x28), rootId + 1)
         val bmpId = allocId + 1
         var off = writeIndexRootAttrWith(newRec, baseOff, rootId, largeRoot)
-        if (off < 0) { mftMgr.freeClusters(lcn, totalClusters); return false }
-        off = writeIndexAllocationAttr(newRec, off, lcn, totalClusters, allocId)
-        if (off < 0) { mftMgr.freeClusters(lcn, totalClusters); return false }
+        if (off < 0) { mftMgr.freeClusters(lcn, allocClusters); return false }
+        off = writeIndexAllocationAttr(newRec, off, lcn, allocClusters, allocRealSize, allocId)
+        if (off < 0) { mftMgr.freeClusters(lcn, allocClusters); return false }
         off = writeIndexBitmapMulti(newRec, off, bmpId, numLeaves)
-        if (off < 0) { mftMgr.freeClusters(lcn, totalClusters); return false }
-        if (off + 8 > recordSize) { mftMgr.freeClusters(lcn, totalClusters); return false }
+        if (off < 0) { mftMgr.freeClusters(lcn, allocClusters); return false }
+        if (off + 8 > recordSize) { mftMgr.freeClusters(lcn, allocClusters); return false }
         putU32(newRec, off, ATTR_END)
         putU32(newRec, 0x18, (off + 8).toLong())
         putU32(newRec, 0x1C, recordSize.toLong())
         putU16(newRec, 0x28, (bmpId + 1) and 0xFFFF)
 
-        // 写各叶子 INDX（VCN = i*cpr），先打 USA。
+        // 写各叶子 INDX：块紧密排布（流内字节偏移 i*indexBlockSize），记录头 VCN = i*vcnPerBlock。
         for (i in 0 until numLeaves) {
-            val vcn = i.toLong() * cpr
-            val indx = buildIndxLeafRecord(leaves[i], vcn) ?: run { mftMgr.freeClusters(lcn, totalClusters); return false }
+            val vcn = i.toLong() * vcnPerBlock
+            val indx = buildIndxLeafRecord(leaves[i], vcn) ?: run { mftMgr.freeClusters(lcn, allocClusters); return false }
             codec.stampUsa(indx)
-            reader.write((lcn + i.toLong() * cpr) * clusterSize, indx, 0, indx.size)
+            reader.write(lcn * clusterSize + i.toLong() * indexBlockSize, indx, 0, indx.size)
         }
-        if (!mftMgr.writeMftRecord(dirRef, newRec)) { mftMgr.freeClusters(lcn, totalClusters); return false }
+        if (!mftMgr.writeMftRecord(dirRef, newRec)) { mftMgr.freeClusters(lcn, allocClusters); return false }
         freeOldIndexAlloc(origAttrs)   // 先建后拆：新记录写成功才释放旧簇
         return true
     }
@@ -475,7 +495,7 @@ class NtfsIndex(
     }
 
     /**
-     * 建 2 层 root 的 $INDEX_ROOT 内容（flags=1 大索引）：分隔符键项（各 HAS_SUBNODE+子节点 VCN=i*cpr）
+     * 建 2 层 root 的 $INDEX_ROOT 内容（flags=1 大索引）：分隔符键项（各 HAS_SUBNODE+子节点 VCN=i*vcnPerBlock）
      * + LAST 项（HAS_SUBNODE+LAST，子节点 VCN=末叶）。放不进 resident root 上限 → null（需 3 层）。
      */
     private fun buildLargeRootContent(separators: List<ByteArray>, numLeaves: Int, cpr: Long): ByteArray? {
@@ -552,14 +572,23 @@ class NtfsIndex(
         return off + total
     }
 
-    /** 写 $INDEX_ALLOCATION 属性（非驻留，单 run→[lcn]），返回下一偏移；越界 -1。 */
-    private fun writeIndexAllocationAttr(rec: ByteArray, off: Int, lcn: Long, clusters: Long, attrId: Int): Int {
+    /**
+     * 写 $INDEX_ALLOCATION 属性（非驻留，单 run→[lcn]，占 [clusters] 簇），返回下一偏移；越界 -1。
+     * [realSize] = INDX 块紧密排布的字节总数（numBlocks*indexBlockSize），可 < clusters*clusterSize
+     *   （大簇下一簇含多块、末簇有余量）。属性头 highest_vcn(0x18) 与 runlist 恒按**簇**单位
+     *   （标准非驻留语义 = clusters-1）；INDX.vcn 字段与 subnode 指针才按 vcnPerIndexBlock 单位，
+     *   两者不可混淆。real/init size 记块字节总数，Windows 据此定块数（realSize/indexBlockSize）。
+     */
+    private fun writeIndexAllocationAttr(
+        rec: ByteArray, off: Int, lcn: Long, clusters: Long, realSize: Long, attrId: Int,
+    ): Int {
         val runBytes = encodeSingleRun(lcn, clusters)
         val nameLen = 4
         val nameOff = 0x40
         val runOff = nameOff + nameLen * 2   // 0x48
         val total = align8(runOff + runBytes.size)
         if (off + total > recordSize) return -1
+        val allocSize = clusters * clusterSize
         putU32(rec, off, ATTR_INDEX_ALLOCATION)
         putU32(rec, off + 4, total.toLong())
         rec[off + 8] = 1                    // 非驻留
@@ -567,12 +596,14 @@ class NtfsIndex(
         putU16(rec, off + 10, nameOff)
         putU16(rec, off + 12, 0); putU16(rec, off + 14, attrId)  // flags=0 / instance
         putU64(rec, off + 0x10, 0L)         // start VCN
-        putU64(rec, off + 0x18, (clusters - 1))   // end VCN
+        // end VCN = 簇数 - 1（**簇单位**：属性 highest_vcn 与 runlist 恒按簇，标准非驻留语义）。
+        //   注意别与 INDX.vcn/subnode 指针混淆——后者才按 vcnPerIndexBlock 单位。
+        putU64(rec, off + 0x18, clusters - 1)
         putU16(rec, off + 0x20, runOff)     // runs 偏移
         rec[off + 0x22] = 0                 // compression unit
-        putU64(rec, off + 0x28, (clusters * clusterSize).toLong())   // allocated size
-        putU64(rec, off + 0x30, (clusters * clusterSize).toLong())   // real size
-        putU64(rec, off + 0x38, (clusters * clusterSize).toLong())   //initialized size
+        putU64(rec, off + 0x28, allocSize)             // allocated size（簇对齐）
+        putU64(rec, off + 0x30, realSize)              // real size（块字节总数）
+        putU64(rec, off + 0x38, realSize)              // initialized size
         val name = "\$I30"
         for (k in name.indices) putU16(rec, off + nameOff + k * 2, name[k].code)
         System.arraycopy(runBytes, 0, rec, off + runOff, runBytes.size)
@@ -755,9 +786,8 @@ class NtfsIndex(
             sb.append("[驻留 n=$n] ").append(if (ok) "PASS" else "FAIL got=${names.size} idxLen=$idxLen size=${content.size}").append("\n")
         }
 
-        // —— 用例 2：2 层 B+树（大目录，强制分裂）——
+        // —— 用例 2：2 层 B+树（大目录，强制分裂）——全簇（含 8K+ 大簇）恒走多叶。
         run {
-            if (boot.indexRecordSize < clusterSize) { sb.append("[2层] SKIP(超大簇)\n"); return@run }
             val cap = leafEntryCapacity()
             val perEntry = mkEntry(1).size
             val n = (cap / perEntry) * 3 + 5   // 约填 3 个叶子有余，保证多叶
@@ -772,19 +802,19 @@ class NtfsIndex(
             }
             leaves.add(cur)
             val numLeaves = leaves.size
-            val cpr = clustersPerIndexRecord()
+            val vcnPerBlock = vcnPerIndexBlock()
 
             // 回解：全局顺序 = leaf0 ++ [sep0] ++ leaf1 ++ [sep1] ++ ... ++ leafK。
             val rebuilt = ArrayList<String>()
             var badLeaf = -1
             for (i in 0 until numLeaves) {
-                val indx = buildIndxLeafRecord(leaves[i], i.toLong() * cpr)
+                val indx = buildIndxLeafRecord(leaves[i], i.toLong() * vcnPerBlock)
                 if (indx == null || indx[0] != 'I'.code.toByte() || indx[3] != 'X'.code.toByte()) { badLeaf = i; break }
                 val er = u32(indx, 0x18).toInt(); val us = u32(indx, 0x18 + 0x04).toInt()
                 rebuilt.addAll(parseEntryNames(indx, 0x18 + er, 0x18 + us))
                 if (i < seps.size) rebuilt.add(entryFileName(seps[i]))
             }
-            val largeRoot = buildLargeRootContent(seps, numLeaves, cpr)
+            val largeRoot = buildLargeRootContent(seps, numLeaves, vcnPerBlock)
             val rootNames = if (largeRoot != null) parseEntryNames(largeRoot, 0x20, 0x20 + (u32(largeRoot, 0x14).toInt() - 0x10)) else emptyList()
             val expect = entries.map { entryFileName(it) }
             val orderOk = rebuilt == expect

@@ -181,7 +181,7 @@ internal object NtfsSecure {
         putU32(b, 0x00, 0L)                                  // indexed_attr_type = 0 (view index)
         putU32(b, 0x04, collation)                           // collation rule
         putU32(b, 0x08, NtfsFormatter.indexRecordSize(bytesPerCluster).toLong())
-        b[0x0C] = NtfsFormatter.indexBufferCode(bytesPerCluster).toByte()
+        b[0x0C] = NtfsFormatter.indexRootClustersPerBlock(bytesPerCluster).toByte()
         // INDEX_HEADER @0x10
         putU32(b, 0x10, 0x10L)                               // entries_offset (rel to INDEX_HEADER)
         putU32(b, 0x14, indexLen.toLong())                   // index_length

@@ -57,11 +57,36 @@ class NtfsWritePathTest {
     }
 
     /**
+     * 真实 VolumeReader I/O 层复现：不 override read/write，走真实的 512B 单元 LRU 缓存 +
+     * read-modify-write（真机唯一走的路径），仅把 decrypt/encrypt override 成恒等、channel
+     * 用临时文件后端。[MemReader] 绕过了缓存路径，此 reader 补上——若缓存有写后陈旧 / 驱逐
+     * 丢脏 bug，只有这里能揪出。encStart=0（临时文件即数据区，无卷头偏移）。
+     */
+    private class ChannelReader(private val ch: java.nio.channels.FileChannel, private val size: Long) :
+        VolumeReader(ch, null) {
+        override val dataSize: Long get() = size
+        override fun decryptUnitData(unitNo: Long, buf: ByteArray) { /* 恒等 */ }
+        override fun encryptUnitData(unitNo: Long, buf: ByteArray) { /* 恒等 */ }
+    }
+
+    private fun buildChannel(cs: Int): Pair<ChannelReader, java.io.File> {
+        val img = NtfsFormatter.buildEmpty(dataSize, cs)
+        val f = java.io.File.createTempFile("ntfs_cs${cs}_", ".img")
+        f.deleteOnExit()
+        java.io.RandomAccessFile(f, "rw").use { raf ->
+            raf.setLength(dataSize)
+            for ((off, bytes) in img.sectors) { raf.seek(off); raf.write(bytes) }
+        }
+        val ch = java.io.RandomAccessFile(f, "rw").channel
+        return ChannelReader(ch, dataSize) to f
+    }
+
+    /**
      * chkdsk 视角的结构验证：遍历全 MFT + root 索引，收集问题串。空 = 干净。
      * 检查：①每 in-use 记录 USA+FILE+属性链到 END；②每属性 totalLen 合法、非驻留 runs 在卷内；
      * ③root $I30 可完整遍历、每索引项指向的 MFT 记录 in-use；④双向：每个被索引引用的记录都 in-use。
      */
-    private fun verify(reader: MemReader, tag: String): String {
+    private fun verify(reader: VolumeReader, tag: String): String {
         val problems = ArrayList<String>()
         val boot = NtfsBoot.parse(reader.read(0, 512))
         val codec = NtfsRecordCodec(boot)
@@ -104,17 +129,35 @@ class NtfsWritePathTest {
             if (!foundEnd) problems.add("rec$no 属性链未见 END (used=0x${used.toString(16)})")
         }
 
-        // root $I30 可遍历性 + 索引项一致性（复用运行时读侧）。
+        // root $I30 可遍历性 + 索引项一致性（复用运行时读侧）。递归遍历全目录树收集可达记录。
         val fs = NtfsFileSystem.mount(reader)
-        val entries = runCatching { fs.listDir(0L) }.getOrElse { problems.add("root listDir 抛异常 ${it.message}"); emptyList() }
-        for (e in entries) {
-            val ref = e.firstCluster
-            if (ref < 16 || ref >= totalRecords) { problems.add("root 项 '${e.name}' mftRef=$ref 越界"); continue }
-            val tgt = reader.read(recOffset(ref.toInt()), recSize)
-            if (tgt[0] != 'F'.code.toByte()) { problems.add("root 项 '${e.name}' → rec$ref 非 FILE"); continue }
-            codec.applyUsaFixup(tgt)
-            if (NtfsRecordCodec.u16(tgt, 0x16) and 0x0001 == 0)
-                problems.add("root 项 '${e.name}' → rec$ref 未标 in-use（悬空索引项）")
+        val reachable = HashSet<Long>()
+        fun walk(dirRef: Long) {
+            val es = runCatching { fs.listDir(dirRef) }.getOrElse {
+                problems.add("rec$dirRef listDir 抛异常 ${it.message}"); emptyList()
+            }
+            for (e in es) {
+                val ref = e.firstCluster
+                if (ref < 16 || ref >= totalRecords) { problems.add("目录 rec$dirRef 项 '${e.name}' mftRef=$ref 越界"); continue }
+                val tgt = reader.read(recOffset(ref.toInt()), recSize)
+                if (tgt[0] != 'F'.code.toByte()) { problems.add("项 '${e.name}' → rec$ref 非 FILE"); continue }
+                codec.applyUsaFixup(tgt)
+                if (NtfsRecordCodec.u16(tgt, 0x16) and 0x0001 == 0)
+                    problems.add("项 '${e.name}' → rec$ref 未标 in-use（悬空索引项）")
+                if (reachable.add(ref) && e.isDirectory) walk(ref)   // 递归子目录，防环
+            }
+        }
+        walk(0L)
+
+        // ④ 反向孤立检测（chkdsk 阶段2「未编制索引的文件」的直接对应）：
+        //   每个 in-use 的用户记录（no≥24，排除系统 0..23）必须从 root 递归可达，
+        //   否则 = 孤立文件（chkdsk 会捞进 found.000/回收箱）。真机「4 个未索引文件」即此。
+        for (no in 24 until totalRecords) {
+            val raw = reader.read(recOffset(no), recSize)
+            if (raw[0] != 'F'.code.toByte() || raw[1] != 'I'.code.toByte()) continue
+            if (!codec.applyUsaFixup(raw)) continue
+            if (NtfsRecordCodec.u16(raw, 0x16) and 0x0001 == 0) continue   // 非 in-use
+            if (no.toLong() !in reachable) problems.add("rec$no in-use 但 root 不可达（孤立文件）")
         }
         return if (problems.isEmpty()) "" else "[$tag] " + problems.joinToString(" | ")
     }
@@ -148,8 +191,54 @@ class NtfsWritePathTest {
             for (i in 1..50) { if (fs.writeFile(0L, "batch_%03d.dat".format(i), "file $i".toByteArray())) wrote++ else break }
             if (wrote < 50) failures.add("[$tag] 批量50 仅写成功 $wrote")
             verify(reader, "$tag/批量50").let { if (it.isNotEmpty()) failures.add(it) }
+            // case 9：递归删子目录（真机自检末步）。subdir 里有被 move 进来的 renamed.txt + inner.txt。
+            //   递归删要清子文件 MFT 记录 + 子目录记录 + 父索引项——真机「4 个孤立文件」高度疑似出在此。
+            step("递归删子目录") { fs.rmdir(0L, "subdir", true) }
         }
         if (failures.isNotEmpty()) fail("运行时写路径问题(${failures.size}):\n" + failures.joinToString("\n"))
+    }
+
+    /**
+     * 真实 I/O 层 + flush + 重挂验证：走真实 [VolumeReader] 的 512B LRU 缓存 + read-modify-write
+     * （真机唯一走的路径，[MemReader] 绕过），跑完整设备序列 → flush → **换新 reader 重挂**
+     * （丢弃缓存、只信落盘字节）→ verify。若缓存有写后陈旧 / 驱逐丢脏 / flush 不落盘的 bug，
+     * 只有这里能揪出——真机「4 个孤立文件」的头号疑点（写序列末态在缓存里干净，但落盘缺了）。
+     */
+    @Test
+    fun channelIoWithRemountAllClusters() {
+        val failures = ArrayList<String>()
+        for (cs in clusterMatrix) {
+            val tag = if (cs < 1024) "${cs}b" else "${cs / 1024}k"
+            val (reader, file) = buildChannel(cs)
+            try {
+                val fs = NtfsFileSystem.mount(reader)
+                // 完整设备序列（与 writePathAllClusters 同）。
+                fs.writeFile(0L, "small.txt", "Hello 匿匣".toByteArray())
+                fs.writeFile(0L, "big.bin", ByteArray(200 * 1024) { (it and 0xFF).toByte() })
+                val sub = fs.mkdir(0L, "subdir")
+                if (sub > 0) fs.writeFile(sub, "inner.txt", "inner".toByteArray())
+                fs.rename(0L, "small.txt", "renamed.txt")
+                if (sub > 0) fs.move(0L, "renamed.txt", sub)
+                fs.writeFile(0L, "todel.txt", "x".toByteArray()); fs.deleteFile(0L, "todel.txt")
+                fs.writeFile(0L, "over.txt", "old".toByteArray()); fs.overwriteFile(0L, "over.txt", "new longer content".toByteArray())
+                var wrote = 0
+                for (i in 1..50) { if (fs.writeFile(0L, "batch_%03d.dat".format(i), "file $i".toByteArray())) wrote++ else break }
+                if (wrote < 50) failures.add("[$tag] 批量50 仅写成功 $wrote")
+                if (sub > 0) fs.rmdir(0L, "subdir", true)
+                fs.clearDirtyFlag()
+                reader.flush()
+
+                // 换新 reader 重挂：丢弃旧缓存，只读落盘字节（真机卸载后 chkdsk 看到的）。
+                val ch2 = java.io.RandomAccessFile(file, "rw").channel
+                val reader2 = ChannelReader(ch2, dataSize)
+                verify(reader2, "$tag/重挂").let { if (it.isNotEmpty()) failures.add(it) }
+                ch2.close()
+            } finally {
+                runCatching { reader.close() }
+                runCatching { file.delete() }
+            }
+        }
+        if (failures.isNotEmpty()) fail("真实 I/O 层重挂问题(${failures.size}):\n" + failures.joinToString("\n"))
     }
 
     /**

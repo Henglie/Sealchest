@@ -69,14 +69,15 @@ object NtfsFormatter {
     internal fun indexRecordSize(bytesPerCluster: Int): Int = INDEX_RECORD_SIZE
 
     /**
-     * boot[0x44] ClustersPerIndexBuffer 编码（**仅 boot 扇区 BPB 用**，见 NtfsBoot.recordSize）。
+     * ClustersPerIndexBuffer 编码（boot[0x44] 与 $INDEX_ROOT+0x0C 同一编码，见 NtfsBoot.recordSize）。
      *   簇 ≤ 4096：index block=4096 ≥ 簇 → 正数簇计 4096/簇（512→8…4096→1）。
      *   簇 > 4096：index block=4096 < 簇 → 负数编码 -log2(4096)=-12（NtfsBoot.recordSize 解析
      *     负值 v 为 2^(-v) 字节，-12 → 4096）。与真·Windows 8K+ 簇 boot[0x44] 一致。
      *
-     * 注意：**$INDEX_ROOT+0x0C 的 clusters_per_index_block 编码不同**，见 [indexRootClustersPerBlock]。
-     *   旧码两处混用同一函数 → 8K+ 簇 $INDEX_ROOT 写成 -12（应为 8）→ chkdsk 报文件 9($SDH/$SII)、
-     *   文件 B($Extend $I30) 索引错误（4K 簇 block==cluster 走正数分支得 1 恰好正确，故不报，掩盖了问题）。
+     * 注：曾疑 $INDEX_ROOT+0x0C 用不同编码（block/512=8），真机实证否决——测试6(填-12) 与
+     *   测试7(填8) 的 8K chkdsk 输出逐字节相同（仅时间戳差），$SDH/$SII/$I30 报错不变。
+     *   两字段确用同一负 log2 编码（-12→4096 与 index_block_size(0x08)=4096 自洽；填 8 会解成
+     *   8×8192≠4096 不自洽）。8K+ 报错根因在别处（$SDS 流布局，排查中），非此字段。
      */
     internal fun indexBufferCode(bytesPerCluster: Int): Int =
         if (INDEX_RECORD_SIZE >= bytesPerCluster) INDEX_RECORD_SIZE / bytesPerCluster
@@ -86,33 +87,6 @@ object NtfsFormatter {
             while (v > 1) { v = v shr 1; log2++ }
             -log2
         }
-
-    /**
-     * $INDEX_ROOT 内容偏移 0x0C 的 clusters_per_index_block 编码（**与 boot[0x44] 不同**）。
-     *   ntfs-3g mkntfs `add_attr_index_root`：
-     *     index block ≥ 簇：block/簇（512→8…4096→1）；
-     *     index block < 簇（8K+ 簇）：**block/512**（=8），即 512 字节扇区数，**不是**负 log2。
-     *   与 [NtfsIndex.vcnPerIndexBlock] 的 else 分支（block/bytesPerSector）同源自洽。
-     */
-    internal fun indexRootClustersPerBlock(bytesPerCluster: Int): Int =
-        if (INDEX_RECORD_SIZE >= bytesPerCluster) INDEX_RECORD_SIZE / bytesPerCluster
-        else INDEX_RECORD_SIZE / SECTOR
-
-    /**
-     * $INDEX_ROOT/$INDEX_HEADER 内容偏移 0x0C 的 clusters_per_index_block（1 字节）。
-     *   **与 boot[0x44] 编码不同**（关键）：
-     *   - 簇 ≤ index block：block/簇（簇单位，512→8…4096→1），与 boot[0x44] 一致。
-     *   - 簇 > index block：**block/512**（512 字节单位，恒 8），**不是** boot[0x44] 的负 log2(-12)。
-     *   ntfs-3g mkntfs `add_attr_index_root`：block<cluster 时 else 分支除数是 NTFS_BLOCK_SIZE(512)，
-     *   非 cluster_size、非负 log2。负 log2 编码只属 boot sector BPB。与 [NtfsIndex.vcnPerIndexBlock]
-     *   的 block<cluster 分支（同 /512）内部自洽。
-     *   铁证：4K 簇（block==簇）此值=1 → chkdsk 静默；8K 簇误填 -12(0xF4) → chkdsk 报文件 9
-     *   $SDH/$SII、文件 B($Extend) $I30 索引错误；改填 8 即消除（4k 与 8k $INDEX_ROOT 内容
-     *   逐字节仅此一字节差）。
-     */
-    internal fun indexRootBlockUnit(bytesPerCluster: Int): Int =
-        if (INDEX_RECORD_SIZE >= bytesPerCluster) INDEX_RECORD_SIZE / bytesPerCluster
-        else INDEX_RECORD_SIZE / SECTOR
     internal const val FILE_ATTR_SYSTEM = 0x06L               // HIDDEN|SYSTEM
     // NTFS 目录位是 file_attributes 的 0x10000000(I30_INDEX_PRESENT)，非 DOS 的 0x10。
     //   chkdsk 交叉校验：记录头 FLAG_DIRECTORY(0x16 位)、带 $I30 $INDEX_ROOT、$FILE_NAME/

@@ -482,7 +482,7 @@ class NtfsIndex(
         putU32(c, 0x00, 0x30L)                          // indexed attr = $FILE_NAME
         putU32(c, 0x04, 0x01L)                          // collation = FILENAME
         putU32(c, 0x08, boot.indexRecordSize.toLong())
-        putU32(c, 0x0C, (NtfsFormatter.indexRootClustersPerBlock(clusterSize) and 0xFF).toLong())
+        putU32(c, 0x0C, (NtfsFormatter.indexBufferCode(clusterSize) and 0xFF).toLong())
         putU32(c, 0x10, 0x10L)                          // entriesOffset（相对 INDEX_HEADER）
         putU32(c, 0x14, (body - 0x10).toLong())         // index_length = 从 INDEX_HEADER 起的已用（含头+项+END）
         putU32(c, 0x18, (body - 0x10).toLong())         // allocated_size（驻留=已用）
@@ -511,7 +511,7 @@ class NtfsIndex(
         val c = ByteArray(body)
         putU32(c, 0x00, 0x30L); putU32(c, 0x04, 0x01L)
         putU32(c, 0x08, boot.indexRecordSize.toLong())
-        putU32(c, 0x0C, (NtfsFormatter.indexRootClustersPerBlock(clusterSize) and 0xFF).toLong())
+        putU32(c, 0x0C, (NtfsFormatter.indexBufferCode(clusterSize) and 0xFF).toLong())
         putU32(c, 0x10, 0x10L)                          // entriesOffset
         putU32(c, 0x14, (body - 0x10).toLong())         // index_length（含头+分隔符+LAST）
         putU32(c, 0x18, (body - 0x10).toLong())         // allocated_size
@@ -554,7 +554,7 @@ class NtfsIndex(
         putU32(rec, c + 0x04, 0x01L)    // collation = FILENAME
         putU32(rec, c + 0x08, boot.indexRecordSize.toLong())
         // H4：clusters_per_index_block 单字节编码（与 boot[0x44]、formatter 侧一致），后 3 字节 padding=0。
-        putU32(rec, c + 0x0C, (NtfsFormatter.indexRootClustersPerBlock(clusterSize) and 0xFF).toLong())
+        putU32(rec, c + 0x0C, (NtfsFormatter.indexBufferCode(clusterSize) and 0xFF).toLong())
         // INDEX_HEADER（内容偏移 0x10）
         putU32(rec, c + 0x10, 0x10L)    // entriesOffset（相对 INDEX_HEADER）
         // index_length = INDEX_HEADER(0x10) + 末项(0x18) = 0x28（从 INDEX_HEADER 起算的已用字节）。
@@ -690,7 +690,7 @@ class NtfsIndex(
         putU32(rec, c + 0x04, 0x01L)
         putU32(rec, c + 0x08, boot.indexRecordSize.toLong())
         // H4：clusters_per_index_block 单字节编码（与 boot[0x44] 一致），后 3 字节 padding=0。
-        putU32(rec, c + 0x0C, (NtfsFormatter.indexRootClustersPerBlock(clusterSize) and 0xFF).toLong())
+        putU32(rec, c + 0x0C, (NtfsFormatter.indexBufferCode(clusterSize) and 0xFF).toLong())
         putU32(rec, c + 0x10, 0x10L)
         putU32(rec, c + 0x14, 0x20L)
         putU32(rec, c + 0x18, (contentLen - 0x10).toLong())

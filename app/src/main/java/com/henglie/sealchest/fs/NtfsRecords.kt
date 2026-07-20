@@ -178,7 +178,7 @@ internal fun buildIndexRootEmpty(bytesPerCluster: Int): ByteArray {
     //   （与 boot[0x44] 同一 ClustersPerIndexBuffer 编码）。大簇下 0x08 须随簇变（旧写死 4096
     //   与 boot 解析出的簇大小矛盾 → chkdsk 报索引块尺寸不符 / 运行时多叶构建被拒）。
     putU32(b, 0x08, NtfsFormatter.indexRecordSize(bytesPerCluster).toLong())
-    b[0x0C] = NtfsFormatter.indexRootClustersPerBlock(bytesPerCluster).toByte()
+    b[0x0C] = NtfsFormatter.indexBufferCode(bytesPerCluster).toByte()
     putU32(b, 0x10, 0x10L)                                 // node header: entries offset（相对 INDEX_HEADER）
     putU32(b, 0x14, 0x20L)                                 // node header: index length = 头0x10 + END项0x10
     putU32(b, 0x18, 0x20L)                                 // node header: allocated size = 同上（resident 无余量）
@@ -200,7 +200,7 @@ internal fun buildIndexRootLarge(bytesPerCluster: Int): ByteArray {
     putU32(b, 0x00, NtfsFormatter.ATTR_FILE_NAME)          // indexed attr type
     putU32(b, 0x04, 1L)                                    // collation = COLLATION_FILENAME
     putU32(b, 0x08, NtfsFormatter.indexRecordSize(bytesPerCluster).toLong())
-    b[0x0C] = NtfsFormatter.indexRootClustersPerBlock(bytesPerCluster).toByte()
+    b[0x0C] = NtfsFormatter.indexBufferCode(bytesPerCluster).toByte()
     putU32(b, 0x10, 0x10L)                                 // node header: entries offset
     putU32(b, 0x14, 0x28L)                                 // node header: index length = 0x10 头 + 0x18 END
     putU32(b, 0x18, 0x28L)                                 // node header: allocated size

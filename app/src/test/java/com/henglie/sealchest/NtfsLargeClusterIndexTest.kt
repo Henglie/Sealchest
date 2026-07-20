@@ -6,11 +6,9 @@ import com.henglie.sealchest.fs.NtfsRecordCodec
 import org.junit.Test
 
 /**
- * 大簇造盘索引诊断：对比 4k(idxblk>=簇) vs 8k(idxblk<簇) 的记录 9($Secure)/11($Extend)/5(root)
- * 的 $INDEX_ROOT / $SDH / $SII 视图索引字节。真机 chkdsk 仅 8k+ 报「文件9 $SDH/$SII、文件B $I30」
- * 错误——这些记录**造盘写死**、不受运行时影响，故差异必在造盘的大簇 index-block 编码路径。
- *
- * 用与运行时/chkdsk 同源的 NtfsBoot/NtfsRecordCodec 解析（避免 Python dump 的 USA/偏移 bug）。
+ * 大簇诊断：dump 记录 9($Secure)、11($Extend)、5(root) 的**全部属性**（含 $DATA($SDS) 的
+ * realSize/allocSize/runs、$INDEX_ALLOCATION 布局），对比 4k vs 8k 找大簇特有差异。
+ * cpib 已经真机排除（非 $SDH/$SII/$I30 报错根因），聚焦非驻留流的簇布局。
  */
 class NtfsLargeClusterIndexTest {
 
@@ -23,70 +21,55 @@ class NtfsLargeClusterIndexTest {
         return image
     }
 
-    private fun hex(b: ByteArray, from: Int, len: Int): String {
-        val sb = StringBuilder()
-        for (i in from until minOf(from + len, b.size)) sb.append("%02x ".format(b[i]))
-        return sb.toString()
-    }
-
-    /** dump 一条记录里指定 type+name 的 $INDEX_ROOT 内容 + 全部索引项头。 */
-    private fun dumpIndexRoot(rec: ByteArray, wantName: String) {
-        var off = NtfsRecordCodec.u16(rec, 0x14)
-        val used = NtfsRecordCodec.u32(rec, 0x18).toInt()
-        var iter = 0
-        while (off + 8 <= used && off + 8 <= rec.size && iter < 40) {
-            val type = NtfsRecordCodec.u32(rec, off)
-            if (type == 0xFFFFFFFFL) break
-            val tot = NtfsRecordCodec.u32(rec, off + 4).toInt()
-            if (tot <= 0 || off + tot > rec.size) break
-            val nlen = rec[off + 9].toInt() and 0xFF
-            val noff = NtfsRecordCodec.u16(rec, off + 0x0A)
-            val nm = if (nlen > 0) buildString { for (k in 0 until nlen) append(NtfsRecordCodec.u16(rec, off + noff + k * 2).toChar()) } else ""
-            if (type == 0x90L && nm == wantName) {
-                val voff = NtfsRecordCodec.u16(rec, off + 0x14)
-                val vlen = NtfsRecordCodec.u32(rec, off + 0x10).toInt()
-                val vs = off + voff
-                val collation = NtfsRecordCodec.u32(rec, vs + 4)
-                val idxblk = NtfsRecordCodec.u32(rec, vs + 8)
-                val cpib = rec[vs + 0x0C].toInt()   // signed
-                val ihFlags = NtfsRecordCodec.u32(rec, vs + 0x1C)
-                val idxLen = NtfsRecordCodec.u32(rec, vs + 0x14)
-                println("    \$INDEX_ROOT name=$wantName vlen=$vlen collation=0x${collation.toString(16)} idxblk=$idxblk cpib=$cpib ihFlags=0x${ihFlags.toString(16)} idxLen=0x${idxLen.toString(16)}")
-                // 索引项
-                var eo = vs + 0x10 + NtfsRecordCodec.u32(rec, vs + 0x10).toInt()
-                var e = 0
-                while (eo + 16 <= vs + vlen && e < 10) {
-                    val elen = NtfsRecordCodec.u16(rec, eo + 8)
-                    val clen = NtfsRecordCodec.u16(rec, eo + 10)
-                    val fl = NtfsRecordCodec.u16(rec, eo + 12)
-                    val dataOff = NtfsRecordCodec.u16(rec, eo + 0x00)
-                    val dataLen = NtfsRecordCodec.u16(rec, eo + 0x02)
-                    println("      entry elen=$elen clen=$clen flags=0x${fl.toString(16)} dataOff=0x${dataOff.toString(16)} dataLen=0x${dataLen.toString(16)}  bytes=[${hex(rec, eo, minOf(elen, 48))}]")
-                    if (fl and 0x02 != 0 || elen < 16) break
-                    eo += elen; e++
-                }
-            }
-            off += tot; iter++
-        }
-    }
+    private fun u16(b: ByteArray, o: Int) = (b[o].toInt() and 0xFF) or ((b[o+1].toInt() and 0xFF) shl 8)
+    private fun u32(b: ByteArray, o: Int) = u16(b,o).toLong() or (u16(b,o+2).toLong() shl 16)
+    private fun u64(b: ByteArray, o: Int): Long { var v=0L; for (k in 0 until 8) v = v or ((b[o+k].toInt() and 0xFF).toLong() shl (8*k)); return v }
 
     @Test
-    fun compareSecureExtendIndex4kVs8k() {
+    fun dumpIndexRoots() {
         for (cs in listOf(4096, 8192)) {
             val image = buildImage(cs)
             val boot = NtfsBoot.parse(image.copyOfRange(0, 512))
             val codec = NtfsRecordCodec(boot)
             val recSize = boot.fileRecordSize
             val mftOff = boot.mftByteOffset.toInt()
-            println("\n############ cs=$cs bpc=${boot.bytesPerCluster} indexRecordSize=${boot.indexRecordSize} boot[0x44]=${image[0x44].toInt()} ############")
-            for (no in listOf(9, 11, 5)) {
-                val off = mftOff + no * recSize
+            println("\n############ cs=$cs bpc=${boot.bytesPerCluster} idxblk=${boot.indexRecordSize} boot[0x44]=${image[0x44].toInt()} ############")
+
+            for (recNo in listOf(9, 11, 5)) {
+                val off = mftOff + recNo * recSize
                 val rec = image.copyOfRange(off, off + recSize)
                 codec.applyUsaFixup(rec)
-                println("--- 记录 $no flags=0x${NtfsRecordCodec.u16(rec, 0x16).toString(16)} ---")
-                when (no) {
-                    9 -> { dumpIndexRoot(rec, "\$SDH"); dumpIndexRoot(rec, "\$SII") }
-                    else -> dumpIndexRoot(rec, "\$I30")
+                println("--- 记录 $recNo flags=0x${u16(rec,0x16).toString(16)} used=0x${u32(rec,0x18).toString(16)} ---")
+                var ao = u16(rec, 0x14)
+                while (ao + 4 <= rec.size) {
+                    val t = u32(rec, ao)
+                    if (t == 0xFFFFFFFFL) break
+                    val ln = u32(rec, ao+4).toInt()
+                    if (ln <= 0 || ao+ln > rec.size) break
+                    val nonres = rec[ao+8].toInt()
+                    val nlen = rec[ao+9].toInt() and 0xFF
+                    val noff = u16(rec, ao+0x0A)
+                    val nm = if (nlen>0) String(CharArray(nlen){ u16(rec, ao+noff+it*2).toChar() }) else ""
+                    if (nonres == 0) {
+                        val vlen = u32(rec, ao+0x10)
+                        val voff = u16(rec, ao+0x14)
+                        print("    attr=0x${t.toString(16)} name='$nm' RESIDENT vlen=$vlen voff=0x${voff.toString(16)}")
+                        if (t == 0x90L) {
+                            val vs = ao+voff
+                            println("  IR: coll=0x${u32(rec,vs+4).toString(16)} idxblk=${u32(rec,vs+8)} cpib=${rec[vs+0x0C].toInt()} ihFlags=0x${u32(rec,vs+0x1C).toString(16)} idxLen=0x${u32(rec,vs+0x14).toString(16)}")
+                        } else println()
+                    } else {
+                        val startVcn = u64(rec, ao+0x10); val endVcn = u64(rec, ao+0x18)
+                        val runsOff = u16(rec, ao+0x20)
+                        val allocSz = u64(rec, ao+0x28); val realSz = u64(rec, ao+0x30); val initSz = u64(rec, ao+0x38)
+                        val aFlags = u16(rec, ao+0x0C)
+                        print("    attr=0x${t.toString(16)} name='$nm' NONRES vcn=$startVcn..$endVcn alloc=$allocSz real=$realSz init=$initSz aFlags=0x${aFlags.toString(16)}")
+                        // decode runs
+                        val runs = NtfsRecordCodec.decodeRuns(rec, ao+runsOff)
+                        val rs = runs.joinToString(",") { "lcn=${it.lcn}/len=${it.length}${if(it.sparse)"(sparse)" else ""}" }
+                        println("  runs=[$rs] runsBytes=${(ao+runsOff until ao+ln).take(16).joinToString(" "){ "%02x".format(rec[it]) }}")
+                    }
+                    ao += ln
                 }
             }
         }

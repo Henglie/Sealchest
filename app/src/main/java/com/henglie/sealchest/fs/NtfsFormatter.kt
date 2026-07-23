@@ -69,15 +69,11 @@ object NtfsFormatter {
     internal fun indexRecordSize(bytesPerCluster: Int): Int = INDEX_RECORD_SIZE
 
     /**
-     * ClustersPerIndexBuffer 编码（boot[0x44] 与 $INDEX_ROOT+0x0C 同一编码，见 NtfsBoot.recordSize）。
+     * boot[0x44] ClustersPerIndexBuffer 编码（**仅** boot 用；$INDEX_ROOT+0x0C 用 [indexRootCpib]，
+     *   两者编码不同，见 2026-07-24 真实 8K 金标准实证）。boot[0x44] 语义（NtfsBoot.recordSize 解析）：
      *   簇 ≤ 4096：index block=4096 ≥ 簇 → 正数簇计 4096/簇（512→8…4096→1）。
-     *   簇 > 4096：index block=4096 < 簇 → 负数编码 -log2(4096)=-12（NtfsBoot.recordSize 解析
-     *     负值 v 为 2^(-v) 字节，-12 → 4096）。与真·Windows 8K+ 簇 boot[0x44] 一致。
-     *
-     * 注：曾疑 $INDEX_ROOT+0x0C 用不同编码（block/512=8），真机实证否决——测试6(填-12) 与
-     *   测试7(填8) 的 8K chkdsk 输出逐字节相同（仅时间戳差），$SDH/$SII/$I30 报错不变。
-     *   两字段确用同一负 log2 编码（-12→4096 与 index_block_size(0x08)=4096 自洽；填 8 会解成
-     *   8×8192≠4096 不自洽）。8K+ 报错根因在别处（$SDS 流布局，排查中），非此字段。
+     *   簇 > 4096：index block=4096 < 簇 → 负数编码 -log2(4096)=-12（解析 2^(-v) 字节 → 4096）。
+     *   真实 Windows 8K 簇盘 boot[0x44]=-12 逐字节吻合。
      */
     internal fun indexBufferCode(bytesPerCluster: Int): Int =
         if (INDEX_RECORD_SIZE >= bytesPerCluster) INDEX_RECORD_SIZE / bytesPerCluster
@@ -87,6 +83,23 @@ object NtfsFormatter {
             while (v > 1) { v = v shr 1; log2++ }
             -log2
         }
+
+    /**
+     * $INDEX_ROOT + 0x0C 的 clusters_per_index_block —— **与 boot[0x44] 是两套不同编码**
+     * （真实 Windows 8K 簇 NTFS 金标准逐字节实证，2026-07-24）：
+     *   - boot[0x44]：簇 ≤ 4096 → 正数 4096/簇；簇 > 4096 → 负 log2（-12 = 2^12 = 4096）。
+     *   - $INDEX_ROOT+0x0C：簇 ≤ 4096 → 4096/簇（与 boot 同）；簇 > 4096 → **4096/扇区(512) = 8**。
+     * 即 $INDEX_ROOT 的 cpib 恒是「每个 index block 的 VCN 数」= [NtfsIndex.vcnPerIndexBlock]
+     * （簇≤块用 block/簇，簇>块用 block/512）。8K 金标准 boot[0x44]=-12 但 $SDH/$SII/$I30 的
+     * cpib=8，两字段确实不同。
+     *
+     * 历史「cpib 弯路」的误判根源：旧代码 boot 与 $INDEX_ROOT 共用 [indexBufferCode]，无法让两者
+     * 取不同值——测试6全填-12、测试7全填8，两次都让 boot[0x44] 一起变错，故输出相同、被判「非根因」。
+     * 真值是 boot[0x44]=-12 且 $INDEX_ROOT cpib=8（各自正确），必须拆成两个函数。
+     */
+    internal fun indexRootCpib(bytesPerCluster: Int): Int =
+        if (INDEX_RECORD_SIZE >= bytesPerCluster) INDEX_RECORD_SIZE / bytesPerCluster
+        else INDEX_RECORD_SIZE / SECTOR
     internal const val FILE_ATTR_SYSTEM = 0x06L               // HIDDEN|SYSTEM
     // NTFS 目录位是 file_attributes 的 0x10000000(I30_INDEX_PRESENT)，非 DOS 的 0x10。
     //   chkdsk 交叉校验：记录头 FLAG_DIRECTORY(0x16 位)、带 $I30 $INDEX_ROOT、$FILE_NAME/

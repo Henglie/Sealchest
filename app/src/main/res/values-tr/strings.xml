@@ -297,8 +297,6 @@
     <string name="favorites_rename_hint">Görünen ad</string>
     <string name="settings_default_mount_writable">Varsayılan oku-yaz bağlama</string>
     <string name="settings_default_prf">Varsayılan PRF</string>
-    <string name="settings_ntfs_exp">NTFS etkinleştir (deneysel)</string>
-    <string name="settings_ntfs_exp_desc">Cihazda NTFS okuma/yazma doğrulanmamıştır. Yalnızca tek kullanımlık kapsayıcılar kullanın. Kapalı = NTFS kapsayıcıları bağlanmayı reddeder.</string>
     <!-- 块设备解锁（F2）-->
     <string name="block_device_unlock">Kilidi aç</string>
     <string name="block_device_unlocking">Kilit açılıyor…</string>

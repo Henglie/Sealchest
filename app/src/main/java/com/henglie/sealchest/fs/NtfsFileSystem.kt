@@ -76,7 +76,7 @@ class NtfsFileSystem private constructor(
     override fun overwriteFile(dirFirstCluster: Long, name: String, bytes: ByteArray): Boolean {
         val dir = if (dirFirstCluster < 16) NtfsRecordCodec.MFT_ROOT_DIR else dirFirstCluster
         mftMgr.markVolumeDirty()
-        // 崩溃/写失败安全（修 H1）：不再「先删后写」——近满容器写新失败会连旧数据一并丢。
+        // 崩溃/写失败安全：不用「先删后写」（近满容器写新失败会连旧数据一并丢）。
         // 改为「先以临时名写新 → 成功后删旧 → 改名回目标名」。任一步失败旧文件始终完好。
         // 临时名 = ".sctmp~"+纳秒戳，再补 '0' 到不短于目标名（≤255）。这样末步 rename 是
         // tmp→name 的「收缩」（delta≤0），rewriteFileNameAttr 必然放得下、不涉新簇分配 →
@@ -111,7 +111,7 @@ class NtfsFileSystem private constructor(
      */
     override fun clearDirtyFlag() { mftMgr.clearVolumeDirty() }
 
-    // ---- 目录操作（W12 · 可选能力）----
+    // ---- 目录操作 ----
 
     override fun rename(dirFirstCluster: Long, oldName: String, newName: String): Boolean {
         mftMgr.markVolumeDirty()

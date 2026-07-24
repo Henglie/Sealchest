@@ -301,8 +301,6 @@
     <string name="favorites_rename_hint">Nome visualizzato</string>
     <string name="settings_default_mount_writable">Montaggio in lettura-scrittura predefinito</string>
     <string name="settings_default_prf">PRF predefinito</string>
-    <string name="settings_ntfs_exp">Abilita NTFS (sperimentale)</string>
-    <string name="settings_ntfs_exp_desc">La lettura/scrittura NTFS non è verificata sul dispositivo. Usa solo container usa-e-getta. Off = i container NTFS rifiutano il montaggio.</string>
     <!-- 块设备解锁（F2）-->
     <string name="block_device_unlock">Sblocca</string>
     <string name="block_device_unlocking">Sblocco…</string>

@@ -301,8 +301,6 @@
     <string name="favorites_rename_hint">Tên hiển thị</string>
     <string name="settings_default_mount_writable">Gắn đọc-ghi mặc định</string>
     <string name="settings_default_prf">PRF mặc định</string>
-    <string name="settings_ntfs_exp">Bật NTFS (thử nghiệm)</string>
-    <string name="settings_ntfs_exp_desc">Đọc/ghi NTFS chưa được xác minh trên thiết bị. Chỉ dùng container thử nghiệm. Tắt = container NTFS từ chối gắn.</string>
     <!-- 块设备解锁（F2）-->
     <string name="block_device_unlock">Mở khóa</string>
     <string name="block_device_unlocking">Đang mở khóa…</string>

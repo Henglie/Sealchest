@@ -301,8 +301,6 @@
     <string name="favorites_rename_hint">表示名</string>
     <string name="settings_default_mount_writable">既定で読み書きマウント</string>
     <string name="settings_default_prf">既定の PRF</string>
-    <string name="settings_ntfs_exp">NTFS を有効化（実験的）</string>
-    <string name="settings_ntfs_exp_desc">NTFS の読み書きはデバイス上で未検証です。使い捨てのコンテナのみで使用してください。オフ = NTFS コンテナはマウントを拒否します。</string>
     <!-- 块设备解锁（F2）-->
     <string name="block_device_unlock">ロック解除</string>
     <string name="block_device_unlocking">ロック解除中…</string>

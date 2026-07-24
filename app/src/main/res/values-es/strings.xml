@@ -297,8 +297,6 @@
     <string name="favorites_rename_hint">Nombre a mostrar</string>
     <string name="settings_default_mount_writable">Montaje lectura-escritura predeterminado</string>
     <string name="settings_default_prf">PRF predeterminado</string>
-    <string name="settings_ntfs_exp">Activar NTFS (experimental)</string>
-    <string name="settings_ntfs_exp_desc">Lectura/escritura NTFS sin verificar en el dispositivo. Use solo contenedores desechables. Desactivado = los contenedores NTFS rechazan montarse.</string>
     <!-- 块设备解锁（F2）-->
     <string name="block_device_unlock">Desbloquear</string>
     <string name="block_device_unlocking">Desbloqueando…</string>

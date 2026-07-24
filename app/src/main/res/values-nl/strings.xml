@@ -301,8 +301,6 @@
     <string name="favorites_rename_hint">Weergavenaam</string>
     <string name="settings_default_mount_writable">Standaard lezen-schrijven-koppeling</string>
     <string name="settings_default_prf">Standaard-PRF</string>
-    <string name="settings_ntfs_exp">NTFS inschakelen (experimenteel)</string>
-    <string name="settings_ntfs_exp_desc">NTFS lezen/schrijven is niet geverifieerd op het apparaat. Gebruik alleen wegwerpcontainers. Uit = NTFS-containers weigeren te koppelen.</string>
     <!-- 块设备解锁（F2）-->
     <string name="block_device_unlock">Ontgrendelen</string>
     <string name="block_device_unlocking">Ontgrendelen…</string>

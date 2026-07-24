@@ -116,7 +116,7 @@ object MountManager {
         /**
          * 是否以可写方式挂载。默认 false = 只读（历史行为，零回归）。true 时 PFD 用
          * "rw" 打开，并经 [RandomAccessFile] 拿到可读写的双向 channel 交给 [VolumeReader]，
-         * FAT 写方向（T3）才能把加密数据写回真实容器。UI 侧须已 take 了带写权限的 URI。
+         * 写方向才能把加密数据写回真实容器。UI 侧须已 take 了带写权限的 URI。
          */
         writable: Boolean = false,
         /**
@@ -186,10 +186,7 @@ object MountManager {
             }
 
             reader = VolumeReader(channel, volume)
-            // 文件系统分发：读解密后的引导扇区（逻辑偏移 0）。exFAT 签名走 exFAT。
-            // NTFS：默认仍拒绝（正常用户零影响，宁可打不开绝不挂垃圾/误写）；仅当设置里显式开启
-            //   「NTFS 实验」开关才挂 NtfsFileSystem——供恒烈真机 chkdsk 验收。验收纪律见测试手册：
-            //   先挂只读（本次 writable=false 时只跑读路径，零写风险）验证读；读通过再开可写验写。
+            // 文件系统分发：读解密后的引导扇区（逻辑偏移 0），按签名派发到对应实现。
             val boot0 = reader.read(0, 512)
             val fs: VolumeFs = when {
                 NtfsBoot.isNtfs(boot0) -> NtfsFileSystem.mount(reader)

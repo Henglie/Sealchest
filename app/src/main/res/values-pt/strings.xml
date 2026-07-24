@@ -301,8 +301,6 @@
     <string name="favorites_rename_hint">Nome de exibição</string>
     <string name="settings_default_mount_writable">Montagem leitura-gravação padrão</string>
     <string name="settings_default_prf">PRF padrão</string>
-    <string name="settings_ntfs_exp">Ativar NTFS (experimental)</string>
-    <string name="settings_ntfs_exp_desc">Leitura/gravação NTFS não verificada no dispositivo. Use apenas contêineres descartáveis. Desligado = contêineres NTFS recusam montagem.</string>
     <!-- 块设备解锁（F2）-->
     <string name="block_device_unlock">Desbloquear</string>
     <string name="block_device_unlocking">Desbloqueando…</string>

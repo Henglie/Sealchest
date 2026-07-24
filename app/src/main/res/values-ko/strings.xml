@@ -301,8 +301,6 @@
     <string name="favorites_rename_hint">표시 이름</string>
     <string name="settings_default_mount_writable">기본 읽기-쓰기 마운트</string>
     <string name="settings_default_prf">기본 PRF</string>
-    <string name="settings_ntfs_exp">NTFS 활성화 (실험적)</string>
-    <string name="settings_ntfs_exp_desc">NTFS 읽기/쓰기는 기기에서 검증되지 않았습니다. 폐기용 컨테이너에서만 사용하십시오. 끄기 = NTFS 컨테이너는 마운트를 거부합니다.</string>
     <!-- 块设备解锁（F2）-->
     <string name="block_device_unlock">잠금 해제</string>
     <string name="block_device_unlocking">잠금 해제 중…</string>

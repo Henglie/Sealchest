@@ -301,8 +301,6 @@
     <string name="favorites_rename_hint">Nazwa wyświetlana</string>
     <string name="settings_default_mount_writable">Domyślne montowanie do odczytu i zapisu</string>
     <string name="settings_default_prf">Domyślny PRF</string>
-    <string name="settings_ntfs_exp">Włącz NTFS (eksperymentalne)</string>
-    <string name="settings_ntfs_exp_desc">Odczyt/zapis NTFS nie jest zweryfikowany na urządzeniu. Używaj tylko kontenerów testowych. Wyłączone = kontenery NTFS odmawiają montowania.</string>
     <!-- 块设备解锁（F2）-->
     <string name="block_device_unlock">Odblokuj</string>
     <string name="block_device_unlocking">Odblokowywanie…</string>

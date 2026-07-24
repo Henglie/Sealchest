@@ -297,8 +297,6 @@
     <string name="favorites_rename_hint">Anzeigename</string>
     <string name="settings_default_mount_writable">Standard Lese-Schreib-Einhängung</string>
     <string name="settings_default_prf">Standard-PRF</string>
-    <string name="settings_ntfs_exp">NTFS aktivieren (experimentell)</string>
-    <string name="settings_ntfs_exp_desc">NTFS-Lesen/Schreiben ist auf dem Gerät ungeprüft. Nur Wegwerf-Container verwenden. Aus = NTFS-Container verweigern die Einhängung.</string>
     <!-- 块设备解锁（F2）-->
     <string name="block_device_unlock">Entsperren</string>
     <string name="block_device_unlocking">Entsperren…</string>

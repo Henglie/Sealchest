@@ -74,15 +74,6 @@ object Settings {
     fun setDefaultPrfIndex(context: Context, v: Int) =
         prefs(context).edit().putInt(KEY_DEFAULT_PRF_INDEX, v.coerceIn(0, 5)).apply()
 
-    // ---- NTFS 实验开关（默认关）。开启才允许挂载 NTFS 容器（读写待真机 chkdsk 验收）。----
-    //   正常用户零影响：关闭时 NTFS 一律拒绝挂载（宁可打不开，绝不挂垃圾/误写）。
-    //   恒烈真机验收专用：先只读验证（挂只读零写风险），读通过再开可写验写。
-    private const val KEY_NTFS_EXPERIMENTAL = "ntfs_experimental"
-    fun ntfsExperimental(context: Context): Boolean =
-        prefs(context).getBoolean(KEY_NTFS_EXPERIMENTAL, false)
-    fun setNtfsExperimental(context: Context, v: Boolean) =
-        prefs(context).edit().putBoolean(KEY_NTFS_EXPERIMENTAL, v).apply()
-
     // ---- 语言偏好（16 国语言切换）。空串=跟随系统。----
     private const val KEY_LANG = "language_tag"
     fun languageTag(context: Context): String =

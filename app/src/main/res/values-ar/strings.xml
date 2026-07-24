@@ -297,8 +297,6 @@
     <string name="favorites_rename_hint">اسم العرض</string>
     <string name="settings_default_mount_writable">تحميل قراءة-كتابة افتراضي</string>
     <string name="settings_default_prf">PRF افتراضي</string>
-    <string name="settings_ntfs_exp">تفعيل NTFS (تجريبي)</string>
-    <string name="settings_ntfs_exp_desc">القراءة/الكتابة NTFS غير موثّقة على الجهاز. استخدم حاويات مؤقتة فقط. إيقاف = حاويات NTFS ترفض التحميل.</string>
     <!-- 块设备解锁（F2）-->
     <string name="block_device_unlock">فتح</string>
     <string name="block_device_unlocking">جارٍ الفتح…</string>

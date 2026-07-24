@@ -301,8 +301,6 @@
     <string name="favorites_rename_hint">Отображаемое имя</string>
     <string name="settings_default_mount_writable">Монтирование с чтением-записью по умолчанию</string>
     <string name="settings_default_prf">PRF по умолчанию</string>
-    <string name="settings_ntfs_exp">Включить NTFS (экспериментально)</string>
-    <string name="settings_ntfs_exp_desc">Чтение/запись NTFS на устройстве не проверена. Используйте только с одноразовыми контейнерами. Выкл = контейнеры NTFS отказываются монтироваться.</string>
     <!-- 块设备解锁（F2）-->
     <string name="block_device_unlock">Разблокировать</string>
     <string name="block_device_unlocking">Разблокировка…</string>

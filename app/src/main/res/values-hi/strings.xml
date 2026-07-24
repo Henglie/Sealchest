@@ -297,8 +297,6 @@
     <string name="favorites_rename_hint">प्रदर्शन नाम</string>
     <string name="settings_default_mount_writable">डिफ़ॉल्ट पढ़ें-लिखें माउंट</string>
     <string name="settings_default_prf">डिफ़ॉल्ट PRF</string>
-    <string name="settings_ntfs_exp">NTFS सक्षम करें (प्रायोगिक)</string>
-    <string name="settings_ntfs_exp_desc">डिवाइस पर NTFS पढ़ना/लिखना असत्यापित है। केवल उपयोग-के-बाद-हटाने वाले कंटेनर का उपयोग करें। बंद = NTFS कंटेनर माउंट होने से इनकार करते हैं।</string>
     <!-- 块设备解锁（F2）-->
     <string name="block_device_unlock">अनलॉक करें</string>
     <string name="block_device_unlocking">अनलॉक कर रहे हैं…</string>

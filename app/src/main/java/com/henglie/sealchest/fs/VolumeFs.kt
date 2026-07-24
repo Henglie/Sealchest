@@ -1,7 +1,7 @@
 package com.henglie.sealchest.fs
 
 /**
- * 容器空间不足（W18）。alloc 路径（FAT/exFAT/NTFS）空闲簇不够时抛出，
+ * 容器空间不足。alloc 路径（FAT/exFAT/NTFS）空闲簇不够时抛出，
  * 实现已回滚已分配簇（不留孤儿簇）。UI 捕获后提示「容器空间不足」而非通用「写入失败」。
  */
 class VolumeFullException(message: String = "容器空间不足") : Exception(message)
@@ -16,7 +16,7 @@ class VolumeFullException(message: String = "容器空间不足") : Exception(me
  * 句柄语义：目录 / 文件都以 [FsEntry.firstCluster]（簇号，Long）为句柄。FAT 与 exFAT
  * 都是簇号寻址，故句柄类型统一为 Long；根目录传 0（各实现自行解释为其根）。
  *
- * 目录操作（rename/mkdir/rmdir/move）为 W12 引入的可选能力：默认实现抛
+ * 目录操作（rename/mkdir/rmdir/move）为可选能力：默认实现抛
  * [UnsupportedOperationException]，实现层按各自文件系统能力覆盖（纯增量，不覆盖即不支持，
  * 上层捕获异常降级提示）。这样新增操作不强制所有实现同步跟进，保证低耦合、增量安全。
  */
@@ -73,7 +73,7 @@ interface VolumeFs {
      */
     fun clearDirtyFlag() { /* 默认空：仅 NTFS 有卷脏位 */ }
 
-    // ---- 目录操作（W12 · 可选能力，默认不支持）----
+    // ---- 目录操作（可选能力，默认不支持）----
 
     /**
      * 重命名目录 [dirFirstCluster] 下的条目 [oldName] 为 [newName]（文件或子目录均可）。

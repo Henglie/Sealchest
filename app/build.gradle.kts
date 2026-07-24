@@ -1,7 +1,16 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+}
+
+// 正式签名凭据从 keystore.properties 读取（该文件不入 git）。缺失时回退到 debug 签名，
+// 便于无凭据环境（如 CI 或他人克隆）仍能出 debug 包。
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
 }
 
 android {
@@ -56,6 +65,19 @@ android {
         }
     }
 
+    signingConfigs {
+        // 正式发行签名。凭据从 keystore.properties 读（不入版本控制）；缺文件时留空，
+        // release 构建会回退到未签名——本机发行前须确保 keystore.properties 就位。
+        if (keystoreProps.containsKey("storeFile")) {
+            create("release") {
+                storeFile = file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         debug {
             isMinifyEnabled = false
@@ -64,8 +86,8 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            // 0.2 落地版：暂用 debug 签名（未配正式 keystore）。后续正式发行需换正式签名。
-            signingConfig = signingConfigs.getByName("debug")
+            // 正式签名：keystore.properties 就位时用 release 配置，否则回退 debug（仅本机调试）。
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

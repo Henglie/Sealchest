@@ -16,11 +16,14 @@ android {
         applicationId = "com.henglie.sealchest"
         minSdk = 23
         targetSdk = 36
-        // 版本号：0.2（2026-07-11 恒烈授权升级：UI 改进 + 16 国语言 + 酒红色锁图标）。
-        // 日常功能开发、bug 修复一律不动版本号；仅「同步上游 VeraCrypt」且经恒烈同意时才可升，
-        // 且改前必须问过恒烈（见 上游同步与供应链安全.md「版本号纪律」）。
-        versionCode = 5
-        versionName = "0.2"
+        // 版本号：0.3（2026-07-24 恒烈授权升级：NTFS 桌面 VeraCrypt 全簇互通达标——
+        //   8K VC 容器真机 chkdsk 三阶段零错误，8K/16K/32K/64K 独立裁判字节验证通过，
+        //   cpib 根因修复，详见 NTFS_修复进展_0720.md）。
+        // 0.2（2026-07-11 恒烈授权：UI 改进 + 16 国语言 + 酒红色锁图标）。
+        // 日常功能开发、bug 修复一律不动版本号；仅「同步上游 VeraCrypt」或「重大互通里程碑」
+        // 且经恒烈同意时才可升，且改前必须问过恒烈（见 上游同步与供应链安全.md「版本号纪律」）。
+        versionCode = 6
+        versionName = "0.3"
 
         // 供应链透明信息：把「编进这个 APK 的上游 VeraCrypt 到底是哪个版本 / commit」
         // 与构建环境编入 BuildConfig，关于页直接读，单一真相源与实际构建绑定。

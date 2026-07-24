@@ -1,6 +1,7 @@
 # 构建产物
 build/
 .gradle/
+.kotlin/
 *.apk
 *.ap_
 # NDK/CMake 构建缓存

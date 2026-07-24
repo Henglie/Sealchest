@@ -257,7 +257,7 @@ class NtfsRecordCodec(private val boot: NtfsBoot) {
         }
 
         /**
-         * 编码多段 data run（W6）：逐段编码，相对 LCN 偏移；末尾补 0 结束符。
+         * 编码多段 data run：逐段编码，相对 LCN 偏移；末尾补 0 结束符。
          * 输入为绝对 LCN 段列表，输出 NTFS runlist 字节（小端，相对偏移有符号）。
          */
         internal fun encodeMultiRun(runs: List<DataRun>): ByteArray {
@@ -431,9 +431,9 @@ class NtfsRecordCodec(private val boot: NtfsBoot) {
 
         // ---- DOS 8.3 短名策略 ----
         //
-        // 与真实 Windows 一致：合法 8.3 名 → 单项 ns=3(link=1)；非 8.3 名 → ns=1 长名 + ns=2 生成的
+        // 与 Windows 一致：合法 8.3 名 → 单项 ns=3(link=1)；非 8.3 名 → ns=1 长名 + ns=2 生成的
         //   DOS 短名(link=2，双 $FILE_NAME、双 $I30 项)。chkdsk 阶段2 校验「ns=1 须有 ns=2 孪生、
-        //   ns=3 须为合法 8.3」；旧码硬编码 ns=1 却从不生成短名 → 报「索引项不正确」+「文件名错误」。
+        //   ns=3 须为合法 8.3」，故长名必须配套生成短名。
 
         /** DOS 8.3 合法字符（大写字母、数字、部分符号）。小写字母不算——DOS 名一律存大写。 */
         private const val DOS_LEGAL_CHARS =

@@ -24,7 +24,7 @@ import java.security.SecureRandom
  * ```
  * 其中 dataOffset = hostSize - 128KB - hiddenSize（Format.c:131）。
  *
- * **外层写保护（恒烈定：读外层 FAT 算安全区）**：动手前先解锁外层卷、读其 FAT 算出已用
+ * **外层写保护（读外层 FAT 算安全区）**：动手前先解锁外层卷、读其 FAT 算出已用
  * 数据区的物理上界（[FatFileSystem.usedDataAreaUpperBound] 换算容器绝对偏移），校验隐藏卷
  * dataOffset 落在该上界之后。落不下（外层已用空间挤占了尾部）就拒绝创建，绝不覆盖外层文件。
  *

@@ -373,8 +373,7 @@ class NtfsIndex(
         // ② 2 层多叶。索引块恒 4096(indexBlockSize)，与簇大小无关：可能 < 簇(8K+ 簇)也可能
         //   ≥ 簇(≤4K 簇)。两种布局统一处理——INDX 块在 $INDEX_ALLOCATION 流内**紧密排布**
         //   (第 i 块字节偏移 = i*indexBlockSize)，subnode VCN 按 vcnPerIndexBlock 单位编码
-        //   (见其文档)。旧码 `if (indexRecordSize < clusterSize) return false` 把 8K+ 簇多叶
-        //   全拒 → root 造盘已带 12 系统文件项、首次插入即需多叶 → 8K+ 簇所有写操作恒 false。
+        //   (见其文档)。
         val cap = leafEntryCapacity()
         // 单项若超过一个叶子容量（名极长）→ 无法放 → 拒绝。
         if (sorted.any { it.size > cap }) return false
@@ -461,7 +460,6 @@ class NtfsIndex(
 
         // index_length（INDEX_HEADER+0x04）= 从 INDEX_HEADER(nodeHdr) 起算的已用字节，
         //   含 INDEX_HEADER(0x10) + USA + 全部项（ntfs-3g: "bytes used from allocated_size"）。
-        //   原实现只写纯 entries 字节（漏 entries_offset 那段头+USA）→ chkdsk 报 index_length 不符。修为 p-nodeHdr。
         putU32(buf, nodeHdr + 0x04, (p - nodeHdr).toLong())
         putU32(buf, nodeHdr + 0x08, (idxRecSize - nodeHdr).toLong())   // allocatedSize
         putU32(buf, nodeHdr + 0x0C, 0L)                                 // flags = 叶子
@@ -553,12 +551,11 @@ class NtfsIndex(
         putU32(rec, c + 0x00, 0x30L)    // indexed attr type = $FILE_NAME
         putU32(rec, c + 0x04, 0x01L)    // collation = FILENAME
         putU32(rec, c + 0x08, boot.indexRecordSize.toLong())
-        // H4：clusters_per_index_block 单字节编码（与 boot[0x44]、formatter 侧一致），后 3 字节 padding=0。
+        // clusters_per_index_block 单字节编码（与 boot[0x44]、formatter 侧一致），后 3 字节 padding=0。
         putU32(rec, c + 0x0C, (NtfsFormatter.indexRootCpib(clusterSize) and 0xFF).toLong())
         // INDEX_HEADER（内容偏移 0x10）
         putU32(rec, c + 0x10, 0x10L)    // entriesOffset（相对 INDEX_HEADER）
-        // index_length = INDEX_HEADER(0x10) + 末项(0x18) = 0x28（从 INDEX_HEADER 起算的已用字节）。
-        //   原写 0x18（漏 header 0x10）→ chkdsk 报索引长度不符。修为 0x28。
+        // index_length = INDEX_HEADER(0x10) + 末项(0x18) = 0x28，从 INDEX_HEADER 起算的已用字节。
         putU32(rec, c + 0x14, 0x28L)
         putU32(rec, c + 0x18, (contentLen - 0x10).toLong())  // allocatedSize（同上，INDEX_HEADER 起算）
         putU32(rec, c + 0x1C, 0x01L)    // flags = 大索引
@@ -612,7 +609,7 @@ class NtfsIndex(
 
     /** 写 $BITMAP 属性（驻留，INDX 记录位图），返回下一偏移；越界 -1。 */
     private fun writeIndexBitmapAttr(rec: ByteArray, off: Int, attrId: Int): Int {
-        val bmp = byteArrayOf(0x01)         // VCN 0 已用（W5）
+        val bmp = byteArrayOf(0x01)         // VCN 0 已用
         val nameLen = 4
         val nameOff = 0x18
         val valOff = nameOff + nameLen * 2   // 0x20
@@ -689,7 +686,7 @@ class NtfsIndex(
         putU32(rec, c + 0x00, 0x30L)
         putU32(rec, c + 0x04, 0x01L)
         putU32(rec, c + 0x08, boot.indexRecordSize.toLong())
-        // H4：clusters_per_index_block 单字节编码（与 boot[0x44] 一致），后 3 字节 padding=0。
+        // clusters_per_index_block 单字节编码（与 boot[0x44] 一致），后 3 字节 padding=0。
         putU32(rec, c + 0x0C, (NtfsFormatter.indexRootCpib(clusterSize) and 0xFF).toLong())
         putU32(rec, c + 0x10, 0x10L)
         putU32(rec, c + 0x14, 0x20L)
@@ -759,11 +756,11 @@ class NtfsIndex(
         for (run in runs) if (!run.sparse) mftMgr.freeClusters(run.lcn, run.length)
     }
 
-    // ---- 内存自测（去险：NTFS 是死代码没法真机跑，自测在编译期揪层布局 bug）----
+    // ---- 内存自测：在编译期揪索引层布局 bug，无需真机 ----
 
     /**
      * 索引 B+树内存自测：合成 N 项跑重建各布局，读侧回解，断言集合+顺序+签名+尺寸。
-     * 全程内存、零磁盘、无副作用。返回逐项结果串。这是 NTFS 死代码阶段唯一自动裁判。
+     * 全程内存、零磁盘、无副作用。返回逐项结果串。本层唯一自动化校验。
      */
     internal fun ntfsIndexSelfTest(): String {
         val sb = StringBuilder()
@@ -849,13 +846,10 @@ class NtfsIndex(
          *   ② 每叶非空（空叶 = 空 INDX 记录，chkdsk 报错 / 浪费簇）；
          *   ③ 每叶字节 <= [cap]（否则 buildIndxLeafRecord 溢出返 null）。
          *
-         * 旧「空尾叶修复」的 bug：末项恰好溢出被提升为分隔符、其后再无项 → 尾叶空。旧码把该分隔符
-         *   硬塞回**已装满**的前一叶（正因装满才触发提升）→ 前一叶溢出 cap → buildIndxLeafRecord
-         *   返 null → 整个写操作失败。这是 ≤4K 簇「批量建 50 文件」在第 34 项必失败的根因
-         *   （真机 listed=33）。≥8K 簇叶容量大、50 项塞一叶不分裂，故不触发。
-         *
-         * 正解：悬空分隔符自成独立末叶（单项叶），并从前一满叶末尾借最大项当新分隔符，
-         *   顺序仍单调、维持不变量①。空输入 / 单项超 cap（调用方已挡）返 null。
+         * 边界：末项恰好溢出被提升为分隔符、其后再无项时，该分隔符不能塞回已满的前一叶
+         *   （会使前叶溢出 cap → buildIndxLeafRecord 返 null）。处理：悬空分隔符自成独立末叶
+         *   （单项叶），并从前一满叶末尾借最大项当新分隔符，顺序仍单调、维持不变量①。
+         *   空输入 / 单项超 cap（调用方已挡）返 null。
          */
         internal fun partitionLeaves(sorted: List<ByteArray>, cap: Int): LeafPartition? {
             if (sorted.isEmpty()) return null
@@ -871,9 +865,9 @@ class NtfsIndex(
                 } else { cur.add(e); curBytes += e.size }
             }
             if (cur.isEmpty()) {
-                // 末项被提升为分隔符后再无项（cur 空）。旧 bug：把该分隔符塞回**已满**的前一叶
-                //   → 前叶溢出 cap → buildIndxLeafRecord 返 null → 写失败（真机 ≤4K 簇 listed=33）。
-                // 正解：promoted 自成独立末叶（单项叶），并从前一满叶末尾借最大项 x 当新分隔符。
+                // 末项被提升为分隔符后再无项（cur 空）：promoted 自成独立末叶（单项叶），
+                //   并从前一满叶末尾借最大项 x 当新分隔符。不可把 promoted 塞回已满的前一叶
+                //   （会溢出 cap → buildIndxLeafRecord 返 null）。
                 //   顺序仍单调（x = 前叶最大 < promoted），且维持「分隔符数 = 叶数 - 1」不变量。
                 val promoted = separators.removeAt(separators.lastIndex)
                 val prev = ArrayList(leaves.removeAt(leaves.lastIndex))

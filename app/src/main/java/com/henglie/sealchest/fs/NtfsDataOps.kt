@@ -114,10 +114,10 @@ class NtfsDataOps(
 
         var dataLcn = -1L
         var dataClusters = 0L
-        var multiRuns: List<DataRun>? = null   // W6 多段路径
+        var multiRuns: List<DataRun>? = null   // 多段路径
         if (!resident && bytes.isNotEmpty()) {
             dataClusters = (bytes.size + clusterSize - 1).toLong() / clusterSize
-            // W6：先试连续（dataLcn），失败走多段（multiRuns）。allocMultipleClusters 空间不足抛异常。
+            // 先试连续（dataLcn），失败走多段（multiRuns）。allocMultipleClusters 空间不足抛异常。
             dataLcn = mftMgr.allocContiguousClusters(dataClusters)
             if (dataLcn < 0) {
                 multiRuns = mftMgr.allocMultipleClusters(dataClusters)   // 抛 VolumeFullException 或返回段
@@ -125,7 +125,7 @@ class NtfsDataOps(
             }
         }
 
-        // 构建 FILE 记录明文（未打 USA，writeMftRecord 内部打）。W6：多段走 buildFileRecordMulti。
+        // 构建 FILE 记录明文（未打 USA，writeMftRecord 内部打）。多段走 buildFileRecordMulti。
         val allocSize = allocForIndex(resident, bytes.size.toLong(), dataClusters)
         val rec = if (multiRuns != null) {
             buildFileRecordMulti(newRef, dirRef, plan, bytes, multiRuns, bytes.size.toLong())
@@ -168,7 +168,7 @@ class NtfsDataOps(
             mftMgr.freeMftRecord(newRef)
             return false
         }
-        // 写非驻留数据。W6：多段走 writeMultiClustersData。
+        // 写非驻留数据。多段走 writeMultiClustersData。
         if (!resident && bytes.isNotEmpty()) {
             if (multiRuns != null) writeMultiClustersData(multiRuns, bytes)
             else writeClustersData(dataLcn, bytes)
@@ -227,7 +227,7 @@ class NtfsDataOps(
     }
 
     /**
-     * 组装 FILE 记录（多段 $DATA，W6）。与 [buildFileRecord] 同布局，仅 $DATA 走多段编码。
+     * 组装 FILE 记录（多段 $DATA）。与 [buildFileRecord] 同布局，仅 $DATA 走多段编码。
      * [runs] 为绝对 LCN 段列表；[realSize] 为真实字节；总簇数 = runs 之和。
      */
     private fun buildFileRecordMulti(
@@ -371,7 +371,7 @@ class NtfsDataOps(
         return off + total
     }
 
-    /** 写非驻留 $DATA（多段，W6）。runs 为绝对 LCN 段；realSize=真实字节；总簇数=runs 之和。 */
+    /** 写非驻留 $DATA（多段）。runs 为绝对 LCN 段；realSize=真实字节；总簇数=runs 之和。 */
     private fun writeNonResidentDataMulti(rec: ByteArray, off: Int, runs: List<DataRun>, realSize: Long): Int {
         val runBytes = encodeMultiRun(runs)
         val totalClusters = runs.sumOf { it.length }
@@ -403,7 +403,7 @@ class NtfsDataOps(
         reader.write(logical, full, 0, full.size)
     }
 
-    /** 写多段簇数据（W6）：按段顺序写，每段内整簇写、尾簇补零。 */
+    /** 写多段簇数据：按段顺序写，每段内整簇写、尾簇补零。 */
     private fun writeMultiClustersData(runs: List<DataRun>, bytes: ByteArray) {
         var off = 0
         for (r in runs) {
@@ -461,7 +461,7 @@ class NtfsDataOps(
         return out
     }
 
-    // ================= 目录操作（W15）=================
+    // ================= 目录操作 =================
 
     /** UI 句柄 < 16 视为根目录（与 listDir/writeFile 同一规则）。 */
     internal fun normDir(ref: Long): Long = if (ref < 16) MFT_ROOT_DIR else ref

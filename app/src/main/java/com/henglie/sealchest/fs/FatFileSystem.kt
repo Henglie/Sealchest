@@ -4,7 +4,7 @@ package com.henglie.sealchest.fs
  * FAT12 / FAT16 / FAT32 只读解析层。
  *
  * 全部读经 [VolumeReader]（解密 + 逻辑寻址），本层只见「卷内逻辑偏移」，不碰加密。
- * 只读：不实现写入、不改 FAT、不碰脏位。第一版范围（见 PROGRESS）。
+ * 只读：不实现写入、不改 FAT、不碰脏位。
  *
  * 解析路径：BPB → 判 FAT 类型（按簇总数）→ 定位 FAT 表 / 根目录 / 数据区 →
  * 按簇链遍历目录项，短名（8.3）+ VFAT 长名（LFN）合成条目。
@@ -264,10 +264,10 @@ class FatFileSystem private constructor(
         return out
     }
 
-    // ---------------- FAT 表写入（T3a：读改写簇链，双份回写）----------------
+    // ---------------- FAT 表写入（读改写簇链，双份回写）----------------
     //
     // 全部经 [VolumeReader.write]（512B 单元 read-modify-write + XTS 加密回写）。
-    // 本区不 flush —— 落盘由门面层（MountManager/T3c）在一批结构改动后统一 force，
+    // 本区不 flush —— 落盘由写入门面层（MountManager）在一批结构改动后统一 force，
     // 减少半写窗口。红线：FAT 有 numFats（通常 2）份副本，每次改必须逐份写，
     // 否则桌面 VeraCrypt / chkdsk 判定两份不一致而报错。
 
@@ -417,7 +417,7 @@ class FatFileSystem private constructor(
         val passed: Boolean get() = !skipped && allocEoc && freedZero
     }
 
-    // ---------------- 目录项写入（T3b：增删 + VFAT 长名生成）----------------
+    // ---------------- 目录项写入（增删 + VFAT 长名生成）----------------
     //
     // 全部经 [VolumeReader.write]（512B 单元 read-modify-write + XTS 加密回写）。
     // 红线：目录项写错桌面 VeraCrypt 会显示乱条目或拒挂。LFN 项逆序写
@@ -426,7 +426,7 @@ class FatFileSystem private constructor(
     // 符合 FAT 规范，否则 Windows / VC 无法合成长名。
     //
     // 目录分两种：FAT12/16 根目录是定长连续区（[rootDirStartOffset]，不可扩簇，
-    // 满则失败）；FAT32 根目录 + 所有子目录是簇链（可经 T3a [allocCluster] 扩簇）。
+    // 满则失败）；FAT32 根目录 + 所有子目录是簇链（可经 [allocCluster] 扩簇）。
     // [dirFirstCluster] < 2 表示根目录（FAT32 取 [bpb.rootCluster] 的链）。
     //
     // 32 字节目录项不会跨簇（32 整除 bytesPerSector，而 bytesPerCluster 是其倍数），
@@ -550,9 +550,9 @@ class FatFileSystem private constructor(
         var n = 1
         while (n < 1000000) {
             // `~N` 消歧：base 段固定 8 字节，须为 `~N` 留位——保留 cleanBase 前
-            // (8 - "~N".length) 字符再拼 `~N`。旧实现 (prefix+"~N").take(8) 从尾部
-            // 截断，N≥10 时把 `~N` 截没了（如 `BATCH_~10`→`BATCH_~1`），与 `~1` 永久
-            // 撞名 → 消歧耗尽。这里从头保留、给后缀留位，符合 FAT 短名生成惯例。
+            // (8 - "~N".length) 字符再拼 `~N`，从头保留、给后缀留位。这样 N≥10 时
+            // `~N` 不会被尾部截断（如 `BATCH_~10` 不会退化成 `BATCH_~1` 而与 `~1`
+            // 永久撞名），符合 FAT 短名生成惯例。
             val suffix = "~$n"
             val keep = (8 - suffix.length).coerceAtLeast(1)
             val base = cleanBase.take(keep) + suffix
@@ -729,7 +729,7 @@ class FatFileSystem private constructor(
     /**
      * 在 [dirFirstCluster]（< 2 = 根目录）指定的目录里新增一个条目。
      * 自动生成 8.3 短名（含 `~N` 消歧）+ VFAT 长名项（需 LFN 时）。
-     * 目录满时：簇链目录经 T3a [allocCluster] 扩簇；FAT12/16 根目录不可扩，失败。
+     * 目录满时：簇链目录经 [allocCluster] 扩簇；FAT12/16 根目录不可扩，失败。
      *
      * [firstCluster] = 新条目的起始簇（空文件/空目录传 0）。
      * [size] = 文件字节数（目录传 0，忽略）。
@@ -886,8 +886,8 @@ class FatFileSystem private constructor(
             lfnAddOk && lfnNameMatch && lfnRemoveOk
     }
 
-    // ================== FAT 写入门面（T3c）==================
-    // 把 T3a（FAT 表）+ T3b（目录项）底层能力组装成用户级操作。事务顺序统一为
+    // ================== FAT 写入门面 ==================
+    // 把 FAT 表 + 目录项底层能力组装成用户级操作。事务顺序统一为
     // 「先写数据簇 → 再挂 FAT 链 → 最后写目录项」：任一步崩溃都不会留下「目录项
     // 指向未分配簇」的悬挂引用，最坏只丢一条未挂链的空闲簇（下次 chkdsk 可回收）。
     // 本区不碰底层位操作，只编排。调用方须在 MountManager 锁内串行调用。
@@ -938,7 +938,7 @@ class FatFileSystem private constructor(
         val clusters = ArrayList<Long>(needClusters)
         for (i in 0 until needClusters) {
             val c = allocCluster()               // 标 EOC 占位，防同一簇被重复分配
-            if (c < 2) {                          // 空间不足：回滚已分配簇，抛 VolumeFullException（W18）
+            if (c < 2) {                          // 空间不足：回滚已分配簇，抛 VolumeFullException
                 for (a in clusters) setNextCluster(a, 0L)
                 throw VolumeFullException()
             }
@@ -946,13 +946,13 @@ class FatFileSystem private constructor(
         }
         // 挂链：前一簇指向后一簇，末簇保持 allocCluster 标好的 EOC。
         for (i in 0 until clusters.size - 1) setNextCluster(clusters[i], clusters[i + 1])
-        // 写数据：逐簇填，末簇尾部补零（W1/INFO-1），防残留旧明文片段。
+        // 写数据：逐簇填，末簇尾部补零，防残留旧明文片段。
         var off = 0
         for (c in clusters) {
             val chunk = minOf(bytesPerCluster, data.size - off)
             if (chunk < bytesPerCluster) {
-                // 末簇：数据 + 尾部补零（W1/INFO-1），防覆写小文件后末簇尾残留旧明文片段，
-                // 对齐 T3c 整簇清零策略。size 之外不读，但清零避免信息泄漏与脏数据。
+                // 末簇：数据 + 尾部补零，防覆写小文件后末簇尾残留旧明文片段，
+                // 对齐写入门面整簇清零策略。size 之外不读，但清零避免信息泄漏与脏数据。
                 val full = ByteArray(bytesPerCluster)
                 System.arraycopy(data, off, full, 0, chunk)
                 reader.write(clusterToOffset(c), full, 0, bytesPerCluster)
@@ -1040,13 +1040,13 @@ class FatFileSystem private constructor(
         return true
     }
 
-    // ================== 目录操作（W12：rename / mkdir / move / rmdir）==================
-    // 纯目录项 + FAT 编排，复用 T3a/T3b/T3c 底层，不碰底层位。红线：一律「先建后拆」
+    // ================== 目录操作（rename / mkdir / move / rmdir）==================
+    // 纯目录项 + FAT 编排，复用底层 FAT 表 / 目录项 / 写入门面，不碰底层位。红线：一律「先建后拆」
     // 保原子性，拿不准的复杂场景返回 false/0 不动盘。调用方须在 MountManager 锁内
     // 串行调用，并负责随后 flush。
 
     /**
-     * W7 重命名：同目录内把 [oldName] 改名为 [newName]，数据簇不动。
+     * 重命名：同目录内把 [oldName] 改名为 [newName]，数据簇不动。
      * 读旧项 firstCluster/size/isDir → newName 已存在则 false → addEntry 建新项
      * 复用同一 firstCluster → removeEntry 抹旧项（先建后拆，建新失败不拆旧）。
      * 短名 `~N` 消歧由 makeShortName 依现存短名集自动避让，不会撞旧项。
@@ -1063,7 +1063,7 @@ class FatFileSystem private constructor(
     }
 
     /**
-     * W8 新建目录：allocCluster 分配一簇 → 整簇清零（全 0x00 = 目录结束标记）→
+     * 新建目录：allocCluster 分配一簇 → 整簇清零（全 0x00 = 目录结束标记）→
      * 写 `.`/`..` 两条 8.3 短名项 → 父目录 addEntry。成功返新目录首簇（≥2）；
      * 失败返 0（对齐 VolumeFs 约定）。addEntry 失败 freeChain 回滚新簇，不留孤链。
      * `..` 指向父目录簇；父为根目录（[dirFirstCluster] < 2）则写 0（FAT 规范：
@@ -1089,7 +1089,7 @@ class FatFileSystem private constructor(
     }
 
     /**
-     * W10 同卷移动：把 [srcDirFirstCluster] 下的 [name] 移到 [dstDirFirstCluster]，
+     * 同卷移动：把 [srcDirFirstCluster] 下的 [name] 移到 [dstDirFirstCluster]，
      * 数据簇不搬。读源项 → 目标 addEntry 复用 firstCluster/size → 源 removeEntry
      * （先建后拆）。目标已存在同名则 false。若移动的是目录，其 `..` 项 firstCluster
      * 更新为新父簇（新父为根则 0）——read-modify-write 该目录首簇里的 `..` 项。
@@ -1110,7 +1110,7 @@ class FatFileSystem private constructor(
     }
 
     /**
-     * W13 删目录：locateEntry 找到，非目录 false。判空 = 除 `.`/`..` 外无有效项
+     * 删目录：locateEntry 找到，非目录 false。判空 = 除 `.`/`..` 外无有效项
      * （listDir 已过滤 0x00 结束/0xE5 删除/卷标/LFN/`.`/`..`，其结果空即空目录）。
      * 空：freeChain(目录首簇) + removeEntry。非空：[recursive]=false 拒绝返 false（安全）；
      * true 先递归删全部子项（文件 deleteFile / 子目录 rmdir(recursive=true)）再删自身。

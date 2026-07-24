@@ -131,8 +131,7 @@ internal fun buildStdInfo(now: Long, isDir: Boolean = false): ByteArray {
 
 /**
  * $FILE_NAME 内容体。[allocSize]=簇对齐分配大小(0x28)、[realSize]=真实字节(0x30)——
- *   mkntfs 对带 $DATA 的系统文件填真实 alloc/real，chkdsk 校验此缓存尺寸；旧码全填 0
- *   → 记录 0($MFT) 等被 chkdsk 纠正。目录无 $DATA，两者留 0。
+ *   带 $DATA 的系统文件须填真实 alloc/real（chkdsk 校验此缓存尺寸）。目录无 $DATA，两者留 0。
  * [isDir]=true 时 file_attributes(0x38) 置目录位 0x10000000(I30_INDEX_PRESENT)——否则记录头
  *   FLAG_DIRECTORY 与 $FILE_NAME 说法矛盾，chkdsk 报「文件属性不一致」并重写。
  */
@@ -159,24 +158,21 @@ internal fun buildVolumeInfoContent(): ByteArray {
     val b = ByteArray(12)
     b[0x08] = 3; b[0x09] = 1
     // flags=0：卷出生即 clean。空盘 = 0xFF $LogFile（空日志）+ dirty=0，与 ntfs-3g mkfs 产物
-    //   一致 → Windows 挂载不触发 chkdsk（兑现「别 chkdsk」）。原来出生即 dirty=1 → 每次挂载必跑
-    //   chkdsk。写操作期间由 markVolumeDirty 置脏、事务成功落盘后 clearVolumeDirty 复位。
+    //   一致，Windows 挂载不触发 chkdsk。写操作期间由 markVolumeDirty 置脏、事务成功落盘后
+    //   clearVolumeDirty 复位。
     putU16(b, 0x0A, 0x0000L)
     return b
 }
 
 internal fun buildIndexRootEmpty(bytesPerCluster: Int): ByteArray {
     // 空叶根：INDEX_ROOT 头(0x10) + INDEX_HEADER(0x10) + END 项(0x10) = 0x30。
-    // BUG 修（2026-07-10）：原 END 项写 0x18（大索引带子节点的尺寸），但空根 flags=0(small 无
-    //   INDEX_ALLOCATION)、END 项无 HAS_SUBNODE → 依 mkntfs 应为 0x10（sizeof INDEX_ENTRY_HEADER，
-    //   无 VCN）。0x18 自相矛盾（声明有子节点空间却无子节点标志）→ chkdsk 报索引项越界/长度不符。
-    //   同步 index_length/allocated 0x28→0x20，与运行时 writeEmptyIndexRootAttr 一致。
+    //   空根 flags=0(small，无 INDEX_ALLOCATION)、END 项无 HAS_SUBNODE，故 END 项长度取 0x10
+    //   （sizeof INDEX_ENTRY_HEADER，无 VCN）；index_length/allocated 均为 0x20。
     val b = ByteArray(0x30)
     putU32(b, 0x00, NtfsFormatter.ATTR_FILE_NAME)          // indexed attr type
     putU32(b, 0x04, 1L)                                    // collation rule = COLLATION_FILENAME
-    // index block size = max(4096, 簇)（mkntfs：索引块绝不小于一簇）。0x0C 按簇编码
-    //   （与 boot[0x44] 同一 ClustersPerIndexBuffer 编码）。大簇下 0x08 须随簇变（旧写死 4096
-    //   与 boot 解析出的簇大小矛盾 → chkdsk 报索引块尺寸不符 / 运行时多叶构建被拒）。
+    // index block size 恒 4096（0x08），0x0C 的 cpib 按簇编码（见 indexRootCpib，与 boot[0x44]
+    //   编码不同）。
     putU32(b, 0x08, NtfsFormatter.indexRecordSize(bytesPerCluster).toLong())
     b[0x0C] = NtfsFormatter.indexRootCpib(bytesPerCluster).toByte()
     putU32(b, 0x10, 0x10L)                                 // node header: entries offset（相对 INDEX_HEADER）
@@ -275,7 +271,7 @@ internal fun buildMftRecord(
         allocSize = mftClusters * bpc.toLong(), realSize = mftClusters * bpc.toLong()))
     val runs = encodeSingleRun(mftClusters, mftLcn) + byteArrayOf(0)
     rb.nonResident(NtfsFormatter.ATTR_DATA, 0L, mftClusters - 1, runs, mftClusters * bpc.toLong())
-    // H2：$MFT 记录 0 必须带 $BITMAP(0xB0)——ensureMftBitmap 靠它定位 MFT 记录分配位图；
+    // $MFT 记录 0 必须带 $BITMAP(0xB0)——ensureMftBitmap 靠它定位 MFT 记录分配位图；
     //   缺失 → 找不到返 0xFF(全已用) → allocMftRecord 永远 -1 → 写文件永远失败 + chkdsk 报结构不完整。
     //   做成 nonResident（占独立簇）：writeMftBitmapByte 对 resident 直接 return 不落盘，
     //   resident 会导致分配位不持久化、重复分配（比永远失败更危险）。属性按 type 升序：0x10<0x30<0x80<0xB0。
@@ -301,10 +297,9 @@ internal fun buildLogFileRecord(logLcn: Long, logClusters: Long, bpc: Int, now: 
         allocSize = logClusters * bpc.toLong(), realSize = logClusters * bpc.toLong()))
     val runs = encodeSingleRun(logClusters, logLcn) + byteArrayOf(0)
     // initSize=0：$LogFile 数据是 0xFF 填充（非有效 RSTR restart page），initSize=0 表示
-    //   「数据未初始化」→ chkdsk 不尝试解析 restart page，接受为空日志。原来 initSize=realSize
-    //   >0 让 chkdsk 认为 $LogFile 已初始化 → 读取首扇区找 'RSTR' 签名遇 0xFF → 报「属性
-    //   记录(0x80)损坏」。ntfs-3g mkntfs 写真实 restart pages 时 initSize=realSize；只填 0xFF
-    //   时 initSize=0。16k/64k 簇阶段1中止的根因。
+    //   「数据未初始化」→ chkdsk 不尝试解析 restart page，接受为空日志。若 initSize=realSize>0，
+    //   chkdsk 会认为 $LogFile 已初始化 → 读取首扇区找 'RSTR' 签名遇 0xFF → 报「属性记录(0x80)
+    //   损坏」。ntfs-3g mkntfs 写真实 restart pages 时 initSize=realSize；只填 0xFF 时 initSize=0。
     rb.nonResident(NtfsFormatter.ATTR_DATA, 0L, logClusters - 1, runs, logClusters * bpc.toLong(),
         initOverride = 0L)
     return rb.end()
@@ -377,11 +372,9 @@ internal fun buildBadClusRecord(totalClusters: Long, bpc: Int, now: Long, rootRe
     val rb = RecBuilder(bpc)
     rb.resident(NtfsFormatter.ATTR_STANDARD_INFO, buildStdInfo(now))
     rb.resident(NtfsFormatter.ATTR_FILE_NAME, buildFileNameContent(rootRef, "\$BadClus", now))
-    // 真实 NTFS $BadClus 布局：空的无名 $DATA（坏簇表本体在 $Bad）+ 命名流 "$Bad" 覆盖满卷。
-    //   逐字节对比真·Windows 格式化盘：$Bad 用单个 hole run 覆盖满卷，但属性头 flags=0
-    //   （不标 SPARSE 0x8000）、无 compressed_size 字段、alloc=real=满卷字节、init=0。
-    //   旧码标 sparse=true + allocOverride=0 → 属性头带 SPARSE 位 + compressed_size + alloc=0，
-    //   与真·Windows 不符 → chkdsk 报「记录 8 属性(80,$Bad)损坏」。
+    // $BadClus 布局：空的无名 $DATA（坏簇表本体在 $Bad）+ 命名流 "$Bad" 覆盖满卷。
+    //   $Bad 用单个 hole run 覆盖满卷，属性头 flags=0（不标 SPARSE 0x8000）、无 compressed_size
+    //   字段、alloc=real=满卷字节、init=0，与 Windows 格式化盘一致。
     //   属性同 type(0x80) 按名序：无名 "" < "$Bad"。
     rb.resident(NtfsFormatter.ATTR_DATA, ByteArray(0))
     val badRuns = encodeSparseRun(totalClusters) + byteArrayOf(0)
@@ -394,8 +387,7 @@ internal fun buildBadClusRecord(totalClusters: Long, bpc: Int, now: Long, rootRe
 }
 
 /**
- * $Secure（记录 9）：安全描述符仓库。原为空壳（无 $SDS/$SDH/$SII，所有文件 security_id=0，
- * 手动 chkdsk 会逐文件补 ACL）。现按 ntfs-3g/mkntfs 规范建最小可用体：单个共享 SD
+ * $Secure（记录 9）：安全描述符仓库。按 ntfs-3g/mkntfs 规范建最小可用体：单个共享 SD
  * （security_id=0x100，Everyone:FullControl），$SDS 数据流（主副本@0 + 镜像@0x40000）+
  * $SDH/$SII 视图索引各一项。每个文件/目录的 $STANDARD_INFORMATION.security_id 都指 0x100
  * → 手动 chkdsk 对安全项静默。
@@ -444,10 +436,9 @@ internal fun buildExtendRecord(now: Long, rootRef: Long, bpc: Int): ByteArray {
     val rb = RecBuilder(bpc)
     rb.resident(NtfsFormatter.ATTR_STANDARD_INFO, buildStdInfo(now, isDir = true))
     rb.resident(NtfsFormatter.ATTR_FILE_NAME, buildFileNameContent(rootRef, "\$Extend", now, isDir = true))
-    // Bug8：目录索引属性必须名 "$I30"（读侧 findAttr(INDEX_ROOT,"$I30")、chkdsk 均按此名找），旧码无名。
-    // 回退到空 $INDEX_ROOT：预建 $Extend 子目录索引项会引入「segment B/C/D/E/F incorrect
-    //   information」错误（Windows 挂载时发现 $Extend 非空但仍按自己逻辑重写，产出错误）。
-    //   空 $Extend 让 Windows 完全自建，小簇下无问题；大簇下的问题待研究。
+    // 目录索引属性须命名 "$I30"（读侧 findAttr(INDEX_ROOT,"$I30")、chkdsk 均按此名查找）。
+    // 用空 $INDEX_ROOT：预建 $Extend 子目录索引项会与 Windows 挂载时的自建逻辑冲突，产出
+    //   「segment B/C/D/E/F incorrect information」错误。空 $Extend 交由 Windows 挂载时自建。
     rb.resident(NtfsFormatter.ATTR_INDEX_ROOT, buildIndexRootEmpty(bpc), name = "\$I30")
     rb.flags(NtfsFormatter.FLAG_IN_USE or NtfsFormatter.FLAG_DIRECTORY)
     return rb.end()

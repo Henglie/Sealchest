@@ -7,7 +7,7 @@ package com.henglie.sealchest.fs
  * （「检测到 LUKS 容器，暂不支持」），而非笼统的「密码错误」误导用户反复试密码。
  *
  * 为什么不解密 LUKS：LUKS 解锁涉及独立的密钥槽 / Argon2 派生 / dm-crypt 语义，属另一条
- * 产品线，需恒烈单独立项定夺。本卡只做「友好识别」，不越界。
+ * 产品线。本探测器只做「友好识别」，不越界解锁。
  */
 object ContainerFormat {
 

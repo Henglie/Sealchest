@@ -13,7 +13,7 @@ import com.henglie.sealchest.fs.MountManager
  * 见 [AutoLock]。Manifest 的 application android:name 指向本类。
  *
  * 挂载状态变化通过 [MountManager.onMountStateChanged] 回调驱动前台服务起停，
- * 实时响应 + 零轮询开销（原方案每秒轮询 isMounted，已废弃）。
+ * 实时响应 + 零轮询开销。
  */
 class SealchestApp : Application() {
 

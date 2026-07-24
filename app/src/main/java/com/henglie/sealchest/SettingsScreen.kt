@@ -73,11 +73,10 @@ private val THEME_COLOR_OPTIONS: List<Pair<Int, String>> = listOf(
 )
 
 /**
- * 设置独立界面（全屏 Scaffold + 分类 Card）。替代原 [SettingsDialog] 弹窗——
- * 弹窗内控件太多太挤，改全屏滚动后每组用 Card 分隔，呼吸感更好。
+ * 设置独立界面（全屏 Scaffold + 分类 Card）。每组设置用 Card 分隔，全屏滚动。
  *
  * 分类：自动锁定 / PIN 门禁 / Panic PIN / 挂载偏好 / 高级。
- * 子对话框（SetPin/ClearPin/SetPanic/ClearPanic）仍用 AlertDialog，逻辑不变。
+ * 子对话框（SetPin/ClearPin/SetPanic/ClearPanic）用 AlertDialog。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -450,7 +449,7 @@ fun SettingsScreen(onBack: () -> Unit) {
         }
     }
 
-    // ---- 子对话框（逻辑不变，从原 SettingsDialog 平移）----
+    // ---- 子对话框 ----
     if (showSetPin) {
         SetPinDialog(
             onDismiss = { showSetPin = false },
@@ -530,7 +529,7 @@ private fun SettingsSwitchRow(
     }
 }
 
-// ===== 以下子对话框从原 SettingsDialog.kt 平移，逻辑不变 =====
+// ===== 子对话框 =====
 
 /**
  * 设置 / 修改 PIN 对话框。收集新 PIN + 确认，一致才提交。覆盖旧 PIN。

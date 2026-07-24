@@ -132,10 +132,9 @@ private fun bytesNeededSignedPositive(v: Long): Int {
 /**
  * 构造 $UpCase 表：65536 个 UTF-16LE 码点（128KB）。
  *
- * 全 BMP 大写映射（Character.toUpperCase）：覆盖拉丁/希腊/西里尔/等所有 Unicode
- *   小写→大写。旧码只映射 ASCII a-z → chkdsk 每次报「大写表损坏-使用系统表」。
- *   Windows 挂载后按自己的系统表校验，不一致则重建（对空盘无副作用），但补全后
- *   chkdsk 不再报此项。代理对（D800-DFFF）无大写形式，toUpperCase 返回原值=identity。
+ * 全 BMP 大写映射（Character.toUpperCase）：覆盖拉丁/希腊/西里尔等所有 Unicode
+ *   小写→大写，与 Windows 系统大写表一致，避免 chkdsk 报「大写表损坏」。
+ *   代理对（D800-DFFF）无大写形式，toUpperCase 返回原值 = identity。
  */
 internal fun buildUpcaseTable(): ByteArray {
     val table = ByteArray(65536 * 2)

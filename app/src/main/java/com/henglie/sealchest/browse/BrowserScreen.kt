@@ -125,20 +125,20 @@ fun BrowserScreen(onExit: () -> Unit) {
     var deleteConfirm by remember { mutableStateOf<FsEntry?>(null) }
     // 覆写：先选容器内文件，再选手机上的源文件。
     var overwriteTarget by remember { mutableStateOf<FsEntry?>(null) }
-    // W16：目录动作单目标（点目录行的「更多」）。
+    // 目录动作单目标（点目录行的「更多」）。
     var dirMenuTarget by remember { mutableStateOf<FsEntry?>(null) }
-    // W16：新建文件夹弹窗（true 时显示）。
+    // 新建文件夹弹窗（true 时显示）。
     var showNewFolder by remember { mutableStateOf(false) }
-    // W16：重命名弹窗目标。
+    // 重命名弹窗目标。
     var renameTarget by remember { mutableStateOf<FsEntry?>(null) }
-    // W16：删除文件夹确认目标。
+    // 删除文件夹确认目标。
     var rmdirConfirm by remember { mutableStateOf<FsEntry?>(null) }
-    // W16：移动目标（选中的待移动项，非空时弹目录选择器）。
+    // 移动目标（选中的待移动项，非空时弹目录选择器）。
     var moveTarget by remember { mutableStateOf<FsEntry?>(null) }
 
     val writable = MountManager.isWritable
 
-    // W16：统一的写操作结果提示 + 刷新。ok=true 走成功文案并刷新；异常走「不支持」提示。
+    // 统一的写操作结果提示 + 刷新。ok=true 走成功文案并刷新；异常走「不支持」提示。
     // okArgs 可选：成功提示含 %1$s 等占位符时传入格式化参数（如重命名的新名字）。
     fun runDirOp(okMsg: Int, failMsg: Int, okArgs: Array<Any?>? = null, op: (com.henglie.sealchest.fs.VolumeFs) -> Boolean) {
         scope.launch {
@@ -390,7 +390,7 @@ fun BrowserScreen(onExit: () -> Unit) {
         )
     }
 
-    // W16：目录动作单（重命名 / 移动 / 删除文件夹）
+    // 目录动作单（重命名 / 移动 / 删除文件夹）
     dirMenuTarget?.let { e ->
         DirActionSheet(
             entry = e,
@@ -401,7 +401,7 @@ fun BrowserScreen(onExit: () -> Unit) {
         )
     }
 
-    // W16：新建文件夹弹窗
+    // 新建文件夹弹窗
     if (showNewFolder) {
         NameInputDialog(
             title = stringResource(R.string.browse_new_folder),
@@ -428,7 +428,7 @@ fun BrowserScreen(onExit: () -> Unit) {
         )
     }
 
-    // W16：重命名弹窗（文件 / 目录共用）
+    // 重命名弹窗（文件 / 目录共用）
     renameTarget?.let { e ->
         NameInputDialog(
             title = stringResource(R.string.browse_rename_title),
@@ -446,7 +446,7 @@ fun BrowserScreen(onExit: () -> Unit) {
         )
     }
 
-    // W16：删除文件夹确认
+    // 删除文件夹确认
     rmdirConfirm?.let { e ->
         AlertDialog(
             onDismissRequest = { rmdirConfirm = null },
@@ -466,7 +466,7 @@ fun BrowserScreen(onExit: () -> Unit) {
         )
     }
 
-    // W16：移动目标选择器（在容器内挑一个目录作落点）
+    // 移动目标选择器（在容器内挑一个目录作落点）
     moveTarget?.let { e ->
         MoveDestinationDialog(
             entry = e,
@@ -595,7 +595,7 @@ private fun FileActionSheet(
     }
 }
 
-/** W16：目录动作单（重命名 / 移动 / 删除文件夹）。目录不可预览/导出/覆写。 */
+/** 目录动作单（重命名 / 移动 / 删除文件夹）。目录不可预览/导出/覆写。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DirActionSheet(
@@ -621,7 +621,7 @@ private fun DirActionSheet(
     }
 }
 
-/** W16：单行文本输入弹窗（新建文件夹 / 重命名共用）。空名或未改名时确认按钮禁用。 */
+/** 单行文本输入弹窗（新建文件夹 / 重命名共用）。空名或未改名时确认按钮禁用。 */
 @Composable
 private fun NameInputDialog(
     title: String,
@@ -655,7 +655,7 @@ private fun NameInputDialog(
 }
 
 /**
- * W16：移动落点选择器。在容器内从根开始导航目录树，选一个目录作落点。
+ * 移动落点选择器。在容器内从根开始导航目录树，选一个目录作落点。
  * 禁止选中「源项自身所在目录」（原地移动无意义）与「被移动目录自身」（会成环）。
  */
 @OptIn(ExperimentalMaterial3Api::class)

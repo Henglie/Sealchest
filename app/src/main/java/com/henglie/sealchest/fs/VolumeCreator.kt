@@ -96,8 +96,6 @@ object VolumeCreator {
         }
         // ea / prf 合法性：本层不硬编码算法枚举（那属 native 常量域），交由 native
         // createVolumeHeaders 校验并在非法时返回 null。此处只挡明显越界。
-        // TODO(契约): 若主开发在 NativeBridge 暴露了 ea/prf 合法枚举集，可在此提前校验，
-        //             给出比「头生成失败」更友好的错误。
 
         val totalSize = volumeSizeBytes + HEADER_AREA_SIZE * 2
         val backupHeaderOffset = totalSize - HEADER_AREA_SIZE   // = volumeSizeBytes + 131072
@@ -116,20 +114,12 @@ object VolumeCreator {
             // ---------- 3. 生成熵并灌入 native 随机池 ----------
             entropy = ByteArray(ENTROPY_BYTES)
             SecureRandom().nextBytes(entropy)
-            // TODO(契约): NativeBridge.seedRandom(entropy: ByteArray) 由主开发新增。
-            //             语义：把这些字节混入 native RNG 池（RandomNumberGenerator），
-            //             供后续 CreateVolumeHeaderInMemory 取主密钥 / salt。
+            // 把熵混入 native RNG 池（RandomNumberGenerator），供后续取主密钥 / salt。
             NativeBridge.seedRandom(entropy)
 
             // ---------- 4. native 生成主头 + 备份头（共享同一随机主密钥）----------
-            // TODO(契约): NativeBridge.createVolumeHeaders(
-            //               ea, prf, pim, password, volumeSize, encStart
-            //             ): Pair<ByteArray, ByteArray>?  由主开发新增。
-            //   - volumeSize = 数据区字节数（不含头组）= volumeSizeBytes
-            //   - encStart   = 数据区在文件中的起始偏移 = 131072（主头组之后）
-            //   - 返回 (主头512B, 备份头512B)，两头共享随机主密钥，仅头本身盐/位置不同；
-            //     失败返回 null（参数非法 / RNG 未就绪 / 算法不支持）。
-            //   若签名微调（如需 sectorSize 参数或返回值含更多元数据），在此适配。
+            //   volumeSize = 数据区字节数（不含头组）；encStart = 数据区起始偏移 = 131072（主头组之后）。
+            //   返回 (主头512B, 备份头512B)，两头共享随机主密钥，仅盐/位置不同；失败返回 null。
             val headers = NativeBridge.createVolumeHeaders(
                 ea, prf, pim, eff, volumeSizeBytes, HEADER_AREA_SIZE
             ) ?: return Result.failure(IllegalStateException("native 生成卷头失败"))

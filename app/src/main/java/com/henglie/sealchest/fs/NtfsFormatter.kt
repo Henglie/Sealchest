@@ -21,9 +21,8 @@ package com.henglie.sealchest.fs
  * $MFT 含 12 条元数据记录（0..11）：$MFT/$MFTMirr/$LogFile/$Volume/$AttrDef/根目录/
  * $Bitmap/$Boot/$BadClus/$Secure/$UpCase/$Extend；记录 12..31 全零未分配。
  *
- * 诚实边界（同 [NtfsFileSystem] 写路径）：不写 $LogFile 日志，写完卷 Windows 当未净卸载、
- * 挂载时自动重置 $LogFile + chkdsk 补一致性。预期真机 chkdsk 报错迭代 2-3 轮才干净
- * （恒烈已知悉，要求达成而非警告）。判据：app 建 NTFS 容器 → 桌面 VC 挂载 + Windows 读写 + chkdsk 干净。
+ * 不写 $LogFile 日志：卷标记为需检查，Windows 挂载时靠 dirty 位触发一致性补齐。
+ * 判据：app 建 NTFS 容器 → 桌面 VeraCrypt 挂载 + Windows 读写 + chkdsk 干净。
  *
  * 本文件只含主入口与引导区；MFT 记录构造见 [NtfsRecords]，底层工具见 [NtfsTables]。
  */
@@ -37,7 +36,7 @@ object NtfsFormatter {
     internal const val BOOT_SIZE = 8192              // 引导区 8KB（16 扇区）
     internal const val MIN_NTFS_SIZE = 8L * 1024 * 1024
     // MFT 初始记录数：256 × 1024B = 256KB。扣除元数据 0..11 + NTFS 保留 12..23（allocMftRecord
-    //   从 24 起扫），余 232 个用户文件/目录额度（原 32 仅余 8，测试手册「塞 50+ 文件」第 9 个即失败）。
+    //   从 24 起扫），余 232 个用户文件/目录额度。
     //   256KB 对任何 2 的幂簇大小（512..64K = 2^9..2^16）都整除（256KB=2^18），mftClusters 恒整。
     internal const val MFT_INITIAL_RECORDS = 256
     internal const val MFT_MIRR_RECORDS = 4
@@ -55,25 +54,22 @@ object NtfsFormatter {
     internal const val FLAG_IN_USE = 0x0001
     internal const val FLAG_DIRECTORY = 0x0002
     // $Secure(记录9) 用 $SDH/$SII 视图索引而非 $I30 文件名索引 → 记录头须置 IS_VIEW_INDEX(0x08)，
-    //   与真·Windows 一致（flags=0x09）。漏置 → chkdsk 报「Flags for file record segment 9 are incorrect」。
+    //   与 Windows 一致（flags=0x09）。漏置会导致 chkdsk 报「Flags for file record segment 9 are incorrect」。
     internal const val FLAG_IS_VIEW_INDEX = 0x0008
 
     /**
-     * NTFS 索引记录（index block）字节大小：**恒 4096**（与真·Windows 一致）。
-     *   fsutil 金标准铁证：Windows format 8K/16K/... 簇 NTFS 的「Bytes Per Index Record Segment」
-     *   恒为 4096，即使簇 > 4096（此时 index block < 簇，完全合法，boot[0x44] 用负数编码）。
-     *   旧实现 max(4096,簇) 让大簇 index block=8192/16384/... → root $I30 在 superfloppy（桌面
-     *   VeraCrypt 挂载）下 Windows 无法遍历 → chkdsk /f 判所有系统文件 orphan。逐簇 VeraCrypt
-     *   就地替换验证：4K(idxBlk=4096) 系统文件 0 orphan；8K(idxBlk=8192) 系统文件全 orphan。
+     * NTFS 索引记录（index block）字节大小：**恒 4096**（与 Windows format 各簇大小一致）。
+     *   即使簇 > 4096，index block 仍为 4096（此时 index block < 簇，合法，boot[0x44] 用负数编码）。
+     *   若让 index block 随簇放大到 8192/16384/...，root $I30 在 superfloppy 挂载下 Windows 无法
+     *   遍历，chkdsk /f 会判所有系统文件 orphan。
      */
     internal fun indexRecordSize(bytesPerCluster: Int): Int = INDEX_RECORD_SIZE
 
     /**
      * boot[0x44] ClustersPerIndexBuffer 编码（**仅** boot 用；$INDEX_ROOT+0x0C 用 [indexRootCpib]，
-     *   两者编码不同，见 2026-07-24 真实 8K 金标准实证）。boot[0x44] 语义（NtfsBoot.recordSize 解析）：
+     *   两者编码不同）。boot[0x44] 语义（NtfsBoot.recordSize 解析）：
      *   簇 ≤ 4096：index block=4096 ≥ 簇 → 正数簇计 4096/簇（512→8…4096→1）。
      *   簇 > 4096：index block=4096 < 簇 → 负数编码 -log2(4096)=-12（解析 2^(-v) 字节 → 4096）。
-     *   真实 Windows 8K 簇盘 boot[0x44]=-12 逐字节吻合。
      */
     internal fun indexBufferCode(bytesPerCluster: Int): Int =
         if (INDEX_RECORD_SIZE >= bytesPerCluster) INDEX_RECORD_SIZE / bytesPerCluster
@@ -85,17 +81,12 @@ object NtfsFormatter {
         }
 
     /**
-     * $INDEX_ROOT + 0x0C 的 clusters_per_index_block —— **与 boot[0x44] 是两套不同编码**
-     * （真实 Windows 8K 簇 NTFS 金标准逐字节实证，2026-07-24）：
+     * $INDEX_ROOT + 0x0C 的 clusters_per_index_block —— **与 boot[0x44] 是两套不同编码**：
      *   - boot[0x44]：簇 ≤ 4096 → 正数 4096/簇；簇 > 4096 → 负 log2（-12 = 2^12 = 4096）。
      *   - $INDEX_ROOT+0x0C：簇 ≤ 4096 → 4096/簇（与 boot 同）；簇 > 4096 → **4096/扇区(512) = 8**。
      * 即 $INDEX_ROOT 的 cpib 恒是「每个 index block 的 VCN 数」= [NtfsIndex.vcnPerIndexBlock]
-     * （簇≤块用 block/簇，簇>块用 block/512）。8K 金标准 boot[0x44]=-12 但 $SDH/$SII/$I30 的
-     * cpib=8，两字段确实不同。
-     *
-     * 历史「cpib 弯路」的误判根源：旧代码 boot 与 $INDEX_ROOT 共用 [indexBufferCode]，无法让两者
-     * 取不同值——测试6全填-12、测试7全填8，两次都让 boot[0x44] 一起变错，故输出相同、被判「非根因」。
-     * 真值是 boot[0x44]=-12 且 $INDEX_ROOT cpib=8（各自正确），必须拆成两个函数。
+     * （簇≤块用 block/簇，簇>块用 block/512）。两字段编码不同，故拆成
+     * [indexBufferCode] / [indexRootCpib] 两个函数，不可共用。
      */
     internal fun indexRootCpib(bytesPerCluster: Int): Int =
         if (INDEX_RECORD_SIZE >= bytesPerCluster) INDEX_RECORD_SIZE / bytesPerCluster
@@ -103,7 +94,7 @@ object NtfsFormatter {
     internal const val FILE_ATTR_SYSTEM = 0x06L               // HIDDEN|SYSTEM
     // NTFS 目录位是 file_attributes 的 0x10000000(I30_INDEX_PRESENT)，非 DOS 的 0x10。
     //   chkdsk 交叉校验：记录头 FLAG_DIRECTORY(0x16 位)、带 $I30 $INDEX_ROOT、$FILE_NAME/
-    //   $STD_INFO 的 0x10000000 三者须一致，缺则报「文件属性不一致」并重写。旧值 0x16 用错 DOS 位。
+    //   $STD_INFO 的 0x10000000 三者须一致，缺则报「文件属性不一致」并重写。
     internal const val FILE_ATTR_I30_INDEX_PRESENT = 0x10000000L
     internal const val FILE_ATTR_DIR_SYSTEM = 0x10000006L     // I30_INDEX_PRESENT|HIDDEN|SYSTEM
     internal const val INDEX_ENTRY_LAST = 0x02
@@ -157,7 +148,7 @@ object NtfsFormatter {
         val attrDefClusters = (ATTRDEF_SIZE.toLong() + bytesPerCluster - 1) / bytesPerCluster
         val attrDefLcn = upcaseLcn + upcaseClusters
 
-        // H2：MFT 记录分配位图（$MFT 的 $BITMAP 0xB0）专用簇。totalMftRecords = MFT $DATA 字节 / 记录大小。
+        // MFT 记录分配位图（$MFT 的 $BITMAP 0xB0）专用簇。totalMftRecords = MFT $DATA 字节 / 记录大小。
         //   位图 ceil(records/8) 字节，一簇足够（32 记录仅 4 字节）；nonResident 须整簇。
         val totalMftRecords = (mftClusters * bytesPerCluster) / MFT_RECORD_SIZE
         val mftBitmapRealSize = (totalMftRecords + 7) / 8
@@ -189,7 +180,7 @@ object NtfsFormatter {
         }
         require(lastMetaLcn < totalClusters) { "NTFS 元数据越界：lastMetaLcn=$lastMetaLcn" }
 
-        // H2：卷尾备份引导扇区（sector totalSectors-1）所在簇必须在 $Bitmap 标 used，
+        // 卷尾备份引导扇区（sector totalSectors-1）所在簇必须在 $Bitmap 标 used，
         //   否则该簇空闲 → 写文件时被 allocContiguousClusters 分出去 → 覆盖备份 VBR，
         //   chkdsk 报「备份引导扇区无效」。lcn=(totalSectors-1)/spc（整除时=totalClusters-1）。
         val backupVbrLcn = (totalSectors - 1) / sectorsPerCluster
@@ -229,7 +220,7 @@ object NtfsFormatter {
         mftRecords[10] = buildUpcaseFileRecord(upcaseLcn, upcaseClusters, bytesPerCluster, now, rootRef)
         mftRecords[11] = buildExtendRecord(now, rootRef, bytesPerCluster)
 
-        // Bug4：记录头 0x2C(本记录 MFT 号，NTFS 3.1 字段)。RecBuilder 不知自身号，此处统一补。
+        // 记录头 0x2C(本记录 MFT 号，NTFS 3.1 字段)。RecBuilder 不知自身号，此处统一补。
         //   0x2C..2F 不落在任一扇区末 2 字节(USA 保护位)，stampUsa 后改它安全。运行时侧
         //   NtfsDataOps 建记录时已写此字段，仅造盘 12 条元数据缺，补齐三方一致。
         // 序列号(0x10)同理统一补：真·Windows rec1..15 的 seq=记录号(rec0=1)。RecBuilder 硬编码 1，
@@ -279,7 +270,7 @@ object NtfsFormatter {
         System.arraycopy(attrDef, 0, attrDefImage, 0, attrDef.size)
         sectors.add(attrDefLcn * bytesPerCluster to attrDefImage)
 
-        // H2：MFT 记录分配位图数据。记录 0..23 标记已用（0..11 元数据 + 12..23 NTFS 保留区，
+        // MFT 记录分配位图数据。记录 0..23 标记已用（0..11 元数据 + 12..23 NTFS 保留区，
         //   allocMftRecord 从记录 24 起扫空闲），其余为 0。与 bitmap 全 0 不同——否则 chkdsk
         //   报「$MFT 已用记录未在位图置位」。位数以 totalMftRecords 为上界，防越界。
         val mftBitmapData = ByteArray((mftBitmapClusters * bytesPerCluster).toInt())
@@ -338,9 +329,8 @@ object NtfsFormatter {
         putU32(boot, 0x1C, 0L); putU32(boot, 0x20, 0L)
         // 0x24-0x27：physical drive number(0x80@0x24) + reserved(0x25) + extended boot
         //   signature(0x80@0x26) + reserved(0x27)。小端 u32 = 0x00800080（逐字节 80 00 80 00），
-        //   与 Windows format 产物一致。旧值 0x80008000 字节序写反（→ 0x24=0,0x26=0），分区模式
-        //   下 Windows 用 MBR 挂载忽略此字段故 chkdsk 不报；但 superfloppy 模式（VeraCrypt 挂载）
-        //   NTFS.sys 直接校验 VBR，ext boot signature(0x26) 缺失 → 拒挂 → 卷报「1392 损坏」。
+        //   与 Windows format 产物一致。superfloppy 模式（VeraCrypt 挂载）下 NTFS.sys 直接校验
+        //   VBR，ext boot signature(0x26) 缺失会被拒挂，卷报「1392 损坏」。
         putU32(boot, 0x24, 0x00800080L)
         // BPB.TotalSectors = N-1：NTFS 规范规定该字段不含最末扇区（备份引导扇区所在），
         // 卷真实扇区数为 N，BPB 声明 N-1。写满值会让 chkdsk 误判卷大小并报备份引导扇区无效。
@@ -349,7 +339,7 @@ object NtfsFormatter {
         putU64(boot, 0x38, mftMirrLcn)
         boot[0x40] = (-10).toByte()      // ClustersPerFileRecordSegment: 1024=2^10 → -10
         boot[0x41] = 0; boot[0x42] = 0; boot[0x43] = 0
-        // H4：ClustersPerIndexBuffer 按真实簇大小编码，不再写死 1（4096 index buffer）。
+        // ClustersPerIndexBuffer 按簇大小编码（见 indexBufferCode）。
         boot[0x44] = indexBufferCode(sectorsPerCluster * SECTOR).toByte()
         boot[0x45] = 0; boot[0x46] = 0; boot[0x47] = 0
         putU64(boot, 0x48, serial)       // volume serial

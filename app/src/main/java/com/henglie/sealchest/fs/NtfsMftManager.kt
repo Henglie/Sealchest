@@ -278,7 +278,7 @@ class NtfsMftManager(
     }
 
     /**
-     * 多段簇分配（W6）：碎片化空间写大文件用。先尝试整体连续（最优），失败则逐段凑够 [need] 簇。
+     * 多段簇分配：碎片化空间写大文件用。先尝试整体连续（最优），失败则逐段凑够 [need] 簇。
      * 返回分配的段列表（每段 DataRun(lcn, length, sparse=false)）；空间不足抛 [VolumeFullException]（已回滚）。
      */
     internal fun allocMultipleClusters(need: Long): List<DataRun> {
@@ -313,7 +313,7 @@ class NtfsMftManager(
         return segs
     }
 
-    /** 释放多段簇（W6，与 allocMultipleClusters 对称）。 */
+    /** 释放多段簇（与 allocMultipleClusters 对称）。 */
     internal fun freeMultiClusters(runs: List<DataRun>) {
         for (r in runs) if (!r.sparse) freeClusters(r.lcn, r.length)
     }

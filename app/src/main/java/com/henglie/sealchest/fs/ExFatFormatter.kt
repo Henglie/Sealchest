@@ -23,7 +23,7 @@ import java.security.SecureRandom
  *   FatOffset..   FAT 区（每项 4 字节）
  *   簇堆：簇 2 分配位图 / 簇 3.. upcase 表 / 其后 根目录
  *
- * 判据（唯一）：桌面 VeraCrypt 挂载 + Windows 资源管理器可读写 + chkdsk 干净。待恒烈真机验。
+ * 判据（唯一）：桌面 VeraCrypt 挂载 + Windows 资源管理器可读写 + chkdsk 干净。
  */
 object ExFatFormatter {
 

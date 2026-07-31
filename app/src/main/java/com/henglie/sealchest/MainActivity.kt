@@ -83,6 +83,7 @@ import androidx.core.os.LocaleListCompat
 import com.henglie.sealchest.benchmark.BenchmarkScreen
 import com.henglie.sealchest.browse.BrowserScreen
 import com.henglie.sealchest.crypto.NativeBridge
+import com.henglie.sealchest.fs.SAFChannelOpener
 import com.henglie.sealchest.fs.VolumeFs
 import com.henglie.sealchest.core.AutoLock
 import com.henglie.sealchest.core.PinManager
@@ -153,11 +154,7 @@ class MainActivity : AppCompatActivity() {
                         val result = withContext(Dispatchers.IO) {
                             runCatching {
                                 // 预分配到目标总大小：VolumeCreator 要在末尾写备份头。
-                                ctx.contentResolver.openFileDescriptor(uri, "rw")?.use { pfd ->
-                                    java.io.RandomAccessFile("/proc/self/fd/${pfd.fd}", "rw").use { raf ->
-                                        raf.setLength(totalSize)
-                                    }
-                                } ?: throw java.io.FileNotFoundException("无法打开新建容器文件")
+                                SAFChannelOpener.openWriteOnly(ctx.contentResolver, uri).use { it.truncate(totalSize) }
                                 com.henglie.sealchest.fs.VolumeCreator.create(
                                     resolver = ctx.contentResolver,
                                     containerUri = uri,

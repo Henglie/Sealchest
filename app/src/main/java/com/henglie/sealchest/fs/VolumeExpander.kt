@@ -6,7 +6,6 @@ import com.henglie.sealchest.crypto.KeyfileMixer
 import com.henglie.sealchest.crypto.NativeBridge
 import java.io.File
 import java.io.FileNotFoundException
-import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.security.SecureRandom
@@ -28,8 +27,9 @@ import java.security.SecureRandom
  *   - ⑤ 之后崩溃 → 两头均为新大小，卷按新大小可用。FS 元数据尚未更新则 FS 看不到
  *     新增空间（安全，无损坏），需重新挂载后调 [VolumeFs.grow] 让 FS 认领新空间。
  *
- * 与 [PasswordChanger] 同层、同手法（绝对偏移原始 I/O + /proc/self/fd 写 +
- * 写前 rescue 兜底）。调用方须保证容器**未被 [MountManager] 挂载**。
+ * 与 [PasswordChanger] 同层（绝对偏移原始 I/O + 写前 rescue 兜底）。
+ * 写路径经 [SAFChannelOpener] 替代 `/proc/self/fd` 绕过 SAF 限制。
+ * 调用方须保证容器**未被 [MountManager] 挂载**。
  *
  * **FS 元数据更新不在本类职责内**（低耦合）：本类只做容器级扩展（头 + 文件）。
  * 扩展后调用方应重新挂载，再调 [VolumeFs.grow] 让 FS 认领新增空间。
@@ -121,21 +121,18 @@ object VolumeExpander {
             val newBackupOffset = HEADER_GROUP + newDataAreaSize
 
             // ⑤ 扩文件 + 写新备份头 + 写新主头（提交）。
-            val pfd = resolver.openFileDescriptor(containerUri, "rw")
-                ?: throw FileNotFoundException("无法以可写方式打开容器（需已授予写权限）")
-            pfd.use {
-                RandomAccessFile("/proc/self/fd/${it.fd}", "rw").use { raf ->
-                    val ch = raf.channel
-                    // 扩文件到新总大小（追加零字节）。
-                    if (ch.size() < newTotalSize) {
-                        raf.setLength(newTotalSize)
-                    }
-                    // 写新备份头到新偏移。
-                    writeAbsolute(ch, newBackupOffset, newBackup, HEADER_EFFECTIVE)
-                    // 写新主头到偏移 0（= 提交点）。
-                    writeAbsolute(ch, 0L, newPrimary, HEADER_EFFECTIVE)
-                    ch.force(false)
+            SAFChannelOpener.openReadWrite(resolver, containerUri).use { ch ->
+                // 扩文件到新总大小（追加零字节）。
+                // FileChannel.truncate 只在缩小时生效，扩展需通过写字节实现。
+                if (ch.size() < newTotalSize) {
+                    val pad = ByteBuffer.allocate(1)
+                    ch.write(pad, newTotalSize - 1)
                 }
+                // 写新备份头到新偏移。
+                writeAbsolute(ch, newBackupOffset, newBackup, HEADER_EFFECTIVE)
+                // 写新主头到偏移 0（= 提交点）。
+                writeAbsolute(ch, 0L, newPrimary, HEADER_EFFECTIVE)
+                ch.force(false)
             }
 
             // ⑥ 校验：用原口令重新开主头，确认新 volumeSize 正确。

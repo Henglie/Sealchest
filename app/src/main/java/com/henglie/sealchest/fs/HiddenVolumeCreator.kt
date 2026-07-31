@@ -5,7 +5,6 @@ import android.net.Uri
 import com.henglie.sealchest.crypto.KeyfileMixer
 import com.henglie.sealchest.crypto.NativeBridge
 import java.io.FileNotFoundException
-import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.security.SecureRandom
@@ -196,14 +195,10 @@ object HiddenVolumeCreator {
         hiddenPrf: Int,
         hiddenKeyfiles: List<ByteArray>,
     ) {
-        val pfd = resolver.openFileDescriptor(containerUri, "rw")
-            ?: throw FileNotFoundException("无法以可写方式打开容器（需已授予写权限）")
-
-        var raf: RandomAccessFile? = null
+        var channel: FileChannel? = null
         var reader: VolumeReader? = null
         try {
-            raf = RandomAccessFile("/proc/self/fd/${pfd.fd}", "rw")
-            val channel: FileChannel = raf.channel
+            channel = SAFChannelOpener.openReadWrite(resolver, containerUri)
 
             // 隐藏主头 → offset 64KB；隐藏备份头 → hostSize-64KB。
             writeAbsolute(channel, HIDDEN_HEADER_OFFSET, primary, HEADER_SIZE)
@@ -242,8 +237,7 @@ object HiddenVolumeCreator {
             reader.flush()
         } finally {
             runCatching { reader?.close() }
-            runCatching { raf?.close() }
-            runCatching { pfd.close() }
+            runCatching { channel?.close() }
         }
     }
 

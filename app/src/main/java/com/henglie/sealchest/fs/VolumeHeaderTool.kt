@@ -6,7 +6,7 @@ import com.henglie.sealchest.crypto.KeyfileMixer
 import com.henglie.sealchest.crypto.NativeBridge
 import java.io.FileNotFoundException
 import java.io.File
-import java.io.RandomAccessFile
+
 import java.nio.ByteBuffer
 
 /**
@@ -167,25 +167,19 @@ object VolumeHeaderTool {
     }
 
     /**
-     * 原始写：把 [data] 写到容器 [offset] 处。经 /proc/self/fd 拿双向 channel
-     * （与 MountManager 同一手法，SAF PFD + FileChannel 写只能这样）。写后 force 落盘。
+     * 原始写：把 [data] 写到容器 [offset] 处，写后 force 落盘。
      * 只覆盖 [data] 长度的字节，不改文件大小、不截断。
      */
     private fun writeRaw(resolver: ContentResolver, uri: Uri, offset: Long, data: ByteArray) {
-        val pfd = resolver.openFileDescriptor(uri, "rw")
-            ?: throw FileNotFoundException("无法以可写方式打开容器：$uri（需已授予写权限）")
-        pfd.use {
-            RandomAccessFile("/proc/self/fd/${it.fd}", "rw").use { raf ->
-                val ch = raf.channel
-                val bb = ByteBuffer.wrap(data)
-                var pos = offset
-                while (bb.hasRemaining()) {
-                    val n = ch.write(bb, pos)
-                    if (n < 0) break
-                    pos += n
-                }
-                ch.force(false)
+        SAFChannelOpener.openReadWrite(resolver, uri).use { ch ->
+            val bb = ByteBuffer.wrap(data)
+            var pos = offset
+            while (bb.hasRemaining()) {
+                val n = ch.write(bb, pos)
+                if (n < 0) break
+                pos += n
             }
+            ch.force(false)
         }
     }
 

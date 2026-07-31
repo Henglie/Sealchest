@@ -6,7 +6,6 @@ import com.henglie.sealchest.core.Settings
 import com.henglie.sealchest.crypto.NativeBridge
 import java.io.Closeable
 import java.io.FileNotFoundException
-import java.io.RandomAccessFile
 import java.nio.channels.FileChannel
 import java.util.concurrent.atomic.AtomicLong
 
@@ -42,11 +41,6 @@ object MountManager {
         val fs: VolumeFs,
         /** 是否以可写方式挂载（PFD "rw" + 双向 channel）。只读挂载为 false。 */
         val writable: Boolean = false,
-        /**
-         * 可写挂载时额外持有的 [RandomAccessFile]（经 /proc/self/fd 拿到读写 channel）。
-         * 它独占一个 fd，必须随挂载关闭，否则泄漏。只读挂载为 null。
-         */
-        private val raf: RandomAccessFile? = null,
     ) : Closeable {
         @Volatile
         var closed: Boolean = false
@@ -71,9 +65,8 @@ object MountManager {
         override fun close() {
             if (closed) return
             closed = true
-            // 先关 reader（销毁密钥 + 清缓存），再关可写 raf（若有），最后关 PFD。
+            // 先关 reader（销毁密钥 + 清缓存），再关 PFD。
             runCatching { reader.close() }
-            runCatching { raf?.close() }
             runCatching { pfd.close() }
         }
     }
@@ -114,8 +107,8 @@ object MountManager {
         pim: Int,
         prf: Int,
         /**
-         * 是否以可写方式挂载。默认 false = 只读（历史行为，零回归）。true 时 PFD 用
-         * "rw" 打开，并经 [RandomAccessFile] 拿到可读写的双向 channel 交给 [VolumeReader]，
+         * 是否以可写方式挂载。默认 false = 只读（历史行为，零回归）。true 时经
+         * [SAFChannelOpener.openReadWrite] 拿到可读写的双向 channel 交给 [VolumeReader]，
          * 写方向才能把加密数据写回真实容器。UI 侧须已 take 了带写权限的 URI。
          */
         writable: Boolean = false,
@@ -133,16 +126,12 @@ object MountManager {
             ?: throw FileNotFoundException("无法打开容器：$uri")
 
         var reader: VolumeReader? = null
-        var raf: RandomAccessFile? = null
         try {
             // 只读：FileInputStream.channel（只读 channel，历史路径不变）。
-            // 可写：FileInputStream/OutputStream 的 channel 都是单向的，VolumeReader 需要
-            //   在同一 channel 上 read+write，只能用 RandomAccessFile("rw")。它不吃 fd，
-            //   经 /proc/self/fd/<fd> 路径打开这个已由 SAF 授权的描述符，拿到双向 channel。
+            // 可写：SAFChannelOpener 从 ContentResolver 直接拿双向 FileChannel，
+            //   不依赖 /proc/self/fd（该路径在真机 SAF 下会 EACCES）。
             val channel: FileChannel = if (writable) {
-                val fd = pfd.fd
-                raf = RandomAccessFile("/proc/self/fd/$fd", "rw")
-                raf!!.channel
+                SAFChannelOpener.openReadWrite(resolver, uri)
             } else {
                 java.io.FileInputStream(pfd.fileDescriptor).channel
             }
@@ -194,7 +183,7 @@ object MountManager {
                 else -> FatFileSystem.mount(reader)
             }
 
-            val mount = Mount(idGen.getAndIncrement(), displayName, pfd, reader, fs, writable, raf)
+            val mount = Mount(idGen.getAndIncrement(), displayName, pfd, reader, fs, writable)
             // 成功了才替换 + 关旧挂载。
             current?.close()
             current = mount
@@ -210,7 +199,6 @@ object MountManager {
         } catch (t: Throwable) {
             // 失败：清掉本次半成品，绝不动 current。
             runCatching { reader?.close() }
-            runCatching { raf?.close() }
             runCatching { pfd.close() }
             // 抹掉本地口令副本。
             password.fill(0)

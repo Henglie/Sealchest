@@ -179,11 +179,9 @@ object VolumeBatchTest {
     private fun createOneContainer(context: Context, uri: Uri, cfg: Config) {
         val totalSize = TEST_DATA_SIZE + 2L * HEADER_AREA
         // 预分配到目标总大小（VolumeCreator 要在末尾写备份头）。
-        context.contentResolver.openFileDescriptor(uri, "rw")?.use { pfd ->
-            java.io.RandomAccessFile("/proc/self/fd/${pfd.fd}", "rw").use { raf ->
-                raf.setLength(totalSize)
-            }
-        } ?: throw java.io.FileNotFoundException("无法打开新建容器文件")
+        SAFChannelOpener.openWriteOnly(context.contentResolver, uri).use { ch ->
+            ch.truncate(totalSize)
+        }
 
         val resolver = context.contentResolver
         if (cfg.hidden) {

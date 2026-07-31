@@ -6,7 +6,6 @@ import com.henglie.sealchest.crypto.KeyfileMixer
 import com.henglie.sealchest.crypto.NativeBridge
 import java.io.FileNotFoundException
 import java.io.File
-import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.security.SecureRandom
 
@@ -28,7 +27,7 @@ import java.security.SecureRandom
  *   ⑥ 校验：用**新**口令重新开主头，开得了才算成功；开不了视为写坏，抛错让用户用
  *      rescue 文件恢复。
  *
- * 与 [VolumeHeaderTool]（A2 救砖）同层、同手法（绝对偏移原始 I/O + /proc/self/fd 写 +
+ * 与 [VolumeHeaderTool]（A2 救砖）同层、同手法（绝对偏移原始 I/O + SAFChannelOpener 写 +
  * 写前 rescue 兜底），互为安全网：改密码失败可用 A2 从 rescue 文件或卷尾备份头救回。
  *
  * 调用方须保证此时容器**未被 [MountManager] 挂载**（同一文件双写互踩）。
@@ -150,7 +149,7 @@ object PasswordChanger {
 
     /**
      * 写新主头 [primary]（→偏移 0）与新备份头 [backup]（→[backupHeaderOffset]），各 512B。
-     * 经 /proc/self/fd 拿双向 channel（SAF PFD 写只能这样），写后 force 落盘。
+     * 经 [SAFChannelOpener.openReadWrite] 拿双向 channel，写后 force 落盘。
      * 只覆盖各 512B 有效头，不动头组内其余字节、不改文件大小。
      */
     private fun writeHeaders(
@@ -160,15 +159,10 @@ object PasswordChanger {
         primary: ByteArray,
         backup: ByteArray,
     ) {
-        val pfd = resolver.openFileDescriptor(containerUri, "rw")
-            ?: throw FileNotFoundException("无法以可写方式打开容器（需已授予写权限）")
-        pfd.use {
-            RandomAccessFile("/proc/self/fd/${it.fd}", "rw").use { raf ->
-                val ch = raf.channel
-                writeAbsolute(ch, 0L, primary, HEADER_EFFECTIVE)
-                writeAbsolute(ch, backupHeaderOffset, backup, HEADER_EFFECTIVE)
-                ch.force(false)
-            }
+        SAFChannelOpener.openReadWrite(resolver, containerUri).use { ch ->
+            writeAbsolute(ch, 0L, primary, HEADER_EFFECTIVE)
+            writeAbsolute(ch, backupHeaderOffset, backup, HEADER_EFFECTIVE)
+            ch.force(false)
         }
     }
 

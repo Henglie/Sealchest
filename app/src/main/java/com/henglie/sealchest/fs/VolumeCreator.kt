@@ -4,8 +4,6 @@ import android.content.ContentResolver
 import android.net.Uri
 import com.henglie.sealchest.crypto.KeyfileMixer
 import com.henglie.sealchest.crypto.NativeBridge
-import java.io.FileNotFoundException
-import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.security.SecureRandom
@@ -178,20 +176,12 @@ object VolumeCreator {
         volumeLabel: String = "",
         randomFill: Boolean = false,
     ): Result<Unit> {
-        // 可写打开：SAF 要求 URI 已被授予 FLAG_GRANT_WRITE。
-        val pfd = resolver.openFileDescriptor(containerUri, "rw")
-            ?: return Result.failure(FileNotFoundException("无法打开容器：$containerUri"))
-
-        var raf: RandomAccessFile? = null
+        var channel: FileChannel? = null
         var reader: VolumeReader? = null
         try {
-            // 双向 channel：FileInputStream/OutputStream 的 channel 是单向的，
-            // VolumeReader 需要在同一 channel 上 read+write，只能用 RandomAccessFile("rw")。
-            // 它不吃 fd，经 /proc/self/fd/<fd> 打开这个已由 SAF 授权的描述符拿双向 channel。
-            // （手法与 MountManager.unlock 可写路径一致。）
-            val fd = pfd.fd
-            raf = RandomAccessFile("/proc/self/fd/$fd", "rw")
-            val channel: FileChannel = raf.channel
+            // 双向 channel：SAFChannelOpener 走 dup fd + FileInputStream/OutputStream，
+            // 不碰 /proc/self/fd，兼容 Android 10+ SELinux 限制。
+            channel = SAFChannelOpener.openReadWrite(resolver, containerUri)
 
             // ---------- 5. 写主头（偏移 0）与备份头（偏移 backupHeaderOffset）----------
             // 卷头是 native 已加密好的原始字节，直接明文写绝对偏移，不再过 XTS。
@@ -292,10 +282,9 @@ object VolumeCreator {
         } catch (t: Throwable) {
             return Result.failure(t)
         } finally {
-            // 释放顺序：先 reader（销毁密钥 + 清缓存），再 raf（独占 fd），最后 pfd。
+            // 释放顺序：先 reader（销毁密钥 + 清缓存），再 channel。
             runCatching { reader?.close() }
-            runCatching { raf?.close() }
-            runCatching { pfd.close() }
+            runCatching { channel?.close() }
         }
     }
 

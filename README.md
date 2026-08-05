@@ -1,11 +1,12 @@
 <p align="center">
-  <img src="assets/logo.svg" width="120" height="120" alt="匿匣 Sealchest logo" />
+  <img src="assets/logo.svg" width="120" height="120" alt="Sealchest logo" />
 </p>
 
-<h1 align="center">匿匣 Sealchest</h1>
+<h1 align="center">Sealchest · 匿匣</h1>
 
 <p align="center">
-  安卓上<b>无 root</b> 加载 VeraCrypt / TrueCrypt 加密容器的工具。证据级隐私，纯用户态，明文不落盘。
+  An Android tool to open VeraCrypt / TrueCrypt encrypted containers <b>without root</b>. Pure user space, nothing ever hits the disk in plaintext.<br/>
+  <b>匿匣</b> — 安卓上无 root 打开加密容器的工具
 </p>
 
 <p align="center">
@@ -22,137 +23,72 @@
 </p>
 
 <p align="center">
-  <a href="README.en.md">English README</a>
+  <a href="README.zh-CN.md">中文版 README</a>
 </p>
 
 > [!WARNING]
-> 加密工具的信任建立在互通验证之上——请务必在**桌面 VeraCrypt** 中回验匿匣写出的容器，重要数据先备份。如果遇到 Bug、兼容性问题或异常行为，请及时反馈，欢迎提交 Issue，最好附上复现步骤、日志、截图和系统版本。
+> Trust in an encryption tool rests on interoperability — always verify Sealchest-written containers in **desktop VeraCrypt**, and back up important data first. If you hit a bug, compatibility issue, or unexpected behavior, please report it promptly — open an Issue with reproduction steps, logs, screenshots, and your system version.
 
-匿匣是一款安卓应用，让你在**没有 root** 的手机上打开 VeraCrypt / TrueCrypt 加密容器，浏览、读写里面的文件。
+Sealchest (Chinese name **匿匣**) is an Android app that lets you open VeraCrypt / TrueCrypt encrypted containers on a phone **without root**, and browse the files inside.
 
----
+<p align="center">
+  <img src="%E6%BC%94%E7%A4%BA%E5%9B%BE%E7%89%87/%E4%B8%BB%E7%95%8C%E9%9D%A2.jpg" alt="Home" width="24%" />
+  <img src="%E6%BC%94%E7%A4%BA%E5%9B%BE%E7%89%87/%E8%A7%A3%E9%94%81.jpg" alt="Unlock" width="24%" />
+  <img src="%E6%BC%94%E7%A4%BA%E5%9B%BE%E7%89%87/%E5%AE%B9%E5%99%A8%E5%86%85.jpg" alt="Browse" width="24%" />
+</p>
 
-## 特色与优势
+## How it works without root
 
-> 以下每一条都是匿匣区别于同类安卓加密工具的**核心差异化能力**，经实测验证。
+Desktop VeraCrypt relies on a kernel driver to mount the container as a virtual disk. That is impossible on a non-rooted Android device. Sealchest takes a pure user-space path instead:
 
-### 无 root · 纯用户态
-绝大多数安卓 VeraCrypt 方案要靠 root + 内核驱动（dm-crypt/FUSE）才能挂容器。匿匣**完全不需要**——纯用户态解析卷头、按需解密扇区、自研文件系统读写，任何 Android 6.0+ 设备开箱即用。
+1. Parse the volume header inside the app — read the salt, derive the header key with PBKDF2, decrypt the header, extract the master key, and build the XTS decryption context;
+2. The container holds an ordinary file system; Sealchest reads that file system itself, in user space;
+3. Expose the decrypted file system through Android's **SAF (Storage Access Framework) DocumentsProvider** and a built-in browser, so the system file picker and other apps can read it like a normal folder.
 
-### 全套 VeraCrypt 密码学
-**6 种加密算法**（AES / Serpent / Twofish / Camellia / Kuznyechik）+ **5 种级联组合**，**6 种哈希/KDF**（SHA-256 / SHA-512 / Whirlpool / Streebog / BLAKE2s / Argon2id）。密码学实现**直接采用 VeraCrypt 上游 C 源码**，不自写不魔改，保证字节级一致。
+Sectors are decrypted on demand — only the sector being read is decrypted. The whole container is never written out or unpacked to disk. That is the core of the no-root approach.
 
-### FAT / exFAT / NTFS 三种文件系统全自研
-不依赖任何第三方 FS 库——FAT12/16/32、exFAT、NTFS 读写**全部从零实现**。其中 **NTFS 造盘**按 MS 规范 + ntfs-3g 公开实现自研，是安卓平台上罕见的完整 NTFS 创建能力（含 512B~64KB 全簇大小，通过 Windows chkdsk 校验）。
+## Guiding principle
 
-### 桌面 VeraCrypt 字节级互通
-匿匣写的容器 → 桌面 VeraCrypt 直接打开；桌面 VeraCrypt 写的容器 → 匿匣直接读写。**唯一判据是互通**：加解密、卷头布局、keyfile 混入、文件系统结构全部与桌面 VeraCrypt 字节级对齐。
+Sealchest is a strict Android parser for VeraCrypt containers. Its crypto and volume-format behavior must be **byte-for-byte identical** to desktop VeraCrypt, and the only criterion is **interoperability**: containers written by Sealchest open in desktop VeraCrypt, and containers written by desktop VeraCrypt read in Sealchest. The cryptographic implementation uses only upstream VeraCrypt C sources — never self-written, never modified. Only the volume-format spec (keyfile mixing, header layout, file-system structures) is reimplemented in Kotlin, with the upstream source noted in comments.
 
-### SAF DocumentsProvider 原生暴露
-通过安卓 **SAF** 把容器内文件系统暴露给系统文件管理器和任意支持 SAF 的应用——无需导出中转，其它应用可直接读取容器内文件。
+## Current capabilities
 
-### 安全增强一应俱全
-Argon2id PIN 门禁、Panic PIN 即时擦除、生物识别解锁、自动锁定（超时/息屏/切后台）、挂载期前台服务保活、明文不落盘（按扇区解密，整个容器不解开到磁盘）。
+- **Open containers** — read + write (create / overwrite / delete files, changes are encrypted back into the container and open cleanly in desktop VeraCrypt)
+- **Inner file systems** — FAT12 / FAT16 / FAT32 · exFAT · NTFS (all self-implemented read/write, no third-party FS library)
+- **Ciphers** — AES, Serpent, Twofish, Camellia, Kuznyechik and their cascades (all compiled in)
+- **Hash / KDF** — SHA-256, SHA-512, Whirlpool, Streebog, BLAKE2s, Argon2id
+- **Volume operations** — create new containers (entropy collection + finger painting + random-pool visualization), change password / PIM / PRF / keyfiles, hidden-volume unlock and creation, header backup & restore (rescue), volume expansion
+- **Keyfile unlock** — byte-for-byte reimplementation of VeraCrypt KeyFilesApply
+- **Built-in file browser** — directory navigation, image / text preview, encrypted gallery and media playback, export to phone, open-with
+- **SAF exposure** — any SAF-aware app can read files inside the container
+- **Security hardening** — Argon2id PIN gate, Panic PIN instant wipe, biometric unlock, auto-lock (timeout / screen-off / background), foreground service to stay alive while mounted
+- **UI** — Material You dynamic color + optional accent color + dark mode; **16 languages** (Chinese, English, French, German, Spanish, Japanese, Korean, Russian, Italian, Portuguese, Dutch, Arabic, Hindi, Turkish, Polish, Vietnamese — including Arabic RTL)
 
-### Material You + 16 国语言
-动态取色 + 6 种主题色 + 夜间模式；16 国语言含阿拉伯语 RTL。
+## Compatibility
 
-### 完全开源 · 完全免费
-**Apache 2.0** 开源协议，代码公开可审计，无付费版、无内购、无广告。
+- Minimum Android 6.0 (API 23), covering devices from 2015 onward
+- ABIs: arm64-v8a, armeabi-v7a, x86_64 (emulator)
 
----
+## Out of scope (Android form-factor boundary)
 
-## 它怎么做到无 root 的
+- Hidden operating system / pre-boot authentication of the system disk: the Android boot chain is fundamentally different from desktop, so this is excluded.
+- Kernel-level mounting (dm-crypt / FUSE kernel module): impossible from a pure app layer.
 
-桌面版 VeraCrypt 靠内核驱动把容器挂成虚拟盘，安卓无 root 做不到。匿匣换一条纯用户态的路：
+## Crypto core and license
 
-1. 在 app 内解析卷头——读盐、用 PBKDF2 派生头密钥、解密卷头、取出主密钥，建立 XTS 解密上下文；
-2. 容器内部是个普通文件系统，匿匣在用户态自己读写这个文件系统；
-3. 通过内置文件浏览器直接浏览 / 预览 / 导出，并额外通过安卓 **SAF（Storage Access Framework）DocumentsProvider** 把文件系统暴露给系统文件管理器和其它应用。
+Sealchest's own code is licensed under **Apache License 2.0** — full text in [`LICENSE`](LICENSE) at the repo root.
 
-扇区按需解密——读哪个扇区才解哪个，整个容器不落地、不解开到磁盘。这是无 root 方案的核心。
+The crypto core is ported from the open-source [VeraCrypt](https://www.veracrypt.fr/) (the pure-C implementation under `src/Crypto`, `src/Volume`, `src/Common`), under its original dual license:
 
-## 守本心
+- **Apache License 2.0** (AM Crypto modifications)
+- **TrueCrypt License 3.0** (inherited from TrueCrypt 7.1a)
 
-匿匣是严格的 VeraCrypt 容器安卓解析器。加解密与卷格式行为必须与桌面 VeraCrypt **字节级一致**，唯一判据是**互通**：匿匣写的容器桌面 VeraCrypt 能开、桌面 VeraCrypt 写的匿匣能读。密码学实现只采用上游 VeraCrypt 的 C 源码，不自写不魔改；仅卷格式规范（keyfile 混入、卷头布局、文件系统结构）允许 Kotlin 复刻，且注释标明上游出处。
+Sealchest is an independent product. It is not affiliated with, and does not impersonate, the VeraCrypt or TrueCrypt projects. All original copyright notices are kept under `third_party/VeraCrypt`.
 
-## 当前能力
+## Author
 
-- **打开容器**：读 + 写（新建 / 改写 / 删除文件，改动加密写回容器，桌面 VeraCrypt 可正常打开）
-- **内层文件系统**：FAT12 / FAT16 / FAT32 · exFAT · NTFS（全部自研读写，无第三方 FS 库）
-- **加密算法**：AES、Serpent、Twofish、Camellia、Kuznyechik 及其级联组合（全套编入）
-- **哈希 / KDF**：SHA-256、SHA-512、Whirlpool、Streebog、BLAKE2s、Argon2id
-- **卷操作**：创建新容器（熵采集 + 手指涂抹 + 随机池可视化）、改密码 / PIM / PRF / keyfile、隐藏卷解锁与创建、卷头备份恢复（救砖）、卷扩展
-- **keyfile 解锁**：字节级复刻 VeraCrypt KeyFilesApply
-- **内置文件浏览器**：目录导航、图片 / 文本预览、加密相册与媒体播放、导出到手机、用其它应用打开
-- **SAF 暴露**：任意支持 SAF 的应用可读取容器内文件
-- **安全增强**：Argon2id PIN 门禁、Panic PIN 即时擦除、生物识别解锁、自动锁定（超时 / 息屏 / 切后台）、挂载期前台服务保活
-- **界面**：Material You 动态取色 + 可选主题色 + 夜间模式；**16 国语言**（中英法德西日韩俄意葡荷阿拉伯印地土波越，含阿拉伯语 RTL）
+Henglie / EternalBlaze — <https://github.com/Henglie/Sealchest>
 
----
+## Keywords
 
-## 同类产品对比
-
-> 基于公开信息与实测。为客观起见，竞品不具名，以「产品 A」「产品 B」代称。
->
-> - **产品 A**：某商业加密容器应用（付费，闭源，支持多种加密格式）
-> - **产品 B**：某开源 VeraCrypt 安卓客户端（Apache 2.0，纯用户态，仅支持 FAT/exFAT）
-
-| 能力维度 | 匿匣 Sealchest | 产品 A | 产品 B |
-|:---|:---:|:---:|:---:|
-| **无需 root** | ✅ 完全纯用户态 | ⚠️ 部分场景需 root | ✅ 纯用户态 |
-| **VeraCrypt 容器读写** | ✅ 完整读写 | ✅ | ✅ 完整读写 |
-| **NTFS 读写（自研）** | ✅ 含造盘 + 全簇大小 | ❌ 依赖第三方库 | ❌ 不支持 |
-| **exFAT 读写（自研）** | ✅ | ⚠️ | ✅（FatFs 库） |
-| **FAT12/16/32 读写** | ✅ 自研 | ✅ | ✅（FatFs 库） |
-| **桌面 VeraCrypt 字节级互通** | ✅ 已验证 | ✅ | ✅ |
-| **6 种加密算法 + 5 种级联** | ✅ 全套 | ✅ | ✅ 全套 |
-| **6 种哈希/KDF（含 Argon2id）** | ✅ 全套 | ✅ | ⚠️ 容器 KDF 5 种，无 Argon2id |
-| **隐藏卷** | ✅ 解锁 + 创建 | ✅ | ✅ 解锁 + 创建 |
-| **Keyfile** | ✅ 字节级复刻 | ✅ | ✅ |
-| **SAF DocumentsProvider** | ✅ 原生暴露 | ⚠️ 有限 | ❌ |
-| **明文不落盘** | ✅ 按扇区解密 | ✅ | ✅ |
-| **Argon2id PIN 门禁** | ✅ | ❌ | ✅ |
-| **Panic PIN 即时擦除** | ✅ | ⚠️ | ✅ |
-| **生物识别解锁** | ✅ | ⚠️ | ✅ |
-| **自动锁定（超时/息屏/后台）** | ✅ | ✅ | ✅ |
-| **Material You 动态取色** | ✅ | ❌ | ✅ |
-| **多语言** | 16 国 | 有限 | 14 国 |
-| **最低 Android 版本** | 6.0（API 23） | 因厂商而异 | 10（API 29） |
-| **开源协议** | ✅ Apache 2.0 | ❌ 闭源 | ✅ Apache 2.0 |
-| **价格** | 免费 | 付费 / Lite 版 | 免费（Play Store 版有 Pro 内购） |
-
-> **小结**：匿匣在「NTFS 全簇自研 + SAF 暴露 + Argon2id 容器 KDF + 最低 Android 6.0 + 完全无内购」五项上具有明确的差异化优势。产品 A 功能面广但闭源付费；产品 B 同为开源纯用户态，但文件系统仅 FAT/exFAT、不支持 NTFS，且 minSdk 29 限制覆盖机型。
-
----
-
-## 兼容性
-
-- 最低 Android 6.0（API 23），覆盖 2015 年至今的设备
-- ABI：arm64-v8a、armeabi-v7a、x86_64（模拟器）
-
-## 不做（安卓形态边界）
-
-- 隐藏操作系统 / 系统盘预引导认证：安卓引导链与桌面根本不同，排除。
-- 内核级挂载（dm-crypt / FUSE 内核模块）：纯 app 层做不到。
-
-## 许可
-
-匿匣自身代码采用 **Apache License 2.0**，全文见根目录 [`LICENSE`](LICENSE)。
-
-加解密核心移植自开源的 [VeraCrypt](https://www.veracrypt.fr/)（`src/Crypto`、`src/Volume`、`src/Common` 的纯 C 实现），该部分遵循 VeraCrypt 原有双许可：
-
-- **Apache License 2.0**（AM Crypto 修改部分）
-- **TrueCrypt License 3.0**（继承自 TrueCrypt 7.1a 部分）
-
-匿匣是独立产品，不隶属于、也不冒充 VeraCrypt 或 TrueCrypt 项目。所有原始版权声明保留于 `third_party/VeraCrypt`。
-
-## 作者
-
-恒烈 / EternalBlaze
-
-项目地址：<https://github.com/Henglie/Sealchest>
-
----
-
-<sub>关键词 / Keywords：VeraCrypt Android · TrueCrypt Android · 安卓 VeraCrypt · 无 root 挂载 · no-root mount · 加密容器 · encrypted container · XTS · 隐藏卷 hidden volume · keyfile · exFAT NTFS FAT · SAF DocumentsProvider · 明文不落盘 · on-the-fly decryption · 隐私加密 · privacy · Kuznyechik Serpent Twofish Camellia · Argon2id · 移动加密盘 · mobile crypto volume</sub>
+<sub>VeraCrypt Android · TrueCrypt Android · open VeraCrypt on Android · no-root mount · encrypted container · encrypted volume · on-the-fly decryption · userspace filesystem · XTS · PBKDF2 · Argon2id · AES Serpent Twofish Camellia Kuznyechik · SHA-512 Whirlpool Streebog BLAKE2s · FAT exFAT NTFS · hidden volume · plausible deniability · keyfile · SAF DocumentsProvider · no plaintext on disk · Android encryption app · veracrypt mobile · encrypted file manager · privacy</sub>
